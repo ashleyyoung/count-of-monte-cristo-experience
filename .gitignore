@@ -1,5 +1,6 @@
 .DS_Store
 node_modules/
+package-lock.json
 .env
 .env.*
 !.env.example
@@ -7,3 +8,4 @@ dist/
 build/
 .next/
 .vercel/
+tsconfig.tsbuildinfo
