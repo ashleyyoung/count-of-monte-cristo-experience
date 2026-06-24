@@ -33,6 +33,7 @@ import {
   DRY_RUN,
   REFRESH_GALLICA_CACHE,
   logStructuredError,
+  runCliMain,
   type GallicaStepOptions,
 } from "./_shared";
 
@@ -71,8 +72,21 @@ export async function runResolveIssue(
   return { day, ark, pageCount, gallicaUrl, dryRun };
 }
 
+const HELP = `resolve-issue — find the Gallica issue ARK for a date
+
+Writes: doc.gallica_issue_url + doc.gallica_page_count on the day_content row
+Next:   npx tsx scripts/gallica/pull-scans.ts --date=YYYY-MM-DD --skip-existing
+
+Usage:
+  npx tsx scripts/gallica/resolve-issue.ts --date=YYYY-MM-DD`;
+
 async function main() {
+  if (process.argv.includes("--help")) {
+    console.log(HELP);
+    return;
+  }
   const day = parseCliDate();
+  console.error(`[resolve-issue] ${day}: resolving Gallica issue ARK`);
   try {
     const summary = await runResolveIssue({
       day,
@@ -80,13 +94,14 @@ async function main() {
       refreshGallicaCache: REFRESH_GALLICA_CACHE,
     });
     console.log(JSON.stringify(summary));
+    console.error(
+      `[resolve-issue] Done. ARK ${summary.ark} (${summary.pageCount} page(s)). ` +
+        `Next: npx tsx scripts/gallica/pull-scans.ts --date=${day} --skip-existing`,
+    );
   } catch (err) {
     logStructuredError({ day, stage: "resolve-issue" }, err);
     process.exit(1);
   }
 }
 
-main().catch((err) => {
-  console.error("[resolve-issue] Unexpected error:", err);
-  process.exit(1);
-});
+runCliMain(import.meta.url, main, "resolve-issue");

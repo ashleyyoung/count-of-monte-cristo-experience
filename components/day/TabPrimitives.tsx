@@ -5,6 +5,7 @@
  * Each tab imports from here to stay DRY.
  */
 
+import type { ReactNode } from "react";
 import styled from "styled-components";
 import type { ResolvedDocItem } from "@/lib/content";
 import type { ContributorInfo } from "./ContributorByline";
@@ -89,6 +90,17 @@ export const BlockImage = styled.img`
 // ---------------------------------------------------------------------------
 // Render helpers
 // ---------------------------------------------------------------------------
+
+/** Gutenberg plain-text italics: _word_ → <em>word</em> */
+function renderGutenbergInline(text: string): ReactNode {
+  const parts = text.split(/(_[^_\n]+_)/g);
+  return parts.map((part, j) => {
+    if (part.startsWith("_") && part.endsWith("_") && part.length > 2) {
+      return <em key={j}>{part.slice(1, -1)}</em>;
+    }
+    return part;
+  });
+}
 
 export interface AdminItemContext {
   /** The installment date (YYYY-MM-DD) for history lookups. */
@@ -200,7 +212,7 @@ function TextItemWrapper({
   return (
     <div>
       <ProseBlock>
-        {paragraphs.map((p, j) => <p key={j}>{p}</p>)}
+        {paragraphs.map((p, j) => <p key={j}>{renderGutenbergInline(p)}</p>)}
       </ProseBlock>
       {contributor && (
         <ContributorByline contributor={contributor} />

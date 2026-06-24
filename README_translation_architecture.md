@@ -20,21 +20,24 @@ Implementation lives in Sprint 6 (`.cursor/plans/mc_sprint_6_cms_pipelines_launc
 
 The French we translate from, in order of preference per section. Higher tiers are cleaner; we record which tier was used.
 
-| Tier | Source                                                                                  | Scope                                    | Why / quality                                                                                                          |
-| ---- | --------------------------------------------------------------------------------------- | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| 1    | **FMC Project** (Francophone Music Criticism Project, SAS-Space)                        | Music feuilletons (Berlioz et al.)       | Hand-corrected scholarly transcription; gold standard for music                                                        |
-| 2    | **Europeana Newspapers OLR** (BnF dataset, JSON `contentAsText`)                        | Whole issues, if Débats 1844-46 included | OCR + optical layout recognition: article-segmented, hyphenation stripped, cleaner than raw `texteBrut`                |
-| 3    | **Gallica `texteBrut`** (`{ark}.texteBrut`)                                             | Whole issues, always available           | Free baseline OCR; flat dump, no section structure; self-reported accuracy ranges ~63-85%                              |
-| 4    | **Fable 5 vision transcription** of the cropped section image (experimental; see below) | Low-confidence sections only             | Modern multimodal OCR; better on damaged type, but hallucination risk, so used as a targeted upgrade, not the baseline |
-| -    | **Project Gutenberg FR / Wikisource**                                                   | The novel's chapter feuilleton only      | Clean public-domain French of the novel; never vision-OCR'd                                                            |
+| Tier | Source                                                                         | Scope                                    | Why / quality                                                                                                                                                      |
+| ---- | ------------------------------------------------------------------------------ | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1    | **FMC Project** (Francophone Music Criticism Project, SAS-Space)               | Music feuilletons (Berlioz et al.)       | Hand-corrected scholarly transcription; gold standard for music                                                                                                    |
+| 2    | **Europeana Newspapers OLR** (BnF dataset, JSON `contentAsText`)               | Whole issues, if Débats 1844-46 included | OCR + optical layout recognition: article-segmented, hyphenation stripped, cleaner than raw `texteBrut`                                                            |
+| 3    | **Gallica `texteBrut`** (`{ark}.texteBrut`)                                    | Whole issues, always available           | Free baseline OCR; flat dump, no section structure; self-reported accuracy ranges ~63-85%. Default source (`fetch-french-textebrut.ts`)                            |
+| 3    | **Gallica ALTO** (`{ark}/f{n}.alto`, per-page XML stitched in reading order)   | Whole issues, always available           | Same BnF OCR as `texteBrut` via a different endpoint; the working fallback when `texteBrut` is Cloudflare-blocked (`fetch-french-alto.ts`)                         |
+| 4    | **Claude vision transcription** of the R2 page scans (experimental; see below) | Last resort when both Tier 3 paths fail  | Modern multimodal OCR; better on damaged type, but hallucination + content-filter risk, so a manual escape hatch (`transcribe-french-vision.ts`), not the baseline |
+| -    | **Project Gutenberg FR / Wikisource**                                          | The novel's chapter feuilleton only      | Clean public-domain French of the novel; never vision-OCR'd                                                                                                        |
 
 Tesseract is intentionally absent. Gallica and Europeana already provide BnF-run OCR, so we never OCR facsimiles with a legacy engine.
+
+There is **no silent fallback chain** at runtime: each French source is its own script that writes one file under `{date}/fr-intermediate/` and throws on failure. You choose the tier by which script you run. `translate-day.ts` then reads whatever intermediate is already in R2 (precedence: texteBrut → ALTO → vision), and fetches `texteBrut` once itself only when none exists.
 
 ---
 
 ## English text: live-text selection
 
-We always produce our own Claude translation of every section. Separately, where an external English translation exists, we import it. `update-day-content.ts` then chooses which one is the **live public** text per section:
+We always produce our own Claude translation of every section. Separately, where an external English translation exists, we import it. The pipeline writes the live text to `day_content` immediately as each section completes. `update-day-content.ts` is a utility for re-syncing `day_content` after external translations are imported, applying this precedence:
 
 | Origin (`translation_origin`) | Source                                                           | When it is the live text                                       |
 | ----------------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------- |
@@ -80,15 +83,17 @@ TRANSLATION_VISION_MODEL=claude-opus-4-8
 
 ```mermaid
 flowchart TD
-    Issue["Issue (date)"] --> Src["extract-text.ts<br/>pick FR source by hierarchy<br/>record source_text_url + fr-intermediate (R2)"]
-    Src --> TL["translate.ts / lib/translate/pipeline.ts<br/>(configured Claude model)<br/>translate + segment whole issue<br/>SINGLE WRITER: persist every section to translation_versions"]
+    Issue["Issue (date)"] --> FR["French source: run ONE<br/>fetch-french-textebrut.ts (default)<br/>fetch-french-alto.ts (when blocked)<br/>transcribe-french-vision.ts (last resort)"]
+    FR --> R2["{date}/fr-intermediate/*.txt in R2"]
+    R2 --> TL["translate-day.ts → lib/translate/pipeline.ts<br/>(configured Claude model)<br/>read cached FR (else fetch texteBrut once)<br/>translate + segment whole issue<br/>SINGLE WRITER: persist every section to translation_versions"]
     Ext["import-existing.ts<br/>hberlioz.com / Gutenberg → existing_published"] --> Pick
     TL --> Pick{"External embeddable<br/>translation for section?"}
     Pick -- yes --> Live1["LIVE = existing_published<br/>(our Claude kept as challenger)"]
     Pick -- no --> Live2["LIVE = machine_claude"]
-    Live1 --> Up["update-day-content.ts<br/>set live TextItem + snapshot prior"]
-    Live2 --> Up
-    Src -- "source missing" --> Fail["log + surface (no OCR fallback)"]
+    Live1 --> DC["day_content updated immediately<br/>(per section, inside pipeline)"]
+    Live2 --> DC
+    Ext -- "after import" --> Resync["update-day-content.ts<br/>re-sync day_content (utility only)"]
+    FR -- "source fails" --> Fail["log + surface (no silent OCR fallback)"]
     TL -- "API failure after retries" --> Fail
 ```
 
@@ -96,9 +101,9 @@ flowchart TD
 
 Only **one code path** writes a given `translation_origin` to `translation_versions`:
 
-- `scripts/translate/translate.ts` / `lib/translate/pipeline.ts` → `machine_claude` rows
+- `scripts/translate/translate-day.ts` / `lib/translate/pipeline.ts` → `machine_claude` rows
 - `scripts/translate/import-existing.ts` → `existing_published` rows
-- `update-day-content.ts` → **only selects + snapshots**; never authors new version rows
+- `update-day-content.ts` → **only selects + snapshots**; never authors new version rows; run this after `import-existing.ts` to re-sync `day_content`
 - `translateDay()` server action → calls `lib/translate/pipeline.ts` (same path as scripts)
 
 All run lifecycle (queued → running → done/failed) is tracked separately in `translation_runs`, not `translation_versions`.
@@ -139,9 +144,11 @@ Every translation we ever produce (live or challenger) is a row, keyed by `(inst
                                            Each run writes a new key; the live TextItem and each
                                            translation_versions row point at their own, so re-runs
                                            never overwrite prior versions (history compare relies on this).
-{date}/fr-intermediate/{source}.txt        French source actually translated (admin-only, various filenames)
-{date}/fr-intermediate/vision-page{n}.txt  Vision-model FR transcription (on-demand only)
-gallica/{date}/page-{n}.jpg                Full-page facsimiles
+{date}/fr-intermediate/gallica-textebrut.txt  French source — Gallica texteBrut (default; Tier 3)
+{date}/fr-intermediate/gallica-alto.txt       French source — Gallica ALTO per-page stitch (Tier 3)
+{date}/fr-intermediate/vision-issue.txt       French source — Claude vision OCR of page scans (Tier 4)
+{date}/fr-intermediate/vision-page{n}.txt     Per-page vision transcript (cache for resume)
+gallica/{date}/page-{n}.jpg                   Full-page facsimiles
 ```
 
 ---
@@ -191,7 +198,7 @@ Update this section with actual results when the experiment is run.
 
 Translating a whole issue is a multi-minute Claude run, too long for a serverless request. So the work runs on **your own machine**, either from a terminal or triggered from the admin UI, never on the deployed server.
 
-There is **one code path** for both triggers: `scripts/translate/translate-day.ts`. It owns the run lifecycle and delegates the per-section work to the Sprint 9 pipeline (extract-text -> `lib/llm/translate.ts` -> single-writer `translation_versions` -> update-day-content) via the `runDayTranslationPipeline` seam.
+There is **one code path** for both triggers: `scripts/translate/translate-day.ts`. It owns the run lifecycle and delegates the per-section work to `lib/translate/pipeline.ts` (read the cached French intermediate, else fetch Gallica texteBrut once -> `lib/llm/translate.ts` -> single-writer `translation_versions` -> `day_content` persisted immediately per section).
 
 ### Two-terminal local workflow
 
@@ -199,7 +206,10 @@ There is **one code path** for both triggers: `scripts/translate/translate-day.t
 # Terminal 1 — the app (for reviewing results)
 npm run dev
 
-# Terminal 2 — translate a day directly
+# Terminal 2 — full ingest for one day (resolve → … → translate)
+npx tsx scripts/ingest-day.ts --date=1844-08-28 --skip-existing
+
+# …or just (re)translate a day whose French is already in R2
 npx tsx scripts/translate/translate-day.ts --date=1844-08-28
 ```
 
@@ -219,7 +229,7 @@ flowchart TD
     Action --> Row["insert translation_runs (queued)"]
     Row --> Spawn["spawn detached tsx translate-day.ts"]
     Spawn --> Return["return immediately"]
-    Spawn -.runs on your machine.-> Work["runDayTranslationPipeline (Sprint 9)"]
+    Spawn -.runs on your machine.-> Work["runDayTranslation (lib/translate/pipeline.ts)"]
     Work --> Status["update translation_runs: running -> done/failed"]
     Status -.you refresh.-> Page["day page shows results + status"]
 ```

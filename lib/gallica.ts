@@ -425,6 +425,26 @@ export function deriveFeuilletonRegion(
 // Fetch wrappers (I/O — HTTP calls, no R2/DB writes)
 // ---------------------------------------------------------------------------
 
+/** Options for Gallica HTTP fetch helpers (retry logging, etc.). */
+export interface GallicaFetchOptions {
+  log?: (msg: string) => void;
+  /** Short label in log lines, e.g. "texteBrut". */
+  label?: string;
+}
+
+function gallicaLog(options?: GallicaFetchOptions): (msg: string) => void {
+  const label = options?.label;
+  const prefix = label ? `[gallica:${label}]` : "[gallica]";
+  const sink =
+    options?.log ?? ((msg: string) => console.error(`${prefix} ${msg}`));
+  return (msg: string) => sink(msg);
+}
+
+function truncateForLog(text: string, max: number): string {
+  const flat = text.replace(/\s+/g, " ").trim();
+  return flat.length <= max ? flat : `${flat.slice(0, max)}…`;
+}
+
 /**
  * Gallica fetch helper with structured error logging.
  * Throws a GallicaFetchError on non-OK HTTP responses.
@@ -442,17 +462,60 @@ export class GallicaFetchError extends Error {
 }
 
 /** Cloudflare / origin errors that often clear on retry. */
-const RETRYABLE_STATUS = new Set([403, 429, 502, 503, 504, 522, 524]);
+const RETRYABLE_STATUS = new Set([403, 429, 502, 503, 504, 522, 524, 525]);
 
-const GALLICA_FETCH_HEADERS = {
-  "User-Agent": "monte-cristo-archive/1.0 (educational project)",
-  Accept: "application/xml, text/xml, text/plain, application/json, */*",
-};
+/**
+ * Default identifying User-Agent. BnF asks bots to identify themselves with a
+ * contact. Override via GALLICA_USER_AGENT, or supply just a contact (email or
+ * URL) via GALLICA_CONTACT to have it appended automatically.
+ */
+function defaultUserAgent(): string {
+  const contact = process.env.GALLICA_CONTACT?.trim();
+  const base = "monte-cristo-archive/1.0 (non-commercial research project)";
+  return contact ? `${base}; +${contact}` : base;
+}
+
+function gallicaUserAgent(): string {
+  return process.env.GALLICA_USER_AGENT?.trim() || defaultUserAgent();
+}
+
+/**
+ * Build request headers for a Gallica URL. Includes a Referer pointing at the
+ * document viewer (Cloudflare treats "viewer → resource" navigations as more
+ * human), an identifying User-Agent, and browser-like Accept hints.
+ */
+function buildGallicaHeaders(url: string): Record<string, string> {
+  const headers: Record<string, string> = {
+    "User-Agent": gallicaUserAgent(),
+    Accept:
+      "text/plain, text/html, application/xhtml+xml, application/xml;q=0.9, image/avif, image/webp, */*;q=0.8",
+    "Accept-Language": "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7",
+    "Cache-Control": "no-cache",
+    Pragma: "no-cache",
+    "Upgrade-Insecure-Requests": "1",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "same-origin",
+    "Sec-Fetch-User": "?1",
+  };
+
+  const ark = parseArkFromGallicaUrl(url);
+  if (ark) {
+    headers["Referer"] = `${GALLICA_BASE}/ark:/12148/${ark}`;
+  } else {
+    headers["Referer"] = `${GALLICA_BASE}/`;
+  }
+
+  return headers;
+}
 
 /** Per-attempt fetch timeout (Gallica Issues can take 10+ s when healthy). */
 const FETCH_TIMEOUT_MS = 90_000;
 
-const FETCH_MAX_ATTEMPTS = 6;
+const FETCH_MAX_ATTEMPTS = Number(process.env.GALLICA_MAX_ATTEMPTS) || 6;
+
+/** Cap on any single backoff wait (default 5 min). Override via GALLICA_MAX_BACKOFF_MS. */
+const MAX_BACKOFF_MS = Number(process.env.GALLICA_MAX_BACKOFF_MS) || 300_000;
 
 function networkErrorCode(err: unknown): string | undefined {
   if (!(err instanceof Error)) return undefined;
@@ -468,15 +531,17 @@ function retryDelayMs(
   status?: number,
   networkCode?: string,
 ): number {
-  if (status === 403) {
-    const base = 30_000 * 2 ** attempt;
-    return base + Math.floor(Math.random() * 1_000);
+  // 403/429 = Cloudflare bot protection / rate limit. Back off generously so we
+  // do not dig the IP deeper into the penalty box: 60s, 120s, 240s … capped.
+  if (status === 403 || status === 429) {
+    const base = Math.min(60_000 * 2 ** attempt, MAX_BACKOFF_MS);
+    return base + Math.floor(Math.random() * 2_000);
   }
   if (networkCode === "ENOTFOUND" || networkCode === "EAI_AGAIN") {
     const dnsDelays = [5_000, 15_000, 30_000, 60_000, 90_000, 120_000];
     return (dnsDelays[attempt] ?? 120_000) + Math.floor(Math.random() * 500);
   }
-  const base = 2_000 * 2 ** attempt;
+  const base = Math.min(2_000 * 2 ** attempt, MAX_BACKOFF_MS);
   return base + Math.floor(Math.random() * 500);
 }
 
@@ -521,47 +586,81 @@ function isRetryableNetworkError(err: unknown): boolean {
 async function gallicaFetchResponse(
   url: string,
   maxAttempts = FETCH_MAX_ATTEMPTS,
+  options?: GallicaFetchOptions,
 ): Promise<Response> {
+  const log = gallicaLog(options);
   let lastHttpError: GallicaFetchError | undefined;
   let lastNetworkError: Error | undefined;
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const attemptNum = attempt + 1;
+    log(
+      `attempt ${attemptNum}/${maxAttempts}: GET ${url} (timeout ${FETCH_TIMEOUT_MS / 1000}s)`,
+    );
+    const attemptStart = Date.now();
+    let pendingDelayMs = 0;
+
     try {
       const res = await fetch(url, {
-        headers: GALLICA_FETCH_HEADERS,
+        headers: buildGallicaHeaders(url),
         signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
-      if (res.ok) return res;
+      const attemptMs = Date.now() - attemptStart;
+
+      if (res.ok) {
+        const contentType = res.headers.get("content-type") ?? "unknown";
+        const contentLength = res.headers.get("content-length");
+        log(
+          `attempt ${attemptNum} OK in ${attemptMs}ms: HTTP ${res.status}; ` +
+            `content-type=${contentType}` +
+            (contentLength ? `; content-length=${contentLength}` : ""),
+        );
+        return res;
+      }
 
       lastHttpError = new GallicaFetchError(
         url,
         res.status,
         `HTTP ${res.status} from ${url}`,
       );
+      log(
+        `attempt ${attemptNum} failed in ${attemptMs}ms: HTTP ${res.status} from ${url}`,
+      );
 
       if (!RETRYABLE_STATUS.has(res.status) || attempt === maxAttempts - 1) {
         throw lastHttpError;
       }
+
+      pendingDelayMs = retryDelayMs(attempt, res.status);
+      log(
+        `HTTP ${res.status} is retryable; waiting ${(pendingDelayMs / 1000).toFixed(1)}s before retry…`,
+      );
     } catch (err) {
       if (err instanceof GallicaFetchError) throw err;
 
+      const attemptMs = Date.now() - attemptStart;
       lastNetworkError =
         err instanceof Error ? err : new Error(networkErrorDetail(err));
+      const detail = networkErrorDetail(err);
+      const code = networkErrorCode(err);
+      log(
+        `attempt ${attemptNum} network error in ${attemptMs}ms: ${detail}` +
+          (code ? ` (${code})` : ""),
+      );
 
       if (!isRetryableNetworkError(err) || attempt === maxAttempts - 1) {
         throw new GallicaFetchError(url, 0, networkErrorDetail(err), {
           cause: err,
         });
       }
+
+      pendingDelayMs = retryDelayMs(attempt, undefined, code);
+      log(
+        `network error is retryable; waiting ${(pendingDelayMs / 1000).toFixed(1)}s before retry…`,
+      );
     }
 
-    await sleep(
-      retryDelayMs(
-        attempt,
-        lastHttpError?.status,
-        networkErrorCode(lastNetworkError),
-      ),
-    );
+    await sleep(pendingDelayMs);
   }
 
   if (lastHttpError) throw lastHttpError;
@@ -575,8 +674,11 @@ async function gallicaFetchResponse(
   );
 }
 
-async function gallicaFetch(url: string): Promise<string> {
-  const res = await gallicaFetchResponse(url);
+async function gallicaFetch(
+  url: string,
+  options?: GallicaFetchOptions,
+): Promise<string> {
+  const res = await gallicaFetchResponse(url, FETCH_MAX_ATTEMPTS, options);
   return res.text();
 }
 
@@ -692,10 +794,10 @@ export function isGallicaThrottleError(err: unknown): boolean {
       const code = networkErrorCode(err);
       return code === "ENOTFOUND" || code === "EAI_AGAIN";
     }
-    return [403, 429, 502, 503, 504, 522, 524].includes(err.status);
+    return [403, 429, 502, 503, 504, 522, 524, 525].includes(err.status);
   }
   if (err instanceof Error) {
-    if (/HTTP (403|429|502|503|504|522|524)/.test(err.message)) return true;
+    if (/HTTP (403|429|502|503|504|522|524|525)/.test(err.message)) return true;
     if (/DNS lookup failed/.test(err.message)) return true;
     const code = networkErrorCode(err);
     return code === "ENOTFOUND" || code === "EAI_AGAIN";
@@ -754,6 +856,72 @@ export async function fetchAltoXml(
 export async function fetchTexteBrut(
   issueArk: string,
   page?: number,
+  options?: GallicaFetchOptions,
 ): Promise<string> {
-  return gallicaFetch(texteBrutUrl(issueArk, page));
+  const log = gallicaLog({ ...options, label: options?.label ?? "texteBrut" });
+  const url = texteBrutUrl(issueArk, page);
+  const startedAt = Date.now();
+
+  log(`fetching ${url}`);
+
+  let res: Response;
+  try {
+    res = await gallicaFetchResponse(url, FETCH_MAX_ATTEMPTS, {
+      ...options,
+      label: options?.label ?? "texteBrut",
+    });
+  } catch (err) {
+    const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);
+    if (err instanceof GallicaFetchError) {
+      log(
+        `gave up after ${elapsed}s: ${err.message} (final status=${err.status})`,
+      );
+    } else {
+      log(
+        `gave up after ${elapsed}s: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+    throw err;
+  }
+
+  const body = await res.text();
+  const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);
+  const trimmed = body.trim();
+
+  log(
+    `read body in ${elapsed}s total: ${body.length} chars (${trimmed.length} trimmed)`,
+  );
+
+  if (trimmed.length === 0) {
+    log("body is empty after trim");
+    throw new GallicaFetchError(
+      url,
+      res.status,
+      "texteBrut response body is empty",
+    );
+  }
+  if (/^\s*</.test(trimmed) && /<html|<!doctype/i.test(trimmed)) {
+    log(
+      `body looks like HTML, not plain OCR. First 200 chars: ${truncateForLog(trimmed, 200)}`,
+    );
+    throw new GallicaFetchError(
+      url,
+      res.status,
+      "texteBrut returned HTML instead of plain OCR text",
+    );
+  }
+  if (trimmed.length < 200) {
+    log(
+      `body is suspiciously short (<200 chars). Full text: ${truncateForLog(trimmed, 500)}`,
+    );
+    throw new GallicaFetchError(
+      url,
+      res.status,
+      `texteBrut body too short (${trimmed.length} chars)`,
+    );
+  }
+
+  log(`preview: ${truncateForLog(trimmed, 120)}`);
+
+  return body;
 }

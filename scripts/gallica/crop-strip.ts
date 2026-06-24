@@ -28,6 +28,7 @@ import {
   SKIP_EXISTING,
   REFRESH_GALLICA_CACHE,
   logStructuredError,
+  runCliMain,
   sleep,
   ALTO_DELAY_MS,
   type GallicaStepOptions,
@@ -181,8 +182,21 @@ export async function runCropStrip(
   };
 }
 
+const HELP = `crop-strip — crop the page-1 feuilleton strip → R2
+
+Writes: the strip image in R2 + doc.feuilleton_strip
+Next:   npx tsx scripts/translate/fetch-french-textebrut.ts --date=YYYY-MM-DD
+
+Usage:
+  npx tsx scripts/gallica/crop-strip.ts --date=YYYY-MM-DD [--skip-existing]`;
+
 async function main() {
+  if (process.argv.includes("--help")) {
+    console.log(HELP);
+    return;
+  }
   const day = parseCliDate();
+  console.error(`[crop-strip] ${day}: cropping feuilleton strip → R2`);
   try {
     const summary = await runCropStrip({
       day,
@@ -192,6 +206,10 @@ async function main() {
       manualRegion: parseCliRegion(),
     });
     console.log(JSON.stringify(summary));
+    console.error(
+      `[crop-strip] Done. Strip stored for ${day}. ` +
+        `Next: npx tsx scripts/translate/fetch-french-textebrut.ts --date=${day}`,
+    );
   } catch (err) {
     logStructuredError(
       { day, page: FEUILLETON_PAGE, stage: "crop-strip" },
@@ -201,7 +219,4 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  console.error("[crop-strip] Unexpected error:", err);
-  process.exit(1);
-});
+runCliMain(import.meta.url, main, "crop-strip");

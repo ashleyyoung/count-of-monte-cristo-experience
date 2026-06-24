@@ -9,7 +9,7 @@
  *   2. machine_claude — our Claude translation (if no external source)
  *
  * Single-writer rule: this script only SELECTS + SNAPSHOTS. It does NOT author
- * new translation_versions rows (that is translate.ts's job).
+ * new translation_versions rows (that is translate-day.ts / pipeline.ts's job).
  *
  * Usage:
  *   npx tsx scripts/translate/update-day-content.ts --date=1844-08-28 [--dry-run]
@@ -193,7 +193,20 @@ function setSectionItem(
   return updated;
 }
 
+const HELP = `update-day-content — snapshot the live text into day_content
+
+Reads:  translation_versions for the date (existing_published > machine_claude)
+Writes: day_content.doc so the day page shows the current text
+Next:   open http://localhost:3001/day/YYYY-MM-DD
+
+Usage:
+  npx tsx scripts/translate/update-day-content.ts --date=YYYY-MM-DD`;
+
 async function main() {
+  if (process.argv.includes("--help")) {
+    console.log(HELP);
+    return;
+  }
   const date = parseCliDate();
   console.error(
     `[update-day-content] Processing ${date}${DRY_RUN ? " (dry-run)" : ""}…`,
@@ -260,6 +273,10 @@ async function main() {
       dry_run: DRY_RUN,
       sections: results,
     }),
+  );
+  console.error(
+    `[update-day-content] Done. ${set.length} section(s) set for ${date}. ` +
+      `Next: open http://localhost:3001/day/${date}`,
   );
 }
 

@@ -16,18 +16,21 @@
 
 import { createClient } from "@supabase/supabase-js";
 import {
-  translateAndSegment,
+  translateAndSegmentByPage,
+  translatePaperPages,
+  resolveTranslationModel,
   type SegmentedTranslation,
   type SectionTranslation,
 } from "../llm/translate";
 import {
   resolveIssueArk,
-  fetchTexteBrut,
   gallicaPermalink,
   texteBrutUrl,
+  parseArkFromGallicaUrl,
   DEBATS_PERIODICAL_ARK,
 } from "../gallica";
 import { putR2Text, isR2Configured } from "../r2-server";
+import { fetchTexteBrutToR2, loadCachedFrench } from "./french-source";
 import { parseDayDoc, type DayDoc, type TextItem } from "../types/content";
 
 // ---------------------------------------------------------------------------
@@ -54,7 +57,8 @@ export const ALL_SECTIONS: SectionKey[] = [
   "debats.literature",
   "art_exhibitions",
   "science",
-  "galignani",
+  // galignani is excluded: Galignani's Messenger is a separate English paper,
+  // ingested on its own (import-existing / future Gallica fetch), not from Débats OCR.
 ];
 
 export interface TranslationFailure {
@@ -77,6 +81,13 @@ export interface TranslationRunSummary {
   failed: TranslationFailure[];
   /** Aggregate cost across all API calls in this run. */
   cost_usd_total: number;
+}
+
+export interface RunDayTranslationOptions {
+  /** Re-fetch Gallica texteBrut even when an R2 intermediate already exists. */
+  forceFetch?: boolean;
+  /** Override TRANSLATION_MODEL for this run (e.g. claude-sonnet-4-5). */
+  model?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -239,7 +250,7 @@ function pickSection(
     case "science":
       return seg.science;
     case "galignani":
-      return seg.galignani;
+      return null;
   }
 }
 
@@ -330,6 +341,85 @@ async function insertVersionRow(
   return data.id as string;
 }
 
+async function persistDayDoc(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: ReturnType<typeof makeClient>,
+  date: string,
+  doc: DayDoc,
+  log: (msg: string) => void,
+): Promise<void> {
+  parseDayDoc(doc);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
+    .from("day_content")
+    .upsert(
+      { installment_date: date, doc },
+      { onConflict: "installment_date" },
+    );
+  if (error) {
+    throw new Error(
+      `[pipeline] Failed to save day_content for ${date}: ${error.message}`,
+    );
+  }
+  log(`[pipeline] Saved day_content.doc for ${date}.`);
+}
+
+/** Derive issue ARK from day_content without calling the Gallica Issues API. */
+function arkFromDoc(doc: DayDoc): { ark: string; gallicaUrl: string } | null {
+  if (doc.gallica_issue_url) {
+    const ark = parseArkFromGallicaUrl(doc.gallica_issue_url);
+    if (ark) {
+      return { ark, gallicaUrl: doc.gallica_issue_url };
+    }
+  }
+
+  for (const section of ALL_SECTIONS) {
+    for (const item of getSectionItems(doc, section)) {
+      if (item.gallica_url) {
+        const ark = parseArkFromGallicaUrl(item.gallica_url);
+        if (ark) {
+          return { ark, gallicaUrl: item.gallica_url };
+        }
+      }
+      if (item.source_text_url) {
+        const ark = parseArkFromGallicaUrl(item.source_text_url);
+        if (ark) {
+          return { ark, gallicaUrl: gallicaPermalink(ark) };
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+async function resolveSourceIssue(
+  date: string,
+  doc: DayDoc,
+  log: (msg: string) => void,
+): Promise<{ ark: string; gallicaUrl: string }> {
+  const fromDoc = arkFromDoc(doc);
+  if (fromDoc) {
+    log(
+      `[pipeline] Using ARK from day_content (no Issues API): ${fromDoc.ark}`,
+    );
+    return fromDoc;
+  }
+
+  log(`[pipeline] Resolving Gallica ARK for ${date}…`);
+  const issueInfo = await resolveIssueArk(DEBATS_PERIODICAL_ARK, date);
+  if (!issueInfo) {
+    throw new Error(
+      `[pipeline] No Gallica issue found for ${date}. Cannot fetch source text.`,
+    );
+  }
+  log(`[pipeline] ARK: ${issueInfo.ark}`);
+  return {
+    ark: issueInfo.ark,
+    gallicaUrl: gallicaPermalink(issueInfo.ark),
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Main pipeline
 // ---------------------------------------------------------------------------
@@ -337,20 +427,20 @@ async function insertVersionRow(
 /**
  * Run the full day translation pipeline for a given date.
  *
- * 1. Resolve the Gallica issue ARK and fetch texteBrut (Tier 3 baseline).
- * 2. Call translateAndSegment() to translate + segment the whole issue.
- * 3. For each fixed section:
- *    - No live item yet → create it (machine_claude, live).
- *    - Live item is machine_claude → snapshot + re-translate (update in place).
- *    - Live item is existing_published / public-domain → generate non-live
- *      challenger row only; never overwrite the published text.
- * 4. Save the updated day_content.doc.
+ * Incremental writes (safe to stop mid-run; completed steps are persisted):
+ *  1. Load FR OCR from R2 when present (skip Gallica texteBrut unless forceFetch).
+ *  2. Resolve issue ARK from day_content when possible (skip Issues API).
+ *  3. Translate full paper page by page → day_content.translated_pages (saved first).
+ *  4. Translate + segment each French page → merge sections → day_content per tab.
+ *  5. Per section: EN text to R2 → translation_versions row → day_content.doc
+ *     (live machine_claude updates only; challengers skip day_content).
  *
  * Failures are collected per-section (not thrown for the batch).
  */
 export async function runDayTranslation(
   date: string,
   log: (msg: string) => void = () => {},
+  options: RunDayTranslationOptions = {},
 ): Promise<TranslationRunSummary> {
   const supabase = makeClient();
   const summary: TranslationRunSummary = {
@@ -380,115 +470,225 @@ export async function runDayTranslation(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   doc = parseDayDoc((rawRow as any)?.doc ?? {});
 
-  // ------------------------------------------------------------------
-  // 2. Resolve Gallica ARK + fetch texteBrut
-  // ------------------------------------------------------------------
-  log(`[pipeline] Resolving Gallica ARK for ${date}…`);
-  const issueInfo = await resolveIssueArk(DEBATS_PERIODICAL_ARK, date);
-  if (!issueInfo) {
-    throw new Error(
-      `[pipeline] No Gallica issue found for ${date}. Cannot fetch source text.`,
-    );
-  }
-  const { ark } = issueInfo;
-  log(`[pipeline] ARK: ${ark}`);
-
-  log(`[pipeline] Fetching texteBrut…`);
-  const frenchText = await fetchTexteBrut(ark);
-  if (!frenchText || frenchText.trim().length < 200) {
-    throw new Error(
-      `[pipeline] texteBrut returned empty or suspiciously short text for ${ark}. ` +
-        `Check Gallica availability.`,
-    );
-  }
-  log(`[pipeline] Fetched ${frenchText.length} chars of French text.`);
+  const forceFetch = options.forceFetch === true;
+  const model = resolveTranslationModel(options.model);
+  log(`[pipeline] Translation model: ${model}`);
 
   // ------------------------------------------------------------------
-  // 3. Store the French intermediate on R2 (admin-only diff reference)
+  // 2. French source: reuse the R2 intermediate if present, else fetch
+  //    Gallica texteBrut once. Other sources (ALTO, vision) are produced by
+  //    their own scripts beforehand and picked up here from the cache.
   // ------------------------------------------------------------------
-  const frIntermediateKey = `${date}/fr-intermediate/gallica-textebrut.txt`;
-  const sourceTextUrl = texteBrutUrl(ark);
-  const gallicaUrl = gallicaPermalink(ark);
+  const { ark, gallicaUrl } = await resolveSourceIssue(date, doc, log);
 
-  if (isR2Configured()) {
-    try {
-      await putR2Text(frIntermediateKey, frenchText);
-      log(`[pipeline] FR intermediate written to R2: ${frIntermediateKey}`);
-    } catch (err) {
-      log(
-        `[pipeline] Warning: could not write FR intermediate to R2: ${(err as Error).message}`,
-      );
-    }
-  }
+  const cached = forceFetch ? null : await loadCachedFrench(date, ark, log);
+  const frenchSource = cached ?? (await fetchTexteBrutToR2({ date, ark, log }));
 
-  // ------------------------------------------------------------------
-  // 4. Translate + segment with Claude
-  // ------------------------------------------------------------------
-  log(`[pipeline] Sending to Claude for translation + segmentation…`);
-  const { result: segmented, usage } = await translateAndSegment(
+  const {
     frenchText,
-    date,
-  );
-  summary.cost_usd_total += usage.cost_usd;
+    r2Key: frIntermediateKeyUsed,
+    sourceTextUrl,
+    lowConfidence: frenchSourceLowConfidence,
+  } = frenchSource;
+
+  summary.cost_usd_total += frenchSource.cost_usd;
   log(
-    `[pipeline] Translation complete in ${(usage.duration_ms / 1000).toFixed(1)}s. ` +
-      `Cost: $${usage.cost_usd.toFixed(4)} (${usage.tokens_in}in / ${usage.tokens_out}out).`,
+    `[pipeline] French source: ${frenchSource.sourceLabel} ` +
+      `(${frenchText.length} chars, tier ${frenchSource.sourceTier}` +
+      `${frenchSourceLowConfidence ? ", low confidence" : ""}).`,
   );
 
-  // Cost is incurred once for the whole-issue call; attribute it evenly across
-  // the sections that actually produced content, so the per-version ledger sums
-  // back to the run total rather than recording zeros.
-  const producedSections = ALL_SECTIONS.filter((s) => {
-    const r = pickSection(segmented, s);
-    return r && r.text.trim().length > 0;
-  });
-  const perSectionCost =
-    producedSections.length > 0 ? usage.cost_usd / producedSections.length : 0;
+  if (!isR2Configured()) {
+    throw new Error(
+      "[pipeline] R2 is not configured; cannot persist FR intermediate.",
+    );
+  }
+
+  if (!doc.gallica_issue_url) {
+    doc = { ...doc, gallica_issue_url: gallicaUrl };
+    await persistDayDoc(supabase, date, doc, log);
+  }
 
   // Each run writes immutable, version-unique R2 keys so prior translations are
-  // preserved for side-by-side comparison. The live TextItem and each
-  // translation_versions row point at their own key; re-running never overwrites
-  // a previous version's text.
+  // preserved for side-by-side comparison.
   const runStamp = new Date().toISOString().replace(/[:.]/g, "-");
 
   // ------------------------------------------------------------------
-  // 5. Process each section
+  // 5. Full-paper page-by-page translation (run first — persist paid output)
   // ------------------------------------------------------------------
-  for (const section of ALL_SECTIONS) {
-    const sectionResult = pickSection(segmented, section);
+  log(`[pipeline] Translating full paper page by page…`);
+  try {
+    const { pages, totalUsage } = await translatePaperPages(frenchText, date, {
+      log,
+      model,
+    });
+    summary.cost_usd_total += totalUsage.cost_usd;
+    log(
+      `[pipeline] Page translations complete: ${pages.length} pages in ` +
+        `${(totalUsage.duration_ms / 1000).toFixed(1)}s. ` +
+        `Cost: $${totalUsage.cost_usd.toFixed(4)} (${totalUsage.tokens_in}in / ${totalUsage.tokens_out}out).`,
+    );
 
-    if (!sectionResult || !sectionResult.text.trim()) {
-      log(`[pipeline] ${section}: no content in this issue — skipping.`);
-      summary.skipped++;
-      continue;
+    const pageItems: TextItem[] = [];
+    for (const { pageNumber, text } of pages) {
+      const pageKey = `${date}/en/paper-page-${pageNumber}/${runStamp}.txt`;
+      await putR2Text(pageKey, text);
+      log(`[pipeline] Page ${pageNumber}: EN text written to R2: ${pageKey}`);
+
+      pageItems.push({
+        kind: "text",
+        text_r2_key: pageKey,
+        source: "Journal des Débats",
+        original_date: date,
+        gallica_url: gallicaUrl,
+        license: "Public Domain",
+        attribution: `Machine translation by ${totalUsage.model}`,
+        slot_key: `paper-page-${pageNumber}`,
+        translation_origin: "machine_claude",
+        translation_model: totalUsage.model,
+        source_text_url: sourceTextUrl,
+        fr_intermediate_r2_key: frIntermediateKeyUsed,
+        low_confidence: frenchSourceLowConfidence || undefined,
+      });
     }
 
-    try {
-      // Determine the slot_key
-      const existingItems = getSectionItems(doc, section);
-      const existingItem = existingItems[0]; // one text block per section in this pipeline
-      const slotKey = existingItem?.slot_key ?? `${section}-1`;
+    doc = { ...doc, translated_pages: pageItems };
+    await persistDayDoc(supabase, date, doc, log);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    log(`[pipeline] ERROR during page-by-page translation: ${message}`);
+    summary.failed.push({
+      section: "translated_pages",
+      slot_key: "paper-page",
+      stage: "translate",
+      error: message,
+    });
+  }
 
-      // Write English text to an immutable, version-unique R2 key.
-      const enKey = `${date}/en/${slotKey}/${runStamp}.txt`;
-      if (isR2Configured()) {
-        await putR2Text(enKey, sectionResult.text);
+  // ------------------------------------------------------------------
+  // 6. Translate + segment by page (Overview, Débats tabs, etc.)
+  // ------------------------------------------------------------------
+  let segmented: SegmentedTranslation | null = null;
+  let segmentUsage: {
+    model: string;
+    tokens_in: number;
+    tokens_out: number;
+    cost_usd: number;
+    duration_ms: number;
+  } | null = null;
+
+  try {
+    log(
+      `[pipeline] Sending to Claude for per-page translation + segmentation…`,
+    );
+    const segmentResult = await translateAndSegmentByPage(frenchText, date, {
+      log,
+      model,
+    });
+    segmented = segmentResult.result;
+    segmentUsage = segmentResult.usage;
+    summary.cost_usd_total += segmentResult.usage.cost_usd;
+    log(
+      `[pipeline] Segmentation complete: ${segmentResult.pageCount} page(s) in ` +
+        `${(segmentResult.usage.duration_ms / 1000).toFixed(1)}s. ` +
+        `Cost: $${segmentResult.usage.cost_usd.toFixed(4)} ` +
+        `(${segmentResult.usage.tokens_in}in / ${segmentResult.usage.tokens_out}out).`,
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    log(`[pipeline] ERROR during segmentation: ${message}`);
+    summary.failed.push({
+      section: "segmentation",
+      slot_key: "segmentation",
+      stage: "translate",
+      error: message,
+    });
+  }
+
+  if (segmented && segmentUsage) {
+    const producedSections = ALL_SECTIONS.filter((s) => {
+      const r = pickSection(segmented!, s);
+      return r && r.text.trim().length > 0;
+    });
+    const perSectionCost =
+      producedSections.length > 0
+        ? segmentUsage.cost_usd / producedSections.length
+        : 0;
+
+    for (const section of ALL_SECTIONS) {
+      const sectionResult = pickSection(segmented, section);
+
+      if (!sectionResult || !sectionResult.text.trim()) {
+        log(`[pipeline] ${section}: no content in this issue — skipping.`);
+        summary.skipped++;
+        continue;
       }
 
-      const isExistingPublished =
-        existingItem &&
-        (existingItem.translation_origin === "existing_published" ||
-          existingItem.translation_origin === "staff_translation");
+      try {
+        const existingItems = getSectionItems(doc, section);
+        const existingItem = existingItems[0];
+        const slotKey = existingItem?.slot_key ?? `${section}-1`;
 
-      if (isExistingPublished) {
-        // ------------------------------------------------------------------
-        // Existing published/public-domain: add challenger row only.
-        // Never overwrite the live published text.
-        // ------------------------------------------------------------------
-        log(
-          `[pipeline] ${section}: existing_published live item — adding challenger.`,
-        );
-        await insertVersionRow(supabase, {
+        const enKey = `${date}/en/${slotKey}/${runStamp}.txt`;
+        await putR2Text(enKey, sectionResult.text);
+        log(`[pipeline] ${section}: EN text written to R2: ${enKey}`);
+
+        const isExistingPublished =
+          existingItem &&
+          (existingItem.translation_origin === "existing_published" ||
+            existingItem.translation_origin === "staff_translation");
+
+        if (isExistingPublished) {
+          log(
+            `[pipeline] ${section}: existing_published live item — adding challenger.`,
+          );
+          const challengerId = await insertVersionRow(supabase, {
+            installment_date: date,
+            section,
+            slot_key: slotKey,
+            text_r2_key: enKey,
+            source: "Journal des Débats",
+            original_date: date,
+            gallica_url: gallicaUrl,
+            license: "Public Domain",
+            attribution: `Machine translation by ${segmentUsage.model}`,
+            model_used: segmentUsage.model,
+            source_text_url: sourceTextUrl,
+            fr_intermediate_r2_key: frIntermediateKeyUsed,
+            cost_usd: perSectionCost,
+            low_confidence:
+              sectionResult.low_confidence || frenchSourceLowConfidence,
+            admin_notes: sectionResult.admin_notes ?? null,
+          });
+          log(
+            `[pipeline] ${section}: challenger translation_versions row ${challengerId}`,
+          );
+          summary.challengers++;
+          continue;
+        }
+
+        if (existingItem) {
+          if (existingItem.translation_version_id) {
+            log(
+              `[pipeline] ${section}: re-translating machine_claude item (prior state already versioned).`,
+            );
+          } else {
+            log(
+              `[pipeline] ${section}: snapshotting legacy item + re-translating.`,
+            );
+            await snapshotToVersions(
+              supabase,
+              date,
+              section,
+              existingItem,
+              log,
+            );
+          }
+        } else {
+          log(`[pipeline] ${section}: creating new live item.`);
+        }
+
+        const versionId = await insertVersionRow(supabase, {
           installment_date: date,
           section,
           slot_key: slotKey,
@@ -497,113 +697,57 @@ export async function runDayTranslation(
           original_date: date,
           gallica_url: gallicaUrl,
           license: "Public Domain",
-          attribution: `Machine translation by ${usage.model}`,
-          model_used: usage.model,
+          attribution: `Machine translation by ${segmentUsage.model}`,
+          model_used: segmentUsage.model,
           source_text_url: sourceTextUrl,
-          fr_intermediate_r2_key: frIntermediateKey,
+          fr_intermediate_r2_key: frIntermediateKeyUsed,
           cost_usd: perSectionCost,
-          low_confidence: sectionResult.low_confidence,
+          low_confidence:
+            sectionResult.low_confidence || frenchSourceLowConfidence,
           admin_notes: sectionResult.admin_notes ?? null,
         });
-        summary.challengers++;
-        continue;
-      }
 
-      if (existingItem) {
-        // ------------------------------------------------------------------
-        // Existing machine_claude: re-translate in place.
-        // Its current state is already a translation_versions row when it has a
-        // translation_version_id (producers write a row on creation), so we only
-        // snapshot legacy items that predate version tracking to avoid duplicates.
-        // ------------------------------------------------------------------
-        if (existingItem.translation_version_id) {
-          log(
-            `[pipeline] ${section}: re-translating machine_claude item (prior state already versioned).`,
-          );
+        const updatedItem: TextItem = {
+          kind: "text",
+          text_r2_key: enKey,
+          source: "Journal des Débats",
+          original_date: date,
+          gallica_url: gallicaUrl,
+          license: "Public Domain",
+          attribution: `Machine translation by ${segmentUsage.model}`,
+          contributor_id: existingItem?.contributor_id,
+          slot_key: slotKey,
+          translation_origin: "machine_claude",
+          translation_model: segmentUsage.model,
+          source_text_url: sourceTextUrl,
+          fr_intermediate_r2_key: frIntermediateKeyUsed,
+          low_confidence:
+            sectionResult.low_confidence ||
+            frenchSourceLowConfidence ||
+            undefined,
+          admin_notes: sectionResult.admin_notes,
+          translation_version_id: versionId,
+        };
+
+        doc = setSectionTextItems(doc, section, [updatedItem]);
+        await persistDayDoc(supabase, date, doc, log);
+
+        if (!existingItem) {
+          summary.created++;
         } else {
-          log(
-            `[pipeline] ${section}: snapshotting legacy item + re-translating.`,
-          );
-          await snapshotToVersions(supabase, date, section, existingItem, log);
+          summary.translated++;
         }
-      } else {
-        log(`[pipeline] ${section}: creating new live item.`);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        log(`[pipeline] ERROR processing ${section}: ${message}`);
+        summary.failed.push({
+          section,
+          slot_key: `${section}-1`,
+          stage: "write",
+          error: message,
+        });
       }
-
-      // Insert the new version row (single-writer)
-      const versionId = await insertVersionRow(supabase, {
-        installment_date: date,
-        section,
-        slot_key: slotKey,
-        text_r2_key: enKey,
-        source: "Journal des Débats",
-        original_date: date,
-        gallica_url: gallicaUrl,
-        license: "Public Domain",
-        attribution: `Machine translation by ${usage.model}`,
-        model_used: usage.model,
-        source_text_url: sourceTextUrl,
-        fr_intermediate_r2_key: frIntermediateKey,
-        cost_usd: perSectionCost,
-        low_confidence: sectionResult.low_confidence,
-        admin_notes: sectionResult.admin_notes ?? null,
-      });
-
-      // Build the updated TextItem
-      const updatedItem: TextItem = {
-        kind: "text",
-        text_r2_key: enKey,
-        source: "Journal des Débats",
-        original_date: date,
-        gallica_url: gallicaUrl,
-        license: "Public Domain",
-        attribution: `Machine translation by ${usage.model}`,
-        contributor_id: existingItem?.contributor_id,
-        slot_key: slotKey,
-        translation_origin: "machine_claude",
-        translation_model: usage.model,
-        source_text_url: sourceTextUrl,
-        fr_intermediate_r2_key: frIntermediateKey,
-        low_confidence: sectionResult.low_confidence || undefined,
-        admin_notes: sectionResult.admin_notes,
-        translation_version_id: versionId,
-      };
-
-      // Update the doc
-      doc = setSectionTextItems(doc, section, [updatedItem]);
-
-      if (!existingItem) {
-        summary.created++;
-      } else {
-        summary.translated++;
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      log(`[pipeline] ERROR processing ${section}: ${message}`);
-      summary.failed.push({
-        section,
-        slot_key: `${section}-1`,
-        stage: "write",
-        error: message,
-      });
     }
-  }
-
-  // ------------------------------------------------------------------
-  // 6. Save updated doc
-  // ------------------------------------------------------------------
-  log(`[pipeline] Saving updated day_content.doc for ${date}…`);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error: saveErr } = await (supabase as any)
-    .from("day_content")
-    .upsert(
-      { installment_date: date, doc },
-      { onConflict: "installment_date" },
-    );
-  if (saveErr) {
-    throw new Error(
-      `[pipeline] Failed to save day_content for ${date}: ${saveErr.message}`,
-    );
   }
 
   log(

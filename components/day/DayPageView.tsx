@@ -20,6 +20,7 @@ import DebatsTab from "@/components/day/DebatsTab";
 import ArtTab from "@/components/day/ArtTab";
 import ScienceTab from "@/components/day/ScienceTab";
 import OriginalPaperTab from "@/components/day/OriginalPaperTab";
+import TranslatedPaperTab from "@/components/day/TranslatedPaperTab";
 import GalignaniTab from "@/components/day/GalignaniTab";
 
 /** Latest local translation run for this day (admin-only; null when none). */
@@ -151,7 +152,7 @@ function describeRun(run: TranslationRunStatus): string {
 }
 
 const VALID_TABS: TabId[] = [
-  "overview", "chapter", "debats", "art", "science", "original", "galignani",
+  "overview", "chapter", "debats", "art", "science", "original", "translated", "galignani",
 ];
 
 function parseTab(raw: string | null | undefined, fallback: TabId): TabId {
@@ -179,8 +180,9 @@ function getTabContent(
     case "debats":     return <DebatsTab data={data} contributors={contributors} />;
     case "art":        return <ArtTab data={data} contributors={contributors} />;
     case "science":    return <ScienceTab data={data} contributors={contributors} />;
-    case "original":   return <OriginalPaperTab data={data} />;
-    case "galignani":  return <GalignaniTab data={data} contributors={contributors} />;
+    case "original":    return <OriginalPaperTab data={data} />;
+    case "translated":  return <TranslatedPaperTab data={data} contributors={contributors} />;
+    case "galignani":   return <GalignaniTab data={data} contributors={contributors} />;
     default:           return <OverviewTab data={data} contributors={contributors} />;
   }
 }

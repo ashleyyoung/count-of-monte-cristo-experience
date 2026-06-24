@@ -204,6 +204,14 @@ export const DayDocSchema = z.object({
 
   /** Galignani's Messenger content for this date. */
   galignani: z.array(DocItemSchema).default([]),
+
+  /**
+   * Per-page full-paper translations. Each item corresponds to one ALTO page
+   * (page 1, 2, …) translated verbatim, without section segmentation.
+   * Populated by the pipeline's page-by-page translation pass.
+   * Shown on the "Translated paper" tab for complete coverage.
+   */
+  translated_pages: z.array(TextItemSchema).default([]),
 });
 
 export type DayDoc = z.infer<typeof DayDocSchema>;

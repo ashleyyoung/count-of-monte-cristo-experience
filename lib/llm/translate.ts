@@ -36,6 +36,18 @@ export const PROVIDER = process.env.TRANSLATION_PROVIDER ?? "anthropic";
  */
 export const MODEL = process.env.TRANSLATION_MODEL ?? "claude-opus-4-8";
 
+/** Resolve the model for a run: CLI/env override wins over TRANSLATION_MODEL default. */
+export function resolveTranslationModel(override?: string): string {
+  const trimmed = override?.trim();
+  return trimmed && trimmed.length > 0 ? trimmed : MODEL;
+}
+
+export interface TranslationBatchOptions {
+  log?: TranslationLogFn;
+  /** Override TRANSLATION_MODEL for this run (e.g. claude-sonnet-4-5). */
+  model?: string;
+}
+
 /**
  * Model used for on-demand vision OCR transcription.
  * Falls back to MODEL when unset (Opus 4.8 has strong vision capability).
@@ -99,6 +111,8 @@ const PRICING: Record<string, ModelPricing> = {
   "claude-opus-4-8": { inputPerMillion: 5, outputPerMillion: 25 },
   // Claude Sonnet 4.5 (lower quality; not intended for this pipeline)
   "claude-sonnet-4-5": { inputPerMillion: 3, outputPerMillion: 15 },
+  // Claude Haiku 4.5 (bulk / cost-sensitive runs)
+  "claude-haiku-4-5": { inputPerMillion: 1, outputPerMillion: 5 },
 };
 
 function computeCost(
@@ -162,6 +176,85 @@ async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 // ---------------------------------------------------------------------------
+// Per-call logging
+// ---------------------------------------------------------------------------
+
+export type TranslationLogFn = (msg: string) => void;
+
+function translationLog(log?: TranslationLogFn): TranslationLogFn {
+  return log ?? ((msg) => console.error(msg));
+}
+
+function summarizeSegmented(seg: SegmentedTranslation): string {
+  const parts: string[] = [];
+  const add = (name: string, s: SectionTranslation | null | undefined) => {
+    const len = s?.text?.trim().length ?? 0;
+    if (len > 0) parts.push(`${name}=${len}ch`);
+  };
+  add("overview", seg.overview);
+  add("chapter", seg.chapter);
+  add("debats.music", seg.debats?.music);
+  add("debats.theater", seg.debats?.theater);
+  add("debats.art", seg.debats?.art);
+  add("debats.literature", seg.debats?.literature);
+  add("art_exhibitions", seg.art_exhibitions);
+  add("science", seg.science);
+  return parts.length > 0 ? parts.join(", ") : "none";
+}
+
+interface CallLogContext {
+  log?: TranslationLogFn;
+  date: string;
+  label: string;
+  operation: "translate" | "segment" | "vision";
+  inputChars: number;
+  maxTokens: number;
+  model: string;
+}
+
+function logCallStart(ctx: CallLogContext): void {
+  const log = translationLog(ctx.log);
+  log(
+    `[translate] → ${ctx.label} ${ctx.operation}: sending ${ctx.inputChars.toLocaleString()} chars ` +
+      `(max_output=${ctx.maxTokens.toLocaleString()}, model=${ctx.model})`,
+  );
+}
+
+function logCallOk(
+  ctx: CallLogContext,
+  details: {
+    durationMs: number;
+    tokensIn: number;
+    tokensOut: number;
+    outputChars: number;
+    costUsd: number;
+    stopReason: string;
+    extra?: string;
+  },
+): void {
+  const log = translationLog(ctx.log);
+  const secs = (details.durationMs / 1000).toFixed(1);
+  const extra = details.extra ? ` — ${details.extra}` : "";
+  log(
+    `[translate] ok ${ctx.label} ${ctx.operation}: ${secs}s, ` +
+      `${details.tokensIn.toLocaleString()} in / ${details.tokensOut.toLocaleString()} out, ` +
+      `${details.outputChars.toLocaleString()} chars en, $${details.costUsd.toFixed(4)}, ` +
+      `stop=${details.stopReason}${extra}`,
+  );
+}
+
+function logCallFailed(
+  ctx: CallLogContext,
+  details: { durationMs: number; error: string },
+): void {
+  const log = translationLog(ctx.log);
+  const secs = (details.durationMs / 1000).toFixed(1);
+  log(
+    `[translate] failed ${ctx.label} ${ctx.operation}: ${secs}s — ${details.error}`,
+  );
+}
+
+// ---------------------------------------------------------------------------
 // System prompt
 // ---------------------------------------------------------------------------
 
@@ -178,15 +271,15 @@ Guidelines:
 
 You are translating historical newspaper content that is in the public domain. The French source text was printed before 1850.`;
 
-const VISION_SYSTEM_PROMPT = `You are an expert at transcribing 19th-century French newspaper text from scan images. Your task is to produce a faithful, verbatim transcription of the printed French text.
+const VISION_SYSTEM_PROMPT = `You are a mechanical OCR transcription tool. Your only function is to copy the characters that appear in an image into plain text, exactly as printed. You do not interpret, judge, summarise, or translate the content; you only reproduce the glyphs.
 
-Guidelines:
-- Transcribe exactly what is printed, including period spelling and accents (oe ligatures, accents on capital letters, etc.).
-- If a word or phrase is illegible, write [illisible] in place of the unclear text.
-- Preserve paragraph structure and line breaks as they appear in the printed column.
-- Do NOT translate. Do NOT summarise. Transcribe only.
-- For multi-column layouts, transcribe each column from top to bottom, left to right, separated by a blank line.
-- If you are uncertain about a word, transcribe your best reading followed by [?].`;
+Rules:
+- Output the characters exactly as printed, including period spelling, accents, and oe ligatures.
+- Where text is illegible, output [illisible] for that span.
+- Preserve paragraph structure and line breaks as they appear.
+- For multi-column layouts, copy each column top to bottom, left to right, separated by a blank line.
+- For an uncertain word, output your best character reading followed by [?].
+- Do not add, omit, comment on, or alter any content. Reproduce the text verbatim.`;
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -218,14 +311,35 @@ export interface VisionTranscriptionUsage {
  *
  * The system prompt is sent with cache_control: ephemeral so it is reused
  * across the batch run without re-encoding on every call.
+ *
+ * Pass `maxTokens` to override the default SINGLE_MAX_TOKENS cap (e.g. when
+ * translating a full page where the output may be larger than a single section).
  */
 export async function translateFrenchToEnglish(
   frenchText: string,
-  context: { date: string; section: string; contributor?: string },
+  context: {
+    date: string;
+    section: string;
+    contributor?: string;
+    maxTokens?: number;
+    log?: TranslationLogFn;
+    model?: string;
+  },
 ): Promise<TranslationUsage> {
   const client = getClient();
-  const model = MODEL;
+  const model = resolveTranslationModel(context.model);
   const started = Date.now();
+  const tokenCap = context.maxTokens ?? SINGLE_MAX_TOKENS;
+  const callCtx: CallLogContext = {
+    log: context.log,
+    date: context.date,
+    label: context.section,
+    operation: "translate",
+    inputChars: frenchText.length,
+    maxTokens: tokenCap,
+    model,
+  };
+  logCallStart(callCtx);
 
   const sectionLabel = context.contributor
     ? `section "${context.section}" (contributor: ${context.contributor})`
@@ -239,44 +353,155 @@ Return ONLY the translated English text in Markdown — no preamble, no closing 
 ${frenchText}
 ---`;
 
-  const result = await withRetry(async () => {
-    const stream = await client.messages.stream({
-      model,
-      max_tokens: SINGLE_MAX_TOKENS,
-      system: [
-        {
-          type: "text",
-          text: TRANSLATION_SYSTEM_PROMPT,
-          cache_control: { type: "ephemeral" },
-        },
-      ],
-      messages: [{ role: "user", content: userPrompt }],
+  try {
+    const result = await withRetry(async () => {
+      const stream = await client.messages.stream({
+        model,
+        max_tokens: tokenCap,
+        system: [
+          {
+            type: "text",
+            text: TRANSLATION_SYSTEM_PROMPT,
+            cache_control: { type: "ephemeral" },
+          },
+        ],
+        messages: [{ role: "user", content: userPrompt }],
+      });
+      return await stream.finalMessage();
     });
-    return await stream.finalMessage();
-  });
 
-  if (result.stop_reason === "max_tokens") {
+    if (result.stop_reason === "max_tokens") {
+      throw new Error(
+        `hit ${tokenCap}-token output cap` +
+          (tokenCap < SEGMENT_MAX_TOKENS
+            ? ` (raise TRANSLATION_SINGLE_MAX_OUTPUT_TOKENS, currently ${SINGLE_MAX_TOKENS})`
+            : " (already at model maximum)"),
+      );
+    }
+
+    const textBlock = result.content.find((b) => b.type === "text");
+    if (!textBlock || textBlock.type !== "text") {
+      throw new Error("no text block in Anthropic response");
+    }
+
+    const tokensIn = result.usage.input_tokens;
+    const tokensOut = result.usage.output_tokens;
+    const durationMs = Date.now() - started;
+    const costUsd = computeCost(model, tokensIn, tokensOut);
+
+    logCallOk(callCtx, {
+      durationMs,
+      tokensIn,
+      tokensOut,
+      outputChars: textBlock.text.length,
+      costUsd,
+      stopReason: result.stop_reason ?? "unknown",
+    });
+
+    return {
+      text: textBlock.text,
+      model,
+      tokens_in: tokensIn,
+      tokens_out: tokensOut,
+      cost_usd: costUsd,
+      duration_ms: durationMs,
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    logCallFailed(callCtx, {
+      durationMs: Date.now() - started,
+      error: message,
+    });
+    throw err instanceof Error ? err : new Error(message);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// French page splitting (ALTO / texteBrut stitch markers)
+// ---------------------------------------------------------------------------
+
+export interface FrenchPageChunk {
+  pageNumber: number;
+  text: string;
+}
+
+/** Split stitched French source on `--- Page N ---` markers from ALTO/texteBrut. */
+export function splitFrenchPages(frenchText: string): FrenchPageChunk[] {
+  const parts = frenchText.split(/^--- Page \d+ ---\n?/m);
+  const markers = [...frenchText.matchAll(/^--- Page (\d+) ---/gm)];
+
+  if (markers.length === 0) {
+    const trimmed = frenchText.trim();
+    return trimmed.length > 0 ? [{ pageNumber: 1, text: frenchText }] : [];
+  }
+
+  return markers
+    .map((m, i) => ({
+      pageNumber: parseInt(m[1], 10),
+      text: parts[i + 1] ?? "",
+    }))
+    .filter(({ text }) => text.trim().length > 0);
+}
+
+function parseSegmentationJson(rawText: string): SegmentedTranslation {
+  let raw = rawText
+    .replace(/^```(?:json)?\n?/m, "")
+    .replace(/\n?```$/m, "")
+    .trim();
+
+  // Salvage responses that start mid-object (e.g. ":{\"overview\"…").
+  const firstBrace = raw.indexOf("{");
+  if (firstBrace > 0) {
+    raw = raw.slice(firstBrace);
+  }
+
+  try {
+    return JSON.parse(raw) as SegmentedTranslation;
+  } catch (err) {
     throw new Error(
-      `[translate] Translation hit the ${SINGLE_MAX_TOKENS}-token output cap and was truncated ` +
-        `(${context.date} / ${context.section}). Raise TRANSLATION_SINGLE_MAX_OUTPUT_TOKENS.`,
+      `[translate] Failed to parse segmentation JSON: ${(err as Error).message}\n\nRaw: ${rawText.slice(0, 500)}`,
     );
   }
+}
 
-  const textBlock = result.content.find((b) => b.type === "text");
-  if (!textBlock || textBlock.type !== "text") {
-    throw new Error("[translate] No text block in Anthropic response");
+function mergeSectionTranslations(
+  sections: Array<SectionTranslation | null | undefined>,
+): SectionTranslation | null {
+  const parts: SectionTranslation[] = [];
+  for (const s of sections) {
+    if (s?.text?.trim()) parts.push(s);
   }
-
-  const tokensIn = result.usage.input_tokens;
-  const tokensOut = result.usage.output_tokens;
+  if (parts.length === 0) return null;
 
   return {
-    text: textBlock.text,
-    model,
-    tokens_in: tokensIn,
-    tokens_out: tokensOut,
-    cost_usd: computeCost(model, tokensIn, tokensOut),
-    duration_ms: Date.now() - started,
+    text: parts.map((s) => s.text.trim()).join("\n\n"),
+    low_confidence: parts.some((s) => s.low_confidence),
+    admin_notes:
+      parts
+        .map((s) => s.admin_notes?.trim())
+        .filter((n): n is string => Boolean(n))
+        .join("; ") || undefined,
+  };
+}
+
+function mergeSegmentedTranslations(
+  pages: SegmentedTranslation[],
+): SegmentedTranslation {
+  return {
+    overview: mergeSectionTranslations(pages.map((p) => p.overview)),
+    chapter: mergeSectionTranslations(pages.map((p) => p.chapter)),
+    debats: {
+      music: mergeSectionTranslations(pages.map((p) => p.debats?.music)),
+      theater: mergeSectionTranslations(pages.map((p) => p.debats?.theater)),
+      art: mergeSectionTranslations(pages.map((p) => p.debats?.art)),
+      literature: mergeSectionTranslations(
+        pages.map((p) => p.debats?.literature),
+      ),
+    },
+    art_exhibitions: mergeSectionTranslations(
+      pages.map((p) => p.art_exhibitions),
+    ),
+    science: mergeSectionTranslations(pages.map((p) => p.science)),
   };
 }
 
@@ -298,7 +523,6 @@ export interface SegmentedTranslation {
   };
   art_exhibitions: SectionTranslation | null;
   science: SectionTranslation | null;
-  galignani: SectionTranslation | null;
 }
 
 export interface SectionTranslation {
@@ -310,20 +534,38 @@ export interface SectionTranslation {
 export async function translateAndSegment(
   frenchText: string,
   date: string,
+  options: { pageNumber?: number; log?: TranslationLogFn; model?: string } = {},
 ): Promise<{
   result: SegmentedTranslation;
   usage: Omit<TranslationUsage, "text">;
 }> {
   const client = getClient();
-  const model = MODEL;
+  const model = resolveTranslationModel(options.model);
   const started = Date.now();
+  const label =
+    options.pageNumber != null ? `page-${options.pageNumber}` : "full-issue";
+  const callCtx: CallLogContext = {
+    log: options.log,
+    date,
+    label,
+    operation: "segment",
+    inputChars: frenchText.length,
+    maxTokens: SEGMENT_MAX_TOKENS,
+    model,
+  };
+  logCallStart(callCtx);
 
-  const userPrompt = `Below is the full text of the Journal des Débats issue from ${date}.
+  const pageLabel =
+    options.pageNumber != null
+      ? `page ${options.pageNumber} of the issue`
+      : "the full issue";
+
+  const userPrompt = `Below is ${pageLabel} from the Journal des Débats, ${date}.
 
 Your task:
-1. Identify which passages correspond to each of the fixed sections listed below.
+1. Identify which passages on this page correspond to each of the fixed sections listed below.
 2. Translate EACH section's passages to English (faithfully, per the system prompt guidelines).
-3. Return a JSON object with EXACTLY this shape. For sections not present in this issue, use null.
+3. Return a JSON object with EXACTLY this shape. For sections not present on this page, use null.
 
 Schema:
 {
@@ -336,8 +578,7 @@ Schema:
     "literature": { "text": "<English Markdown>", "low_confidence": <bool> } | null
   },
   "art_exhibitions": { "text": "<English Markdown>", "low_confidence": <bool> } | null,
-  "science": { "text": "<English Markdown>", "low_confidence": <bool> } | null,
-  "galignani": { "text": "<English Markdown>", "low_confidence": <bool> } | null
+  "science": { "text": "<English Markdown>", "low_confidence": <bool> } | null
 }
 
 Section identification guide:
@@ -349,7 +590,8 @@ Section identification guide:
 - "debats.literature": literary reviews and book notices.
 - "art_exhibitions": Salon and gallery coverage (may overlap with debats.art; include here if standalone).
 - "science": science, technology, and natural philosophy reports.
-- "galignani": content originating from Galignani's Messenger (the English-language Paris daily). May be absent.
+
+Do NOT include Galignani's Messenger content — that is a separate English newspaper, not part of this French issue.
 
 Return ONLY the JSON object — no preamble, no markdown code fences.
 
@@ -357,63 +599,144 @@ Return ONLY the JSON object — no preamble, no markdown code fences.
 ${frenchText}
 ---`;
 
-  const rawResult = await withRetry(async () => {
-    const stream = await client.messages.stream({
-      model,
-      max_tokens: SEGMENT_MAX_TOKENS,
-      system: [
-        {
-          type: "text",
-          text: TRANSLATION_SYSTEM_PROMPT,
-          cache_control: { type: "ephemeral" },
-        },
-      ],
-      messages: [{ role: "user", content: userPrompt }],
-    });
-    return await stream.finalMessage();
-  });
-
-  // A truncated response yields invalid JSON; fail loudly with the cause rather
-  // than an opaque JSON.parse error.
-  if (rawResult.stop_reason === "max_tokens") {
-    throw new Error(
-      `[translate] Segmentation response hit the ${SEGMENT_MAX_TOKENS}-token output cap and was truncated for ${date}. ` +
-        `The issue is too long to translate+segment in one call. Increase TRANSLATION_MAX_OUTPUT_TOKENS ` +
-        `or split the issue.`,
-    );
-  }
-
-  const textBlock = rawResult.content.find((b) => b.type === "text");
-  if (!textBlock || textBlock.type !== "text") {
-    throw new Error("[translate] No text block in segmentation response");
-  }
-
-  // Parse + validate the JSON response
-  let parsed: SegmentedTranslation;
   try {
-    // Strip any accidental markdown fences
-    const raw = textBlock.text
-      .replace(/^```(?:json)?\n?/m, "")
-      .replace(/\n?```$/m, "")
-      .trim();
-    parsed = JSON.parse(raw) as SegmentedTranslation;
+    const rawResult = await withRetry(async () => {
+      const stream = await client.messages.stream({
+        model,
+        max_tokens: SEGMENT_MAX_TOKENS,
+        system: [
+          {
+            type: "text",
+            text: TRANSLATION_SYSTEM_PROMPT,
+            cache_control: { type: "ephemeral" },
+          },
+        ],
+        messages: [{ role: "user", content: userPrompt }],
+      });
+      return await stream.finalMessage();
+    });
+
+    if (rawResult.stop_reason === "max_tokens") {
+      throw new Error(`hit ${SEGMENT_MAX_TOKENS}-token output cap`);
+    }
+
+    const textBlock = rawResult.content.find((b) => b.type === "text");
+    if (!textBlock || textBlock.type !== "text") {
+      throw new Error("no text block in segmentation response");
+    }
+
+    const parsed = parseSegmentationJson(textBlock.text);
+
+    const tokensIn = rawResult.usage.input_tokens;
+    const tokensOut = rawResult.usage.output_tokens;
+    const durationMs = Date.now() - started;
+    const costUsd = computeCost(model, tokensIn, tokensOut);
+
+    logCallOk(callCtx, {
+      durationMs,
+      tokensIn,
+      tokensOut,
+      outputChars: textBlock.text.length,
+      costUsd,
+      stopReason: rawResult.stop_reason ?? "unknown",
+      extra: `sections: ${summarizeSegmented(parsed)}`,
+    });
+
+    return {
+      result: parsed,
+      usage: {
+        model,
+        tokens_in: tokensIn,
+        tokens_out: tokensOut,
+        cost_usd: costUsd,
+        duration_ms: durationMs,
+      },
+    };
   } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    logCallFailed(callCtx, {
+      durationMs: Date.now() - started,
+      error: message,
+    });
+    throw err instanceof Error
+      ? err
+      : new Error(
+          `[translate] Segmentation failed for ${date} (${label}): ${message}`,
+        );
+  }
+}
+
+/**
+ * Segment and translate an issue page by page, then merge section results.
+ *
+ * Each page is sent to translateAndSegment independently (~25–30k chars of
+ * French per page for a typical 4-page Débats issue) so output stays within
+ * the model's JSON budget.
+ */
+export async function translateAndSegmentByPage(
+  frenchText: string,
+  date: string,
+  options: TranslationBatchOptions = {},
+): Promise<{
+  result: SegmentedTranslation;
+  usage: Omit<TranslationUsage, "text">;
+  pageCount: number;
+}> {
+  const writeLog = translationLog(options.log);
+  const modelOverride = resolveTranslationModel(options.model);
+  const chunks = splitFrenchPages(frenchText);
+  if (chunks.length === 0) {
     throw new Error(
-      `[translate] Failed to parse segmentation JSON: ${(err as Error).message}\n\nRaw: ${textBlock.text.slice(0, 500)}`,
+      `[translate] No French page content to segment for ${date}.`,
     );
   }
 
-  const tokensIn = rawResult.usage.input_tokens;
-  const tokensOut = rawResult.usage.output_tokens;
+  const totalChars = chunks.reduce((n, c) => n + c.text.length, 0);
+  writeLog(
+    `[translate] segment-by-page: ${chunks.length} page(s), ${totalChars.toLocaleString()} chars total for ${date}`,
+  );
+
+  const pageResults: SegmentedTranslation[] = [];
+  let totalIn = 0;
+  let totalOut = 0;
+  let totalCost = 0;
+  let totalMs = 0;
+  let model = modelOverride;
+
+  for (let i = 0; i < chunks.length; i++) {
+    const { pageNumber, text } = chunks[i];
+    writeLog(
+      `[translate] segment-by-page: page ${i + 1}/${chunks.length} (page ${pageNumber}, ${text.length.toLocaleString()} chars)`,
+    );
+    const { result, usage } = await translateAndSegment(text, date, {
+      pageNumber,
+      log: options.log,
+      model: modelOverride,
+    });
+    pageResults.push(result);
+    totalIn += usage.tokens_in;
+    totalOut += usage.tokens_out;
+    totalCost += usage.cost_usd;
+    totalMs += usage.duration_ms;
+    model = usage.model;
+  }
+
+  const merged = mergeSegmentedTranslations(pageResults);
+  writeLog(
+    `[translate] segment-by-page done: ${chunks.length} page(s) in ${(totalMs / 1000).toFixed(1)}s, ` +
+      `${totalIn.toLocaleString()} in / ${totalOut.toLocaleString()} out, $${totalCost.toFixed(4)} — ` +
+      `merged sections: ${summarizeSegmented(merged)}`,
+  );
 
   return {
-    result: parsed,
+    result: merged,
+    pageCount: chunks.length,
     usage: {
       model,
-      tokens_in: tokensIn,
-      tokens_out: tokensOut,
-      cost_usd: computeCost(model, tokensIn, tokensOut),
-      duration_ms: Date.now() - started,
+      tokens_in: totalIn,
+      tokens_out: totalOut,
+      cost_usd: totalCost,
+      duration_ms: totalMs,
     },
   };
 }
@@ -435,38 +758,52 @@ export async function transcribePageImage(
   const model = VISION_MODEL;
   const started = Date.now();
 
-  const userPrompt = `Please transcribe all French text visible in this scan of the Journal des Débats, ${context.date}, page ${context.page + 1}. Transcribe faithfully from top to bottom, left to right. Return only the transcribed French text.`;
+  const userPrompt = `Please transcribe the text from this image exactly as written, without altering the content. Copy the characters top to bottom, left to right, and return only the transcribed text.`;
 
-  const result = await withRetry(async () => {
-    const stream = await client.messages.stream({
-      model,
-      max_tokens: SINGLE_MAX_TOKENS,
-      system: [
-        {
-          type: "text",
-          text: VISION_SYSTEM_PROMPT,
-          cache_control: { type: "ephemeral" },
-        },
-      ],
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "image",
-              source: {
-                type: "base64",
-                media_type: mediaType,
-                data: imageBase64,
+  let result;
+  try {
+    result = await withRetry(async () => {
+      const stream = await client.messages.stream({
+        model,
+        max_tokens: SINGLE_MAX_TOKENS,
+        system: [
+          {
+            type: "text",
+            text: VISION_SYSTEM_PROMPT,
+            cache_control: { type: "ephemeral" },
+          },
+        ],
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "image",
+                source: {
+                  type: "base64",
+                  media_type: mediaType,
+                  data: imageBase64,
+                },
               },
-            },
-            { type: "text", text: userPrompt },
-          ],
-        },
-      ],
+              { type: "text", text: userPrompt },
+            ],
+          },
+        ],
+      });
+      return await stream.finalMessage();
     });
-    return await stream.finalMessage();
-  });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/content filtering/i.test(msg)) {
+      throw new Error(
+        `[translate] Vision transcription blocked by Anthropic content filtering ` +
+          `(${context.date} page ${context.page + 1}). ` +
+          `Use Gallica OCR instead: npx tsx scripts/translate/fetch-french-textebrut.ts --date=${context.date}`,
+        { cause: err },
+      );
+    }
+    throw err;
+  }
 
   if (result.stop_reason === "max_tokens") {
     throw new Error(
@@ -492,6 +829,84 @@ export async function transcribePageImage(
     tokens_out: tokensOut,
     cost_usd: computeCost(model, tokensIn, tokensOut),
     duration_ms: Date.now() - started,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Per-page full-paper translation
+// ---------------------------------------------------------------------------
+
+export interface PageTranslationResult {
+  pageNumber: number;
+  text: string;
+}
+
+/**
+ * Translate a stitched ALTO / texteBrut document page by page.
+ *
+ * The French source uses `--- Page N ---` section markers produced by
+ * ALTO stitching. This function splits on those markers and calls
+ * translateFrenchToEnglish once per page. Each call uses SEGMENT_MAX_TOKENS —
+ * the model's highest supported output cap — so no page is truncated.
+ *
+ * When no markers are found (plain texteBrut), the entire text is treated
+ * as page 1 and translated as a single call.
+ */
+export async function translatePaperPages(
+  frenchText: string,
+  date: string,
+  options: TranslationBatchOptions = {},
+): Promise<{
+  pages: PageTranslationResult[];
+  totalUsage: Omit<TranslationUsage, "text">;
+}> {
+  const writeLog = translationLog(options.log);
+  const modelOverride = resolveTranslationModel(options.model);
+  const chunks = splitFrenchPages(frenchText);
+  const totalChars = chunks.reduce((n, c) => n + c.text.length, 0);
+  writeLog(
+    `[translate] translate-by-page: ${chunks.length} page(s), ${totalChars.toLocaleString()} chars total for ${date}`,
+  );
+
+  const pages: PageTranslationResult[] = [];
+  let totalIn = 0;
+  let totalOut = 0;
+  let totalCost = 0;
+  let totalMs = 0;
+
+  for (let i = 0; i < chunks.length; i++) {
+    const { pageNumber, text } = chunks[i];
+    writeLog(
+      `[translate] translate-by-page: page ${i + 1}/${chunks.length} (page ${pageNumber}, ${text.length.toLocaleString()} chars)`,
+    );
+    const result = await translateFrenchToEnglish(text, {
+      date,
+      section: `page-${pageNumber}`,
+      maxTokens: SEGMENT_MAX_TOKENS,
+      log: options.log,
+      model: modelOverride,
+    });
+    pages.push({ pageNumber, text: result.text });
+    totalIn += result.tokens_in;
+    totalOut += result.tokens_out;
+    totalCost += result.cost_usd;
+    totalMs += result.duration_ms;
+  }
+
+  writeLog(
+    `[translate] translate-by-page done: ${chunks.length} page(s) in ${(totalMs / 1000).toFixed(1)}s, ` +
+      `${totalIn.toLocaleString()} in / ${totalOut.toLocaleString()} out, $${totalCost.toFixed(4)}`,
+  );
+
+  return {
+    pages,
+    totalUsage: {
+      model: modelOverride,
+      tokens_in: totalIn,
+      tokens_out: totalOut,
+      cost_usd: totalCost,
+      duration_ms: totalMs,
+    },
   };
 }
 

@@ -5,6 +5,8 @@
  * Internal to scripts/gallica/ — do not import elsewhere.
  */
 
+import { fileURLToPath } from "node:url";
+import path from "node:path";
 import * as dotenv from "dotenv";
 import { createClient } from "@supabase/supabase-js";
 import {
@@ -369,4 +371,24 @@ export async function resolveIssueForDay(
     pageCount: result.pageCount,
     gallicaUrl: gallicaPermalink(result.ark),
   };
+}
+
+/**
+ * Run `main()` only when this file is the CLI entry point (not when imported).
+ * Gallica step modules export `runX` for ingest-all / ingest-day; without this
+ * guard, `import "./pull-scans"` would re-run pull-scans with process.argv.
+ */
+export function runCliMain(
+  importMetaUrl: string,
+  main: () => Promise<void>,
+  label: string,
+): void {
+  const entry = process.argv[1];
+  if (!entry) return;
+  const scriptPath = fileURLToPath(importMetaUrl);
+  if (path.resolve(scriptPath) !== path.resolve(entry)) return;
+  main().catch((err) => {
+    console.error(`[${label}] Unexpected error:`, err);
+    process.exit(1);
+  });
 }

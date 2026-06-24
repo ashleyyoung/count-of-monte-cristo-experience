@@ -110,6 +110,8 @@ export interface DayPageData {
     art_exhibitions: ResolvedDocItem[];
     science: ResolvedDocItem[];
     galignani: ResolvedDocItem[];
+    /** Per-page verbatim translations (page 1, 2, …) for the "Translated paper" tab. */
+    translated_pages: ResolvedDocItem[];
   };
 }
 
@@ -222,6 +224,7 @@ function collectTextKeys(doc: DayDoc): string[] {
     doc.debats?.theater,
     doc.debats?.art,
     doc.debats?.literature,
+    doc.translated_pages,
   ] as DocItem[][]) {
     for (const item of section ?? []) {
       if (item.kind === "text") {
@@ -419,5 +422,10 @@ async function resolveDoc(
     ),
     science: resolveSection(doc.science ?? [], assetMap, textMap),
     galignani: resolveSection(doc.galignani ?? [], assetMap, textMap),
+    translated_pages: resolveSection(
+      doc.translated_pages ?? [],
+      assetMap,
+      textMap,
+    ),
   };
 }

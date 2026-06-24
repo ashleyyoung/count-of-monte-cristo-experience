@@ -11,6 +11,8 @@ interface Props {
   currentPage: number;
   onClose: () => void;
   onPageChange: (page: number) => void;
+  /** When true, index 0 is the feuilleton strip crop; full pages start at index 1. */
+  leadingStrip?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -156,6 +158,7 @@ export default function ScanViewer({
   currentPage,
   onClose,
   onPageChange,
+  leadingStrip = false,
 }: Props) {
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -172,6 +175,12 @@ export default function ScanViewer({
   }, [handleKeyDown]);
 
   const page = pages[currentPage];
+  const fullPageCount = leadingStrip ? Math.max(pages.length - 1, 0) : pages.length;
+  const fullPageNumber = leadingStrip ? currentPage : currentPage + 1;
+  const modalTitle =
+    leadingStrip && currentPage === 0
+      ? page?.caption || "Feuilleton strip"
+      : `Original Paper · Page ${fullPageNumber} of ${fullPageCount || "—"}`;
 
   return (
     <AnimatePresence>
@@ -188,9 +197,7 @@ export default function ScanViewer({
           transition={{ duration: 0.2 }}
         >
           <ModalHeader>
-            <ModalTitle>
-              Original Paper · Page {currentPage + 1} of {pages.length || "—"}
-            </ModalTitle>
+            <ModalTitle>{modalTitle}</ModalTitle>
             <CloseBtn onClick={onClose} aria-label="Close scan viewer">
               Close ✕
             </CloseBtn>
@@ -216,7 +223,9 @@ export default function ScanViewer({
                 ← Prev
               </PageBtn>
               <PageCounter>
-                {currentPage + 1} / {pages.length}
+                {leadingStrip && currentPage === 0
+                  ? "Strip"
+                  : `${fullPageNumber} / ${fullPageCount}`}
               </PageCounter>
               <PageBtn
                 $disabled={currentPage >= pages.length - 1}

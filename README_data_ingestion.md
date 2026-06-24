@@ -83,26 +83,67 @@ After this, the **Chapter** tab has Gutenberg text on every day that maps to a c
 
 ---
 
-## Phase 4 — Per-day Gallica scans (optional, per date)
+## Phase 4 — Per-day ingest: scans, French source, translation
 
-Not required for translation (that uses Gallica `texteBrut` over the network). These populate the **Original paper** tab and feuilleton strip.
+This phase turns one date into a finished day page: original-paper scans, the
+feuilleton strip, the French source text, and the Claude English translation.
+Every step is one descriptively-named script that does one thing, prints its
+purpose on start, and prints a `Next:` line on success. Add `--help` to any
+script to see what it writes and the typical next command.
 
-Per date, allow ~1 minute per issue due to Gallica rate limits:
+### Setup (once per terminal)
 
 ```bash
-DATE=1844-08-28
-
-# 1. Link to the Gallica issue (fast)
-npx tsx scripts/gallica/resolve-issue.ts --date=$DATE
-
-# 2. Download all page scans to R2 (slow, ~13 s between pages)
-npx tsx scripts/gallica/pull-scans.ts --date=$DATE
-
-# 3. Crop page-1 feuilleton strip to R2
-npx tsx scripts/gallica/crop-strip.ts --date=$DATE
+cd count-of-monte-cristo
+set -a && source .env && set +a
 ```
 
-Add `--dry-run` to any of these to preview without writing.
+### Fastest path (one date, everything)
+
+```bash
+npx tsx scripts/ingest-day.ts --date=1844-08-29
+```
+
+This runs, in order: `resolve-issue`, `pull-scans`, `crop-strip`,
+`fetch-french-textebrut`, `translate-day`. Scans and crops already in R2 are
+skipped by default; pass `--force` to overwrite them. Translation is saved to
+`day_content` incrementally as it runs — nothing to upload separately.
+Then open [http://localhost:3001/day/1844-08-29](http://localhost:3001/day/1844-08-29).
+
+### Step by step (when you want control or a step failed)
+
+```bash
+DATE=1844-08-29
+
+# A. Original paper images -> R2
+npx tsx scripts/gallica/resolve-issue.ts --date=$DATE
+npx tsx scripts/gallica/pull-scans.ts   --date=$DATE --skip-existing
+npx tsx scripts/gallica/crop-strip.ts   --date=$DATE --skip-existing
+
+# B. French source text -> R2 (pick ONE)
+npx tsx scripts/translate/fetch-french-textebrut.ts   --date=$DATE   # default
+npx tsx scripts/translate/fetch-french-alto.ts        --date=$DATE   # if texteBrut is blocked
+npx tsx scripts/translate/transcribe-french-vision.ts --date=$DATE   # last resort (needs pull-scans first)
+
+# C. Translate the French in R2 -> English, saved to day_content
+npx tsx scripts/translate/translate-day.ts --date=$DATE
+# Bulk / lower cost: pass --model=claude-sonnet-4-5 (or claude-haiku-4-5)
+```
+
+Translation is saved to `day_content` incrementally as each section completes —
+there is no separate upload step.
+
+### Which French script do I run?
+
+| Situation                                 | Run                                                |
+| ----------------------------------------- | -------------------------------------------------- |
+| texteBrut succeeds (the common case)      | `fetch-french-textebrut.ts`                        |
+| texteBrut returns HTML / 403 (Cloudflare) | `fetch-french-alto.ts`                             |
+| ALTO empty and texteBrut blocked          | `pull-scans.ts` then `transcribe-french-vision.ts` |
+
+Run exactly one French-source script. `translate-day` translates whatever
+French intermediate is in R2 (precedence: texteBrut → ALTO → vision), and
+fetches texteBrut once itself if none exists.
 
 `pull-scans.ts` and `crop-strip.ts` accept `--skip-existing` to skip individual pages or crops already in R2 (and recorded in `day_content`). `pull-scans` uploads each page to R2 and saves `doc.original_pages` immediately after every page, so you can safely stop and resume.
 
@@ -155,19 +196,15 @@ done
 
 ---
 
-## Phase 5 — Translation (per date)
+## Phase 5 — Translate from the UI, and curated imports
 
-Translates the full _Débats_ issue via Claude and writes English text to R2 and `day_content`. Works on **first-time** days (empty `day_content` is fine after Phase 1). Does **not** overwrite Gutenberg chapter text; it adds a machine translation as a challenger instead.
+The translation itself runs in Phase 4 (`translate-day.ts`). This phase covers
+the two other ways text reaches a day page: the admin button and curated human
+translations. Translation works on **first-time** days (empty `day_content` is
+fine after Phase 1) and does **not** overwrite Gutenberg chapter text; it adds a
+machine translation as a challenger instead.
 
-### Option A — All-in-one (recommended)
-
-**CLI:**
-
-```bash
-npx tsx scripts/translate/translate-day.ts --date=1844-08-28
-```
-
-**Or via the UI** (no separate listener process):
+### Translate via the UI (no separate listener process)
 
 ```bash
 npm run dev   # terminal 1
@@ -178,17 +215,7 @@ npm run dev   # terminal 1
 3. Click **"Re-translate day locally"** (visible in dev, or with `LOCAL_TRANSLATION_RUNNER=1`)
 4. Wait a few minutes, then refresh the page
 
-The dev server spawns `translate-day.ts` as a detached child process. There is no background worker or daemon to start separately.
-
-### Option B — Step-by-step (manual pipeline)
-
-```bash
-DATE=1844-08-28
-
-npx tsx scripts/translate/extract-text.ts --date=$DATE        # fetch FR texteBrut to R2
-npx tsx scripts/translate/translate.ts --date=$DATE           # Claude translate+segment to R2 + translation_versions
-npx tsx scripts/translate/update-day-content.ts --date=$DATE  # pick live items to day_content
-```
+The dev server spawns `translate-day.ts` as a detached child process. There is no background worker or daemon to start separately. It reads the French intermediate already in R2, or fetches Gallica texteBrut once if none exists.
 
 ### Optional — Import curated human translations
 
@@ -211,11 +238,7 @@ npx tsx scripts/parse-schedule.ts
 npx tsx scripts/seed-contributors.ts
 npx tsx scripts/ingest-gutenberg.ts
 
-DATE=1844-08-28
-npx tsx scripts/gallica/resolve-issue.ts --date=$DATE
-npx tsx scripts/gallica/pull-scans.ts --date=$DATE
-npx tsx scripts/gallica/crop-strip.ts --date=$DATE
-npx tsx scripts/translate/translate-day.ts --date=$DATE
+npx tsx scripts/ingest-day.ts --date=1844-08-28
 
 npm run dev
 ```
@@ -241,7 +264,7 @@ Then open [http://localhost:3001/day/1844-08-28](http://localhost:3001/day/1844-
 - **No `day_content` row** → day page 404s. Fix: run `parse-schedule.ts`.
 - **R2 not configured** → scripts may write DB keys but nothing displays. Fix: set all four R2 env vars plus `R2_PUBLIC_URL`.
 - **Gallica scripts don't load `.env`** → run `set -a && source .env && set +a` first.
-- **Translation fails on a date** → Gallica may not have that issue's `texteBrut`; check the terminal error or `translation_runs` status on the day page.
+- **Translation fails on a date** → Gallica `texteBrut` may be Cloudflare-blocked (HTML/403). Fix: `npx tsx scripts/translate/fetch-french-alto.ts --date=$DATE` then `translate-day.ts`. Check the terminal error or `translation_runs` status on the day page.
 - **Chapter stays Gutenberg after translate** → expected; promote your Claude version in admin via **Compare translations** if you prefer it.
 - **First-time translation prerequisites:** date must exist in `installments`, R2 and `ANTHROPIC_API_KEY` must be set, Gallica must have OCR text for that date. Scans and `resolve-issue` are optional for translation.
 
@@ -249,21 +272,23 @@ Then open [http://localhost:3001/day/1844-08-28](http://localhost:3001/day/1844-
 
 ## Script reference
 
-| Script                                    | When           | Notes                                      |
-| ----------------------------------------- | -------------- | ------------------------------------------ |
-| `scripts/parse-schedule.ts`               | Once           | Also writes `content/schedule.json`        |
-| `scripts/seed-contributors.ts`            | Once           | 12 contributors                            |
-| `scripts/upload-contributor-assets.ts`    | Once, optional | Idempotent; skips existing bios            |
-| `scripts/recompute-graph.ts`              | Once           | After contributors seeded                  |
-| `scripts/ingest-gutenberg.ts`             | Once           | `--dry-run` supported                      |
-| `scripts/gallica/resolve-issue.ts`        | Per date       | Sets `doc.gallica_issue_url`               |
-| `scripts/gallica/pull-scans.ts`           | Per date       | Rate-limited; per-page `--skip-existing`   |
-| `scripts/gallica/crop-strip.ts`           | Per date       | `--region=x,y,w,h`; `--skip-existing`      |
-| `scripts/gallica/ingest-all.ts`           | Batch          | Single process; throttling; retry pass     |
-| `scripts/gallica/warm-issues-cache.ts`    | Once           | Pre-fetch Issues XML for 1844–1846         |
-| `scripts/gallica/alto-ocr.ts`             | Per date       | Diagnostic only                            |
-| `scripts/translate/translate-day.ts`      | Per date       | Full pipeline; UI trigger uses same script |
-| `scripts/translate/extract-text.ts`       | Per date       | Manual pipeline step 1                     |
-| `scripts/translate/translate.ts`          | Per date       | Manual pipeline step 2                     |
-| `scripts/translate/update-day-content.ts` | Per date       | Manual pipeline step 3                     |
-| `scripts/translate/import-existing.ts`    | Per date       | `--source=berlioz\|gutenberg\|all`         |
+| Script                                          | When           | Notes                                                                                         |
+| ----------------------------------------------- | -------------- | --------------------------------------------------------------------------------------------- |
+| `scripts/parse-schedule.ts`                     | Once           | Also writes `content/schedule.json`                                                           |
+| `scripts/seed-contributors.ts`                  | Once           | 12 contributors                                                                               |
+| `scripts/upload-contributor-assets.ts`          | Once, optional | Idempotent; skips existing bios                                                               |
+| `scripts/recompute-graph.ts`                    | Once           | After contributors seeded                                                                     |
+| `scripts/ingest-gutenberg.ts`                   | Once           | `--dry-run` supported                                                                         |
+| `scripts/gallica/resolve-issue.ts`              | Per date       | Sets `doc.gallica_issue_url`                                                                  |
+| `scripts/gallica/pull-scans.ts`                 | Per date       | Rate-limited; per-page `--skip-existing`                                                      |
+| `scripts/gallica/crop-strip.ts`                 | Per date       | `--region=x,y,w,h`; `--skip-existing`                                                         |
+| `scripts/gallica/ingest-all.ts`                 | Batch          | Single process; throttling; retry pass                                                        |
+| `scripts/gallica/warm-issues-cache.ts`          | Once           | Pre-fetch Issues XML for 1844–1846                                                            |
+| `scripts/gallica/alto-ocr.ts`                   | Per date       | Diagnostic only                                                                               |
+| `scripts/ingest-day.ts`                         | Per date       | Wrapper: resolve → … → translate, one command                                                 |
+| `scripts/translate/fetch-french-textebrut.ts`   | Per date       | French source (default): Gallica texteBrut → R2                                               |
+| `scripts/translate/fetch-french-alto.ts`        | Per date       | French source: Gallica ALTO → R2 (when blocked)                                               |
+| `scripts/translate/transcribe-french-vision.ts` | Per date       | French source: Claude vision OCR → R2 (last resort)                                           |
+| `scripts/translate/translate-day.ts`            | Per date       | Translate French in R2 → English, saved to `day_content` immediately                          |
+| `scripts/translate/update-day-content.ts`       | Per date       | Re-sync `day_content` from `translation_versions` (use after importing existing translations) |
+| `scripts/translate/import-existing.ts`          | Per date       | `--source=berlioz\|gutenberg\|all`                                                            |

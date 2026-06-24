@@ -2,29 +2,34 @@
 /**
  * scripts/translate/translate-day.ts
  *
- * Local CLI runner that translates a single day's content. This is the one
- * code path invoked by BOTH a terminal command and the admin UI's
- * "Re-translate day locally" button (via the `requestDayTranslation` server
- * action, which spawns this script detached).
+ * Translate one day's issue: read the French intermediate already in R2 (written
+ * by a fetch-french-* script), translate + segment it with Claude, and write the
+ * English output to translation_versions + day_content. If no French intermediate
+ * exists yet, it fetches Gallica texteBrut once as the default.
  *
- * It owns the *run lifecycle* (queued -> running -> done/failed) and delegates
- * the actual per-section translation to the Sprint 9 pipeline
- * (extract-text -> lib/llm/translate.ts -> single-writer translation_versions
- * -> update-day-content). See `runDayTranslationPipeline` below for the
- * integration seam.
+ * This is the one code path invoked by BOTH a terminal command and the admin
+ * UI's "Re-translate day locally" button (via the requestDayTranslation server
+ * action, which spawns this script detached). It owns the run lifecycle
+ * (queued -> running -> done/failed) and delegates to lib/translate/pipeline.ts.
  *
  * Usage:
  *   npx tsx scripts/translate/translate-day.ts --date=1844-08-28
  *   npx tsx scripts/translate/translate-day.ts --date=1844-08-28 --run-id=<uuid>
+ *   npx tsx scripts/translate/translate-day.ts --date=1844-08-28 --force-fetch
+ *   npx tsx scripts/translate/translate-day.ts --date=1844-08-28 --model=claude-sonnet-4-5
+ *   npx tsx scripts/translate/translate-day.ts --help
+ *
+ * To use ALTO or vision instead of texteBrut, run that fetch script first:
+ *   npx tsx scripts/translate/fetch-french-alto.ts --date=1844-08-28
+ *   npx tsx scripts/translate/translate-day.ts --date=1844-08-28
  *
  * Environment (from .env / shell, inherited from the dev server when spawned):
  *   NEXT_PUBLIC_SUPABASE_URL    – Supabase project URL
  *   SUPABASE_SERVICE_ROLE_KEY   – service-role key (bypasses RLS)
- *   ANTHROPIC_API_KEY, TRANSLATION_MODEL, … – consumed by the Sprint 9 pipeline
+ *   ANTHROPIC_API_KEY, TRANSLATION_MODEL, … – consumed by the pipeline
  *
  * When `--run-id` is given, this script transitions the matching
- * `translation_runs` row through `running` then `done`/`failed`, recording the
- * summary or error so the day page can show status on the next refresh.
+ * `translation_runs` row through `running` then `done`/`failed`.
  */
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
@@ -34,18 +39,19 @@ import {
   type TranslationRunSummary,
 } from "../../lib/translate/pipeline";
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-/** Summary returned by a completed day translation (mirrors translateDay). */
 export type { TranslationRunSummary };
 
-interface RunContext {
-  date: string;
-  supabase: SupabaseClient;
-  log: (msg: string) => void;
-}
+const HELP = `translate-day — translate one issue's French intermediate → English
+
+Reads:  the French intermediate in R2 (texteBrut → ALTO → vision precedence);
+        fetches Gallica texteBrut once if none exists.
+Writes: translation_versions rows + day_content.doc for the date.
+
+Usage:
+  npx tsx scripts/translate/translate-day.ts --date=YYYY-MM-DD [--force-fetch] [--model=<anthropic-model-id>] [--run-id=<uuid>]
+
+  --model   Override TRANSLATION_MODEL for this run (default: env or claude-opus-4-8).
+            Use claude-sonnet-4-5 for bulk runs at lower cost.`;
 
 // ---------------------------------------------------------------------------
 // Env + client
@@ -81,6 +87,13 @@ function parseCliRunId(): string | undefined {
   const arg = process.argv.find((a) => a.startsWith("--run-id="));
   return arg ? arg.replace("--run-id=", "") : undefined;
 }
+
+function parseCliModel(): string | undefined {
+  const arg = process.argv.find((a) => a.startsWith("--model="));
+  return arg ? arg.replace("--model=", "").trim() : undefined;
+}
+
+const FORCE_FETCH = process.argv.includes("--force-fetch");
 
 // ---------------------------------------------------------------------------
 // translation_runs lifecycle helpers
@@ -148,28 +161,18 @@ async function markFailed(
 }
 
 // ---------------------------------------------------------------------------
-// Sprint 9 integration seam (wired)
-// ---------------------------------------------------------------------------
-
-/**
- * Translate every section of a day's issue via lib/translate/pipeline.ts.
- *
- * The pipeline handles its own Supabase + R2 clients; `ctx.supabase` is used
- * only for the translation_runs lifecycle helpers in this file.
- */
-async function runDayTranslationPipeline(
-  ctx: RunContext,
-): Promise<TranslationRunSummary> {
-  return runDayTranslation(ctx.date, ctx.log);
-}
-
-// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
 async function main() {
+  if (process.argv.includes("--help")) {
+    console.log(HELP);
+    return;
+  }
+
   const date = parseCliDate();
   const runId = parseCliRunId();
+  const model = parseCliModel();
   const supabase = makeSupabaseClient();
 
   const log = (msg: string) =>
@@ -180,7 +183,10 @@ async function main() {
   if (runId) await markRunning(supabase, runId);
 
   try {
-    const summary = await runDayTranslationPipeline({ date, supabase, log });
+    const summary = await runDayTranslation(date, log, {
+      forceFetch: FORCE_FETCH,
+      model,
+    });
     if (runId) await markDone(supabase, runId, summary);
     log(
       `Done. translated=${summary.translated} challengers=${summary.challengers} ` +

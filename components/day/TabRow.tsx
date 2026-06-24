@@ -13,6 +13,7 @@ export type TabId =
   | "art"
   | "science"
   | "original"
+  | "translated"
   | "galignani";
 
 const BASE_TABS: { id: TabId; label: string }[] = [
@@ -22,6 +23,7 @@ const BASE_TABS: { id: TabId; label: string }[] = [
   { id: "art", label: "Art & exhibitions" },
   { id: "science", label: "Science" },
   { id: "original", label: "Original paper" },
+  { id: "translated", label: "Translated paper" },
   { id: "galignani", label: "Galignani" },
 ];
 

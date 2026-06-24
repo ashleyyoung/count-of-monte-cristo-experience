@@ -29,6 +29,7 @@ import {
   SKIP_EXISTING,
   REFRESH_GALLICA_CACHE,
   logStructuredError,
+  runCliMain,
   sleep,
   IIIF_FULL_DELAY_MS,
   type GallicaStepOptions,
@@ -204,8 +205,21 @@ export async function runPullScans(
   return { day, ark, pageCount, pages: summary, dryRun };
 }
 
+const HELP = `pull-scans — download issue page images → R2
+
+Writes: gallica/{date}/page-N.jpg in R2 + doc.original_pages
+Next:   npx tsx scripts/gallica/crop-strip.ts --date=YYYY-MM-DD --skip-existing
+
+Usage:
+  npx tsx scripts/gallica/pull-scans.ts --date=YYYY-MM-DD [--skip-existing]`;
+
 async function main() {
+  if (process.argv.includes("--help")) {
+    console.log(HELP);
+    return;
+  }
   const day = parseCliDate();
+  console.error(`[pull-scans] ${day}: downloading page scans → R2`);
   try {
     const summary = await runPullScans({
       day,
@@ -214,13 +228,14 @@ async function main() {
       refreshGallicaCache: REFRESH_GALLICA_CACHE,
     });
     console.log(JSON.stringify(summary));
+    console.error(
+      `[pull-scans] Done. ${summary.pages.length} page(s) for ${day}. ` +
+        `Next: npx tsx scripts/gallica/crop-strip.ts --date=${day} --skip-existing`,
+    );
   } catch (err) {
     logStructuredError({ day, stage: "pull-scans" }, err);
     process.exit(1);
   }
 }
 
-main().catch((err) => {
-  console.error("[pull-scans] Unexpected error:", err);
-  process.exit(1);
-});
+runCliMain(import.meta.url, main, "pull-scans");

@@ -24,11 +24,67 @@ import PrintingTechTimeline from "./PrintingTechTimeline";
 // ---------------------------------------------------------------------------
 
 const Article = styled.article`
-  max-width: 72ch;
+  max-width: 960px;
 `;
 
 const Section = styled.section`
   margin-bottom: 2.5rem;
+`;
+
+const TwoColSection = styled.section`
+  display: grid;
+  grid-template-columns: 1fr 260px;
+  gap: 2.5rem;
+  align-items: start;
+  margin-bottom: 2.5rem;
+
+  @media (max-width: 780px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+const ProseWrap = styled.div`
+  max-width: 65ch;
+  min-width: 0;
+`;
+
+const Figure = styled.figure`
+  margin: 0;
+  border: 1px solid var(--rule-light);
+  background: var(--paper-deep);
+  padding: 8px;
+`;
+
+const FigImg = styled.img`
+  width: 100%;
+  height: auto;
+  display: block;
+  filter: sepia(0.15) contrast(1.05);
+`;
+
+const FigCaption = styled.figcaption`
+  font-family: var(--font-caption-stack);
+  font-size: 0.68rem;
+  font-style: italic;
+  color: var(--ink-muted);
+  margin-top: 6px;
+  line-height: 1.4;
+`;
+
+const FigAttr = styled.a`
+  display: inline-block;
+  margin-top: 4px;
+  font-family: var(--font-labels-stack);
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--gilt-deep);
+  text-decoration: none;
+  border-bottom: 1px dotted var(--gilt-deep);
+
+  &:hover {
+    color: var(--oxblood);
+  }
 `;
 
 const Lede = styled.p`
@@ -212,17 +268,20 @@ export default function PressRoom() {
       </Lede>
 
       <Section>
-        <H2>From Gutenberg to the Cylinder Press</H2>
-        <P>
-          A daily as fast as the Débats rested on four centuries of invention,
-          then on a sudden burst of it in the early 1800s. Hover any point to
-          see the inventor and the breakthrough.
-        </P>
-        <PrintingTechTimeline />
+        <ProseWrap>
+          <H2>From Gutenberg to the Cylinder Press</H2>
+          <P>
+            A daily as fast as the Débats rested on four centuries of invention,
+            then on a sudden burst of it in the early 1800s. Hover any point to
+            see the inventor and the breakthrough.
+          </P>
+          <PrintingTechTimeline />
+        </ProseWrap>
       </Section>
 
       <Section>
-        <H2>The Page Itself</H2>
+        <ProseWrap>
+          <H2>The Page Itself</H2>
         <EditableText
           value={SECTION_TEXT["press-room-dimensions"]}
           onSave={makeSectionSave("press-room-dimensions", "The Page Itself")}
@@ -238,49 +297,71 @@ export default function PressRoom() {
             <Cite source={cites[0]} n={1} />
           </P>
         </EditableText>
+        </ProseWrap>
       </Section>
 
-      <Section>
-        <H2>Set by Hand, Letter by Letter</H2>
-        <EditableText
-          value={SECTION_TEXT["press-room-handset"]}
-          onSave={makeSectionSave(
-            "press-room-handset",
-            "Set by Hand, Letter by Letter",
-          )}
-        >
-          <P>
-            Yes, every letter was set by hand. From Gutenberg until the Linotype
-            arrived in 1886, each character was a separate cast-metal sort. A
-            compositor stood at a type case, the capitals in the upper case and
-            the small letters in the lower case, picked sorts one at a time, and
-            assembled them upside down and right to left in a hand-held
-            composing stick, adding thin lead spaces to justify each line to an
-            even width.<Cite source={cites[1]} n={2} />
-          </P>
-          <P>
-            Full lines passed to a tray called a galley; proofs were pulled and
-            read; then the type was made up into pages and locked with wooden
-            and metal furniture and tightening quoins into an iron frame, the
-            chase, producing a forme ready for the press. After the run came
-            distribution, the reverse job of returning every sort to its
-            compartment for reuse, nearly as slow as the setting itself.
-          </P>
-          <P>
-            Machines were tried. The Young and Delcambre pianotype won a medal
-            at the 1844 Paris exposition and ran for a time in Paris shops, then
-            was set aside as too fragile for daily work; hand composition stayed
-            the standard through the whole Monte Cristo run. One labor-saving
-            method did take hold: stereotyping, a French technique improved by
-            Louis-Etienne Herhan around 1800, cast a solid metal plate from a
-            finished forme so a page could be preserved and rerun without
-            resetting it.<Cite source={cites[2]} n={3} />
-          </P>
-        </EditableText>
-      </Section>
+      <TwoColSection>
+        <ProseWrap>
+          <H2>Set by Hand, Letter by Letter</H2>
+          <EditableText
+            value={SECTION_TEXT["press-room-handset"]}
+            onSave={makeSectionSave(
+              "press-room-handset",
+              "Set by Hand, Letter by Letter",
+            )}
+          >
+            <P>
+              Yes, every letter was set by hand. From Gutenberg until the Linotype
+              arrived in 1886, each character was a separate cast-metal sort. A
+              compositor stood at a type case, the capitals in the upper case and
+              the small letters in the lower case, picked sorts one at a time, and
+              assembled them upside down and right to left in a hand-held
+              composing stick, adding thin lead spaces to justify each line to an
+              even width.<Cite source={cites[1]} n={2} />
+            </P>
+            <P>
+              Full lines passed to a tray called a galley; proofs were pulled and
+              read; then the type was made up into pages and locked with wooden
+              and metal furniture and tightening quoins into an iron frame, the
+              chase, producing a forme ready for the press. After the run came
+              distribution, the reverse job of returning every sort to its
+              compartment for reuse, nearly as slow as the setting itself.
+            </P>
+            <P>
+              Machines were tried. The Young and Delcambre pianotype won a medal
+              at the 1844 Paris exposition and ran for a time in Paris shops, then
+              was set aside as too fragile for daily work; hand composition stayed
+              the standard through the whole Monte Cristo run. One labor-saving
+              method did take hold: stereotyping, a French technique improved by
+              Louis-Etienne Herhan around 1800, cast a solid metal plate from a
+              finished forme so a page could be preserved and rerun without
+              resetting it.<Cite source={cites[2]} n={3} />
+            </P>
+          </EditableText>
+        </ProseWrap>
+        <Figure>
+          <FigImg
+            src="https://upload.wikimedia.org/wikipedia/commons/4/48/La_casse_d%E2%80%99imprimerie_avec_ses_cassetins_ou_compartiments_pour_les_diverse_lettres.png"
+            alt="Diagram of a printer's type case with compartments for each letter sort"
+            loading="lazy"
+          />
+          <FigCaption>
+            La casse d&apos;imprimerie: the printer&apos;s type case, showing the
+            compartments for each sort. From the Encyclopédie historique, 1873.
+          </FigCaption>
+          <FigAttr
+            href="https://commons.wikimedia.org/wiki/File:La_casse_d%27imprimerie_avec_ses_cassetins_ou_compartiments_pour_les_diverse_lettres.png"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Wikimedia Commons ↗
+          </FigAttr>
+        </Figure>
+      </TwoColSection>
 
       <Section>
-        <H2>Laying Out the Page</H2>
+        <ProseWrap>
+          <H2>Laying Out the Page</H2>
         <EditableText
           value={SECTION_TEXT["press-room-layout"]}
           onSave={makeSectionSave("press-room-layout", "Laying Out the Page")}
@@ -299,30 +380,52 @@ export default function PressRoom() {
             press and any urgent late news went in as a separate stop-press.
           </P>
         </EditableText>
+        </ProseWrap>
       </Section>
 
-      <Section>
-        <H2>The Machines</H2>
-        <EditableText
-          value={SECTION_TEXT["press-room-machines"]}
-          onSave={makeSectionSave("press-room-machines", "The Machines")}
-        >
-          <P>
-            The Débats was an early adopter of mechanized printing, running on
-            Napier drum-cylinder machines from about 1825.
-            <Cite source={cites[3]} n={4} /> The steam cylinder press built by
-            Friedrich Koenig and Andreas Bauer, first used at The Times of
-            London in 1814, reached roughly 1,100 sheets an hour, far beyond the
-            few hundred a hand press could pull. Richard Hoe&apos;s
-            type-revolving rotary press, patented in the United States in 1843,
-            reached Paris with La Patrie in 1846 and could approach 8,000
-            impressions an hour.<Cite source={cites[4]} n={5} />
-          </P>
-        </EditableText>
-      </Section>
+      <TwoColSection>
+        <ProseWrap>
+          <H2>The Machines</H2>
+          <EditableText
+            value={SECTION_TEXT["press-room-machines"]}
+            onSave={makeSectionSave("press-room-machines", "The Machines")}
+          >
+            <P>
+              The Débats was an early adopter of mechanized printing, running on
+              Napier drum-cylinder machines from about 1825.
+              <Cite source={cites[3]} n={4} /> The steam cylinder press built by
+              Friedrich Koenig and Andreas Bauer, first used at The Times of
+              London in 1814, reached roughly 1,100 sheets an hour, far beyond the
+              few hundred a hand press could pull. Richard Hoe&apos;s
+              type-revolving rotary press, patented in the United States in 1843,
+              reached Paris with La Patrie in 1846 and could approach 8,000
+              impressions an hour.<Cite source={cites[4]} n={5} />
+            </P>
+          </EditableText>
+        </ProseWrap>
+        <Figure>
+          <FigImg
+            src="https://upload.wikimedia.org/wikipedia/commons/7/79/Koenig%27s_steam_press_-_1814.png"
+            alt="Diagram of Friedrich Koenig's steam cylinder printing press, 1814"
+            loading="lazy"
+          />
+          <FigCaption>
+            Friedrich Koenig&apos;s steam cylinder press as used at The Times of
+            London in 1814, reaching roughly 1,100 sheets an hour.
+          </FigCaption>
+          <FigAttr
+            href="https://commons.wikimedia.org/wiki/File:Koenig%27s_steam_press_-_1814.png"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Wikimedia Commons ↗
+          </FigAttr>
+        </Figure>
+      </TwoColSection>
 
       <Section>
-        <H2>How Many Hands</H2>
+        <ProseWrap>
+          <H2>How Many Hands</H2>
         <EditableText
           value={SECTION_TEXT["press-room-hands"]}
           onSave={makeSectionSave("press-room-hands", "How Many Hands")}
@@ -344,10 +447,12 @@ export default function PressRoom() {
             <Cite source={cites[7]} n={8} />
           </P>
         </EditableText>
+        </ProseWrap>
       </Section>
 
       <Section>
-        <H2>At the Case, Through the Night</H2>
+        <ProseWrap>
+          <H2>At the Case, Through the Night</H2>
         <EditableText
           value={SECTION_TEXT["press-room-conditions"]}
           onSave={makeSectionSave(
@@ -365,10 +470,12 @@ export default function PressRoom() {
             association.
           </P>
         </EditableText>
+        </ProseWrap>
       </Section>
 
       <Section>
-        <H2>The Paper Itself</H2>
+        <ProseWrap>
+          <H2>The Paper Itself</H2>
         <EditableText
           value={SECTION_TEXT["press-room-paper"]}
           onSave={makeSectionSave("press-room-paper", "The Paper Itself")}
@@ -386,10 +493,12 @@ export default function PressRoom() {
             wetting and drying tons of paper.
           </Blockquote>
         </EditableText>
+        </ProseWrap>
       </Section>
 
       <Section>
-        <H2>Why There Were No Pictures</H2>
+        <ProseWrap>
+          <H2>Why There Were No Pictures</H2>
         <EditableText
           value={SECTION_TEXT["press-room-pictures"]}
           onSave={makeSectionSave(
@@ -404,10 +513,12 @@ export default function PressRoom() {
             the slower work of the woodblock had time to be done.
           </P>
         </EditableText>
+        </ProseWrap>
       </Section>
 
       <Section>
-        <H2>The Nightly Rhythm</H2>
+        <ProseWrap>
+          <H2>The Nightly Rhythm</H2>
         <EditableText
           value={SECTION_TEXT["press-room-rhythm"]}
           onSave={makeSectionSave("press-room-rhythm", "The Nightly Rhythm")}
@@ -419,6 +530,7 @@ export default function PressRoom() {
             reach subscribers, kiosks, cafés, and reading rooms at dawn.
           </P>
         </EditableText>
+        </ProseWrap>
       </Section>
 
       <SourcesRow>

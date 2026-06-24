@@ -24,11 +24,67 @@ import { upsertEditorialBlock } from "@/app/actions/admin";
 // ---------------------------------------------------------------------------
 
 const Article = styled.article`
-  max-width: 72ch;
+  max-width: 960px;
 `;
 
 const Section = styled.section`
   margin-bottom: 2.5rem;
+`;
+
+const TwoColSection = styled.section`
+  display: grid;
+  grid-template-columns: 1fr 260px;
+  gap: 2.5rem;
+  align-items: start;
+  margin-bottom: 2.5rem;
+
+  @media (max-width: 780px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+const ProseWrap = styled.div`
+  max-width: 65ch;
+  min-width: 0;
+`;
+
+const Figure = styled.figure`
+  margin: 0;
+  border: 1px solid var(--rule-light);
+  background: var(--paper-deep);
+  padding: 8px;
+`;
+
+const FigImg = styled.img`
+  width: 100%;
+  height: auto;
+  display: block;
+  filter: sepia(0.15) contrast(1.05);
+`;
+
+const FigCaption = styled.figcaption`
+  font-family: var(--font-caption-stack);
+  font-size: 0.68rem;
+  font-style: italic;
+  color: var(--ink-muted);
+  margin-top: 6px;
+  line-height: 1.4;
+`;
+
+const FigAttr = styled.a`
+  display: inline-block;
+  margin-top: 4px;
+  font-family: var(--font-labels-stack);
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--gilt-deep);
+  text-decoration: none;
+  border-bottom: 1px dotted var(--gilt-deep);
+
+  &:hover {
+    color: var(--oxblood);
+  }
 `;
 
 const Lede = styled.p`
@@ -186,57 +242,80 @@ export default function PressBusiness() {
       </Lede>
 
       <Section>
-        <H2>What It Cost the Reader</H2>
-        <EditableText
-          value={SECTION_TEXT["press-business-cost"]}
-          onSave={makeSectionSave(
-            "press-business-cost",
-            "What It Cost the Reader",
-          )}
-        >
-          <P>
-            A traditional Paris daily cost about 80 francs a year, more than a
-            week of a skilled worker&apos;s wages, so the paper was a possession
-            of the comfortable. The printed subscriber count understated the
-            real audience, because a single copy passed through many hands in
-            cafés and in the cabinets de lecture, the paid reading rooms.
-          </P>
-          <P>
-            Most subscribers lived outside Paris. In 1846 Le Siècle counted
-            21,500 of its 32,800 subscribers in the provinces, and about
-            two-thirds of the Débats readership lay outside the capital.
-            <Cite source={cites[0]} n={1} />
-          </P>
-        </EditableText>
+        <ProseWrap>
+          <H2>What It Cost the Reader</H2>
+          <EditableText
+            value={SECTION_TEXT["press-business-cost"]}
+            onSave={makeSectionSave(
+              "press-business-cost",
+              "What It Cost the Reader",
+            )}
+          >
+            <P>
+              A traditional Paris daily cost about 80 francs a year, more than a
+              week of a skilled worker&apos;s wages, so the paper was a possession
+              of the comfortable. The printed subscriber count understated the
+              real audience, because a single copy passed through many hands in
+              cafés and in the cabinets de lecture, the paid reading rooms.
+            </P>
+            <P>
+              Most subscribers lived outside Paris. In 1846 Le Siècle counted
+              21,500 of its 32,800 subscribers in the provinces, and about
+              two-thirds of the Débats readership lay outside the capital.
+              <Cite source={cites[0]} n={1} />
+            </P>
+          </EditableText>
+        </ProseWrap>
       </Section>
 
-      <Section>
-        <H2>The 1836 Price War</H2>
-        <EditableText
-          value={SECTION_TEXT["press-business-pricewar"]}
-          onSave={makeSectionSave(
-            "press-business-pricewar",
-            "The 1836 Price War",
-          )}
-        >
-          <P>
-            On 1 July 1836 two new dailies, Émile de Girardin&apos;s La Presse
-            and Armand Dutacq&apos;s Le Siècle, launched at 40 francs a year,
-            half the going rate. They made up the difference with advertising
-            and used the serialized novel to pull in a mass readership.
-            <Cite source={cites[1]} n={2} />
-          </P>
-          <P>
-            This is the commercial logic that turned a front-page feuilleton
-            into valuable property and made a serial like Monte Cristo worth
-            competing for. The Débats, an established and upmarket paper, took
-            up the same weapon when it secured Dumas.
-          </P>
-        </EditableText>
-      </Section>
+      <TwoColSection>
+        <ProseWrap>
+          <H2>The 1836 Price War</H2>
+          <EditableText
+            value={SECTION_TEXT["press-business-pricewar"]}
+            onSave={makeSectionSave(
+              "press-business-pricewar",
+              "The 1836 Price War",
+            )}
+          >
+            <P>
+              On 1 July 1836 two new dailies, Émile de Girardin&apos;s La Presse
+              and Armand Dutacq&apos;s Le Siècle, launched at 40 francs a year,
+              half the going rate. They made up the difference with advertising
+              and used the serialized novel to pull in a mass readership.
+              <Cite source={cites[1]} n={2} />
+            </P>
+            <P>
+              This is the commercial logic that turned a front-page feuilleton
+              into valuable property and made a serial like Monte Cristo worth
+              competing for. The Débats, an established and upmarket paper, took
+              up the same weapon when it secured Dumas.
+            </P>
+          </EditableText>
+        </ProseWrap>
+        <Figure>
+          <FigImg
+            src="/api/gallica/iiif?ark=bpt6k446668c&page=1&size=500,"
+            alt="Front page of the Journal des Débats, 28 August 1844, with the first Monte Cristo installment"
+            loading="lazy"
+          />
+          <FigCaption>
+            Journal des Débats, 28 August 1844: the first installment of Le Comte
+            de Monte-Cristo appears at the foot of the front page.
+          </FigCaption>
+          <FigAttr
+            href="https://gallica.bnf.fr/ark:/12148/bpt6k446668c"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Gallica (BnF) ↗
+          </FigAttr>
+        </Figure>
+      </TwoColSection>
 
       <Section>
-        <H2>Paid by the Line</H2>
+        <ProseWrap>
+          <H2>Paid by the Line</H2>
         <EditableText
           value={SECTION_TEXT["press-business-line"]}
           onSave={makeSectionSave("press-business-line", "Paid by the Line")}
@@ -249,10 +328,12 @@ export default function PressBusiness() {
             scheme left a visible mark on a literary style.
           </P>
         </EditableText>
+        </ProseWrap>
       </Section>
 
       <Section>
-        <H2>Taxed and Bonded</H2>
+        <ProseWrap>
+          <H2>Taxed and Bonded</H2>
         <EditableText
           value={SECTION_TEXT["press-business-tax"]}
           onSave={makeSectionSave("press-business-tax", "Taxed and Bonded")}
@@ -273,10 +354,12 @@ export default function PressBusiness() {
             commercial model that La Presse and Le Siècle had pioneered.
           </P>
         </EditableText>
+        </ProseWrap>
       </Section>
 
       <Section>
-        <H2>How the News Arrived</H2>
+        <ProseWrap>
+          <H2>How the News Arrived</H2>
         <EditableText
           value={SECTION_TEXT["press-business-news"]}
           onSave={makeSectionSave(
@@ -300,43 +383,65 @@ export default function PressBusiness() {
             <Cite source={cites[3]} n={4} />
           </P>
         </EditableText>
+        </ProseWrap>
       </Section>
 
-      <Section>
-        <H2>Coordinating the Writers</H2>
-        <EditableText
-          value={SECTION_TEXT["press-business-writers"]}
-          onSave={makeSectionSave(
-            "press-business-writers",
-            "Coordinating the Writers",
-          )}
-        >
-          <P>
-            Contributors filed on standing schedules. Jules Janin&apos;s theatre
-            column appeared on Mondays, Berlioz&apos;s music feuilletons
-            followed concerts and premieres, and Delécluze&apos;s reviews
-            tracked the annual Salon.
-          </P>
-          <P>
-            The serial was the tightest case of all. Alexandre Dumas worked with
-            Auguste Maquet in a just-in-time system they called the botte de
-            plans, the bundle of outlines: Maquet drafted plot, characters, and
-            dialogue, and Dumas rewrote each installment in his own hand, often
-            carrying several serials at once across rival papers. Dumas wrote at
-            famous speed, once winning a wager by producing a 3,375-line volume
-            in 66 hours.<Cite source={cites[5]} n={5} />
-          </P>
-          <P>
-            Monte Cristo ran in the Débats feuilleton from 28 August 1844 to 15
-            January 1846 with long interruptions, so copy often reached the
-            compositors only a day or two before it was set.
-            <Cite source={cites[4]} n={6} />
-          </P>
-        </EditableText>
-      </Section>
+      <TwoColSection>
+        <ProseWrap>
+          <H2>Coordinating the Writers</H2>
+          <EditableText
+            value={SECTION_TEXT["press-business-writers"]}
+            onSave={makeSectionSave(
+              "press-business-writers",
+              "Coordinating the Writers",
+            )}
+          >
+            <P>
+              Contributors filed on standing schedules. Jules Janin&apos;s theatre
+              column appeared on Mondays, Berlioz&apos;s music feuilletons
+              followed concerts and premieres, and Delécluze&apos;s reviews
+              tracked the annual Salon.
+            </P>
+            <P>
+              The serial was the tightest case of all. Alexandre Dumas worked with
+              Auguste Maquet in a just-in-time system they called the botte de
+              plans, the bundle of outlines: Maquet drafted plot, characters, and
+              dialogue, and Dumas rewrote each installment in his own hand, often
+              carrying several serials at once across rival papers. Dumas wrote at
+              famous speed, once winning a wager by producing a 3,375-line volume
+              in 66 hours.<Cite source={cites[5]} n={5} />
+            </P>
+            <P>
+              Monte Cristo ran in the Débats feuilleton from 28 August 1844 to 15
+              January 1846 with long interruptions, so copy often reached the
+              compositors only a day or two before it was set.
+              <Cite source={cites[4]} n={6} />
+            </P>
+          </EditableText>
+        </ProseWrap>
+        <Figure>
+          <FigImg
+            src="https://upload.wikimedia.org/wikipedia/commons/5/54/Alexandre_Dumas_pere.jpg"
+            alt="Portrait of Alexandre Dumas père"
+            loading="lazy"
+          />
+          <FigCaption>
+            Alexandre Dumas père, whose Monte Cristo ran in the Débats feuilleton
+            from August 1844 to January 1846.
+          </FigCaption>
+          <FigAttr
+            href="https://commons.wikimedia.org/wiki/File:Alexandre_Dumas_pere.jpg"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Wikimedia Commons ↗
+          </FigAttr>
+        </Figure>
+      </TwoColSection>
 
       <Section>
-        <H2>Scandal and Piracy</H2>
+        <ProseWrap>
+          <H2>Scandal and Piracy</H2>
         <EditableText
           value={SECTION_TEXT["press-business-scandal"]}
           onSave={makeSectionSave(
@@ -356,6 +461,7 @@ export default function PressBusiness() {
             of authors and publishers alike.
           </Blockquote>
         </EditableText>
+        </ProseWrap>
       </Section>
 
       <SourcesRow>

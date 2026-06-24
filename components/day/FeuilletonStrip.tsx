@@ -26,7 +26,11 @@ const Panel = styled.aside`
   flex-direction: column;
   gap: 16px;
   padding: 24px 18px;
-  overflow: hidden;
+  align-self: start;
+  position: sticky;
+  top: 0;
+  max-height: 100vh;
+  overflow-y: auto;
 `;
 
 const StripLabel = styled.div`
@@ -38,17 +42,18 @@ const StripLabel = styled.div`
   text-transform: uppercase;
 `;
 
+const ThumbnailStack = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+`;
+
 const ScanFrame = styled.div`
   border: 1px solid var(--rule-mid);
   background: var(--paper-card);
   box-shadow: inset 0 0 30px rgba(120, 84, 40, 0.18);
   padding: 6px;
-  flex: 1;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  min-height: 200px;
-  overflow: hidden;
+  width: 100%;
 `;
 
 const ScanImg = styled.img`
@@ -57,13 +62,38 @@ const ScanImg = styled.img`
   display: block;
 `;
 
+const PageThumbBtn = styled.button`
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+
+  &:focus-visible {
+    outline: 2px solid var(--gilt-warm);
+    outline-offset: 2px;
+  }
+`;
+
+const PageThumbLabel = styled.span`
+  display: block;
+  font-family: var(--font-labels-stack);
+  font-style: italic;
+  font-size: 10px;
+  color: var(--ink-muted);
+  letter-spacing: 0.08em;
+  text-align: center;
+  margin-top: 4px;
+`;
+
 const Placeholder = styled.div`
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   width: 100%;
-  height: 100%;
   min-height: 180px;
   gap: 10px;
   text-align: center;
@@ -177,6 +207,16 @@ export default function FeuilletonStrip({
   const [visionFeedback, setVisionFeedback] = useState<string | null>(null);
 
   const hasPages = originalPages.length > 0 || !!gallicaUrl;
+  const viewerPages = stripImage
+    ? [stripImage, ...originalPages]
+    : originalPages;
+  const stripViewerIndex = stripImage ? 0 : -1;
+  const fullPageViewerIndex = stripImage ? 1 : 0;
+
+  function openViewer(pageIndex: number) {
+    setViewerPage(pageIndex);
+    setViewerOpen(true);
+  }
 
   function handleVisionTranscribe() {
     // Transcribe page 0 (the feuilleton is on page 1 of the issue; index 0)
@@ -200,32 +240,62 @@ export default function FeuilletonStrip({
       <Panel>
         <StripLabel>The Very Strip · Débats, {dateLabel}</StripLabel>
 
-        <ScanFrame>
+        <ThumbnailStack>
           {stripImage ? (
-            <ScanImg
-              src={stripImage.url}
-              alt={stripImage.caption || "Feuilleton strip scan"}
-            />
+            <div>
+              <PageThumbBtn
+                type="button"
+                onClick={() => openViewer(stripViewerIndex)}
+                aria-label="Open feuilleton strip scan"
+              >
+                <ScanFrame>
+                  <ScanImg
+                    src={stripImage.url}
+                    alt={stripImage.caption || "Feuilleton strip scan"}
+                  />
+                </ScanFrame>
+              </PageThumbBtn>
+            </div>
           ) : (
-            <Placeholder>
-              <PlaceholderText>Original on Gallica</PlaceholderText>
-              {gallicaUrl && (
-                <GallicaPlaceholderLink
-                  href={gallicaUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  View on gallica.bnf.fr ↗
-                </GallicaPlaceholderLink>
-              )}
-            </Placeholder>
+            <ScanFrame>
+              <Placeholder>
+                <PlaceholderText>Original on Gallica</PlaceholderText>
+                {gallicaUrl && (
+                  <GallicaPlaceholderLink
+                    href={gallicaUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    View on gallica.bnf.fr ↗
+                  </GallicaPlaceholderLink>
+                )}
+              </Placeholder>
+            </ScanFrame>
           )}
-        </ScanFrame>
+
+          {originalPages.map((page, i) => (
+            <div key={i}>
+              <PageThumbBtn
+                type="button"
+                onClick={() => openViewer(stripImage ? i + 1 : i)}
+                aria-label={`Open page ${i + 1} scan`}
+              >
+                <ScanFrame>
+                  <ScanImg
+                    src={page.url}
+                    alt={page.caption || `Page ${i + 1}`}
+                  />
+                </ScanFrame>
+              </PageThumbBtn>
+              <PageThumbLabel>Page {i + 1}</PageThumbLabel>
+            </div>
+          ))}
+        </ThumbnailStack>
 
         <Attribution>Source: gallica.bnf.fr / BnF</Attribution>
 
         <ViewScanBtn
-          onClick={() => { setViewerPage(0); setViewerOpen(true); }}
+          onClick={() => openViewer(fullPageViewerIndex)}
           disabled={!hasPages}
           title={!hasPages ? "Full scans not yet available" : undefined}
         >
@@ -252,11 +322,12 @@ export default function FeuilletonStrip({
 
       {viewerOpen && (
         <ScanViewer
-          pages={originalPages}
+          pages={viewerPages}
           gallicaUrl={gallicaUrl}
           currentPage={viewerPage}
           onClose={() => setViewerOpen(false)}
           onPageChange={setViewerPage}
+          leadingStrip={!!stripImage}
         />
       )}
     </>
