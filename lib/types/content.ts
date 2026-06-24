@@ -165,6 +165,12 @@ export const DayDocSchema = z.object({
   gallica_issue_url: z.string().url().nullable(),
 
   /**
+   * Total page images in the Gallica issue (typically 4 for Journal des Débats).
+   * Set by resolve-issue; lets pull-scans skip the Pagination API when known.
+   */
+  gallica_page_count: z.number().int().positive().nullable().default(null),
+
+  /**
    * Single image item for the page-1 feuilleton strip crop, or null if not
    * yet cropped. Shown in the left FeuilletonStrip panel.
    */
@@ -225,6 +231,7 @@ export function safeParseDayDoc(raw: unknown) {
 export function emptyDayDoc(): DayDoc {
   return DayDocSchema.parse({
     gallica_issue_url: null,
+    gallica_page_count: null,
     feuilleton_strip: null,
   });
 }

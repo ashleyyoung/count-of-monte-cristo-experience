@@ -7,6 +7,14 @@
 
 import * as dotenv from "dotenv";
 import { createClient } from "@supabase/supabase-js";
+import {
+  resolveIssueArk,
+  parseArkFromGallicaUrl,
+  gallicaPermalink,
+  DEBATS_PERIODICAL_ARK,
+  DEBATS_DEFAULT_PAGE_COUNT,
+  type GallicaCacheOptions,
+} from "../../lib/gallica";
 import { getAll, type Installment } from "../../lib/installments";
 import { parseDayDoc, type DayDoc } from "../../lib/types/content";
 
@@ -162,6 +170,47 @@ export function parseCliRegion():
 
 export const DRY_RUN = process.argv.includes("--dry-run");
 export const SKIP_EXISTING = process.argv.includes("--skip-existing");
+export const REFRESH_GALLICA_CACHE = process.argv.includes(
+  "--refresh-gallica-cache",
+);
+
+/** Shared options for exported Gallica step runners (ingest-all + CLIs). */
+export interface GallicaStepOptions {
+  day: string;
+  dryRun?: boolean;
+  skipExisting?: boolean;
+  refreshGallicaCache?: boolean;
+}
+
+export const DEFAULT_DELAY_BETWEEN_DATES_MS = 60_000;
+export const DEFAULT_COOLDOWN_ON_ERROR_MS = 300_000;
+export const DEFAULT_MAX_CONSECUTIVE_FAILURES = 5;
+export const DEFAULT_RETRY_PASS_PAUSE_MS = 600_000;
+
+/** Parse --delay-between-dates=N (seconds). Default 60. */
+export function parseCliDelayBetweenDates(): number {
+  return parseCliPositiveIntFlag("--delay-between-dates=", 60) * 1_000;
+}
+
+/** Parse --cooldown-on-error=N (seconds). Default 300 (5 min). */
+export function parseCliCooldownOnError(): number {
+  return parseCliPositiveIntFlag("--cooldown-on-error=", 300) * 1_000;
+}
+
+/** Parse --max-consecutive-failures=N. Default 5. */
+export function parseCliMaxConsecutiveFailures(): number {
+  return parseCliPositiveIntFlag("--max-consecutive-failures=", 5);
+}
+
+function parseCliPositiveIntFlag(prefix: string, defaultValue: number): number {
+  const arg = process.argv.find((a) => a.startsWith(prefix));
+  if (!arg) return defaultValue;
+  const n = parseInt(arg.replace(prefix, ""), 10);
+  if (isNaN(n) || n < 0) {
+    throw new Error(`Invalid flag value: ${arg}`);
+  }
+  return n;
+}
 
 /** Parse an optional --from=YYYY-MM-DD flag. */
 export function parseCliFromDate(): string | undefined {
@@ -284,3 +333,40 @@ export const TEXTEBRUT_DELAY_MS = 13_000;
 
 /** Polite delay between ALTO / Pagination calls (~1/s). */
 export const ALTO_DELAY_MS = 1_200;
+
+// ---------------------------------------------------------------------------
+// Issue resolution from day_content (avoids redundant Gallica API calls)
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve ark + page count for a day. Uses doc.gallica_issue_url when present
+ * (no Issues/Pagination API). Falls back to resolveIssueArk when URL missing.
+ */
+export async function resolveIssueForDay(
+  day: string,
+  doc: DayDoc,
+  options: GallicaCacheOptions = {},
+): Promise<{ ark: string; pageCount: number; gallicaUrl: string }> {
+  const parsedArk = doc.gallica_issue_url
+    ? parseArkFromGallicaUrl(doc.gallica_issue_url)
+    : null;
+
+  if (parsedArk && doc.gallica_issue_url) {
+    return {
+      ark: parsedArk,
+      pageCount: doc.gallica_page_count ?? DEBATS_DEFAULT_PAGE_COUNT,
+      gallicaUrl: doc.gallica_issue_url,
+    };
+  }
+
+  const result = await resolveIssueArk(DEBATS_PERIODICAL_ARK, day, options);
+  if (!result) {
+    throw new Error(`No Gallica issue found for Journal des Débats on ${day}`);
+  }
+
+  return {
+    ark: result.ark,
+    pageCount: result.pageCount,
+    gallicaUrl: gallicaPermalink(result.ark),
+  };
+}

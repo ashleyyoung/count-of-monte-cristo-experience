@@ -17,6 +17,8 @@
  *  - ALTO / Pagination: no published limit; callers add polite delays (≥1 s)
  */
 
+import fs from "node:fs/promises";
+import path from "node:path";
 import { XMLParser } from "fast-xml-parser";
 
 // ---------------------------------------------------------------------------
@@ -153,6 +155,18 @@ export function texteBrutUrl(issueArk: string, page?: number): string {
 export function gallicaPermalink(issueArk: string): string {
   return `${GALLICA_BASE}/ark:/12148/${issueArk}`;
 }
+
+/**
+ * Extract the short-form issue ARK from a Gallica permalink or ARK URL.
+ * e.g. https://gallica.bnf.fr/ark:/12148/bpt6k446668c → bpt6k446668c
+ */
+export function parseArkFromGallicaUrl(url: string): string | null {
+  const match = /ark:\/12148\/([^/?#]+)/.exec(url);
+  return match?.[1] ?? null;
+}
+
+/** Default page count for Journal des Débats issues when Pagination is unavailable. */
+export const DEBATS_DEFAULT_PAGE_COUNT = 4;
 
 /**
  * Serialize a PixelRegion to the IIIF "x,y,w,h" region string.
@@ -438,11 +452,29 @@ const GALLICA_FETCH_HEADERS = {
 /** Per-attempt fetch timeout (Gallica Issues can take 10+ s when healthy). */
 const FETCH_TIMEOUT_MS = 90_000;
 
-function retryDelayMs(attempt: number, status?: number): number {
-  // Gallica bot protection (403): longer pauses between retries.
+const FETCH_MAX_ATTEMPTS = 6;
+
+function networkErrorCode(err: unknown): string | undefined {
+  if (!(err instanceof Error)) return undefined;
+  const cause = err.cause;
+  if (cause && typeof cause === "object" && "code" in cause) {
+    return String((cause as { code?: string }).code);
+  }
+  return undefined;
+}
+
+function retryDelayMs(
+  attempt: number,
+  status?: number,
+  networkCode?: string,
+): number {
   if (status === 403) {
-    const base = 15_000 * 2 ** attempt;
+    const base = 30_000 * 2 ** attempt;
     return base + Math.floor(Math.random() * 1_000);
+  }
+  if (networkCode === "ENOTFOUND" || networkCode === "EAI_AGAIN") {
+    const dnsDelays = [5_000, 15_000, 30_000, 60_000, 90_000, 120_000];
+    return (dnsDelays[attempt] ?? 120_000) + Math.floor(Math.random() * 500);
   }
   const base = 2_000 * 2 ** attempt;
   return base + Math.floor(Math.random() * 500);
@@ -488,7 +520,7 @@ function isRetryableNetworkError(err: unknown): boolean {
 
 async function gallicaFetchResponse(
   url: string,
-  maxAttempts = 4,
+  maxAttempts = FETCH_MAX_ATTEMPTS,
 ): Promise<Response> {
   let lastHttpError: GallicaFetchError | undefined;
   let lastNetworkError: Error | undefined;
@@ -523,7 +555,13 @@ async function gallicaFetchResponse(
       }
     }
 
-    await sleep(retryDelayMs(attempt, lastHttpError?.status));
+    await sleep(
+      retryDelayMs(
+        attempt,
+        lastHttpError?.status,
+        networkErrorCode(lastNetworkError),
+      ),
+    );
   }
 
   if (lastHttpError) throw lastHttpError;
@@ -548,25 +586,121 @@ async function gallicaFetchBinary(url: string): Promise<Buffer> {
   return Buffer.from(arrayBuffer);
 }
 
+// ---------------------------------------------------------------------------
+// Year-level Issues XML cache (memory + disk)
+// ---------------------------------------------------------------------------
+
+const issuesMemoryCache = new Map<string, string>();
+
+export interface GallicaCacheOptions {
+  /** When true, bypass memory and disk cache and re-fetch from Gallica. */
+  refresh?: boolean;
+}
+
+/** Disk path for cached Issues XML for a given year. */
+export function issuesCachePath(year: number): string {
+  return path.join(process.cwd(), "content", "gallica", `issues-${year}.xml`);
+}
+
+function issuesCacheKey(periodicalArk: string, year: number): string {
+  return `${periodicalArk}:${year}`;
+}
+
+/**
+ * Fetch (or load from cache) the Gallica Issues service XML for a full year.
+ * Cached in memory for the process lifetime and on disk at content/gallica/.
+ */
+export async function fetchYearIssuesXml(
+  periodicalArk: string,
+  year: number,
+  options?: GallicaCacheOptions,
+): Promise<string> {
+  const cacheKey = issuesCacheKey(periodicalArk, year);
+
+  if (!options?.refresh && issuesMemoryCache.has(cacheKey)) {
+    return issuesMemoryCache.get(cacheKey)!;
+  }
+
+  if (!options?.refresh) {
+    try {
+      const diskXml = await fs.readFile(issuesCachePath(year), "utf-8");
+      if (diskXml.trim()) {
+        issuesMemoryCache.set(cacheKey, diskXml);
+        return diskXml;
+      }
+    } catch {
+      // cache miss — fetch from Gallica
+    }
+  }
+
+  const xml = await gallicaFetch(issuesServiceUrl(periodicalArk, year));
+  issuesMemoryCache.set(cacheKey, xml);
+  await fs.mkdir(path.dirname(issuesCachePath(year)), { recursive: true });
+  await fs.writeFile(issuesCachePath(year), xml, "utf-8");
+  return xml;
+}
+
+/** Pre-fetch Issues XML for one or more years (used by warm-issues-cache.ts). */
+export async function warmIssuesCache(
+  periodicalArk: string,
+  years: number[],
+  options?: GallicaCacheOptions,
+): Promise<Array<{ year: number; path: string }>> {
+  const results: Array<{ year: number; path: string }> = [];
+  for (const year of years) {
+    await fetchYearIssuesXml(periodicalArk, year, options);
+    results.push({ year, path: issuesCachePath(year) });
+  }
+  return results;
+}
+
+export interface ResolveIssueArkOptions extends GallicaCacheOptions {
+  /** When set, skip Pagination API and use this page count. */
+  knownPageCount?: number;
+}
+
 /**
  * Resolve an issue ARK and page count from an ISO date string.
  *
- * Calls the Issues service then the Pagination service.
- * Returns null if no issue is found for that date.
+ * Uses cached year-level Issues XML when available, then Pagination (unless
+ * knownPageCount is provided).
  */
 export async function resolveIssueArk(
   periodicalArk: string,
   isoDate: string,
+  options?: ResolveIssueArkOptions,
 ): Promise<{ ark: string; pageCount: number } | null> {
   const year = parseInt(isoDate.slice(0, 4), 10);
-  const issuesXml = await gallicaFetch(issuesServiceUrl(periodicalArk, year));
+  const issuesXml = await fetchYearIssuesXml(periodicalArk, year, options);
   const match = parseIssuesXml(issuesXml, isoDate);
   if (!match) return null;
 
+  if (options?.knownPageCount != null) {
+    return { ark: match.ark, pageCount: options.knownPageCount };
+  }
+
   const pagXml = await gallicaFetch(paginationServiceUrl(match.ark));
-  const pageCount = parsePaginationXml(pagXml) ?? 4; // default 4 for JdD
+  const pageCount = parsePaginationXml(pagXml) ?? DEBATS_DEFAULT_PAGE_COUNT;
 
   return { ark: match.ark, pageCount };
+}
+
+/** True when an error likely means Gallica rate-limits or DNS — batch should cooldown. */
+export function isGallicaThrottleError(err: unknown): boolean {
+  if (err instanceof GallicaFetchError) {
+    if (err.status === 0) {
+      const code = networkErrorCode(err);
+      return code === "ENOTFOUND" || code === "EAI_AGAIN";
+    }
+    return [403, 429, 502, 503, 504, 522, 524].includes(err.status);
+  }
+  if (err instanceof Error) {
+    if (/HTTP (403|429|502|503|504|522|524)/.test(err.message)) return true;
+    if (/DNS lookup failed/.test(err.message)) return true;
+    const code = networkErrorCode(err);
+    return code === "ENOTFOUND" || code === "EAI_AGAIN";
+  }
+  return false;
 }
 
 /**

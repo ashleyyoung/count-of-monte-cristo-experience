@@ -15,3 +15,6 @@ supabase/.temp/
 
 # Design export archives (source assets live in monte-cristo/ and the app)
 *.zip
+
+# Gallica Issues XML disk cache (scripts/gallica/warm-issues-cache.ts)
+content/gallica/*.xml

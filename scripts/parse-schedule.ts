@@ -269,6 +269,7 @@ async function main() {
     installment_date: r.installment_date,
     doc: {
       gallica_issue_url: null,
+      gallica_page_count: null,
       feuilleton_strip: null,
       original_pages: [],
       overview: [],

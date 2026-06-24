@@ -10,6 +10,7 @@
 import React, { useCallback, useState } from "react";
 import styled from "styled-components";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import Link from "next/link";
 import dynamic from "next/dynamic";
 import type { GraphPerson, GraphRelationship } from "@/lib/graph-layout";
 import type { PersistedCoord } from "@/components/graph/NetworkGraph";
@@ -21,6 +22,8 @@ import { useAdminMode } from "@/components/admin/AdminModeProvider";
 import { triggerGraphRecompute } from "@/app/actions/admin";
 
 const PaperProfile = dynamic(() => import("./PaperProfile"), { ssr: false });
+const PressRoom = dynamic(() => import("./PressRoom"), { ssr: false });
+const PressBusiness = dynamic(() => import("./PressBusiness"), { ssr: false });
 const VignetteGrid = dynamic(() => import("./VignetteGrid"), { ssr: false });
 const StackedTimelines = dynamic(() => import("./StackedTimelines"), { ssr: false });
 const NetworkGraph = dynamic(
@@ -52,6 +55,8 @@ interface DebatsPageViewProps {
 
 const TABS = [
   { id: "paper",       label: "The Paper" },
+  { id: "press",       label: "The Press Room" },
+  { id: "business",    label: "The Business" },
   { id: "connections", label: "Connections" },
   { id: "people",      label: "People & Lives" },
 ] as const;
@@ -73,6 +78,25 @@ const Masthead = styled.header`
   padding: 2rem 0 0;
   margin-bottom: 2rem;
   border-bottom: 2px solid var(--rule-mid);
+`;
+
+const Breadcrumb = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-labels-stack);
+  font-style: italic;
+  font-size: 11px;
+  color: var(--ink-muted);
+  margin-bottom: 0.75rem;
+
+  a {
+    color: var(--ink-muted);
+    text-decoration: none;
+    &:hover { color: var(--ink-primary); }
+  }
+
+  span { color: var(--rule-mid); }
 `;
 
 const Title = styled.h1`
@@ -241,6 +265,11 @@ export default function DebatsPageView({
   return (
     <Page>
       <Masthead>
+        <Breadcrumb>
+          <Link href="/">Home</Link>
+          <span>/</span>
+          <span>Journal des Débats</span>
+        </Breadcrumb>
         <Title>Journal des Débats</Title>
         <Subtitle>Politiques et Littéraires · Founded 1789</Subtitle>
         <TabBar role="tablist" aria-label="Débats hub sections">
@@ -260,6 +289,10 @@ export default function DebatsPageView({
 
       <TabContent role="tabpanel">
         {activeTab === "paper" && <PaperProfile />}
+
+        {activeTab === "press" && <PressRoom />}
+
+        {activeTab === "business" && <PressBusiness />}
 
         {activeTab === "connections" && (
           <GraphShell>

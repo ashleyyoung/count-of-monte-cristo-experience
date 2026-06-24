@@ -23,6 +23,7 @@ import {
   resolveIssueArk,
   gallicaPermalink,
   DEBATS_PERIODICAL_ARK,
+  type GallicaCacheOptions,
 } from "../../lib/gallica";
 import {
   makeSupabaseClient,
@@ -30,55 +31,59 @@ import {
   saveDayDoc,
   parseCliDate,
   DRY_RUN,
+  REFRESH_GALLICA_CACHE,
   logStructuredError,
+  type GallicaStepOptions,
 } from "./_shared";
+
+export interface ResolveIssueResult {
+  day: string;
+  ark: string;
+  pageCount: number;
+  gallicaUrl: string;
+  dryRun: boolean;
+}
+
+export async function runResolveIssue(
+  options: GallicaStepOptions,
+): Promise<ResolveIssueResult> {
+  const { day, dryRun = false, refreshGallicaCache = false } = options;
+  const cacheOptions: GallicaCacheOptions = { refresh: refreshGallicaCache };
+  const supabase = makeSupabaseClient();
+
+  const result = await resolveIssueArk(
+    DEBATS_PERIODICAL_ARK,
+    day,
+    cacheOptions,
+  );
+  if (!result) {
+    throw new Error(`No Gallica issue found for Journal des Débats on ${day}`);
+  }
+
+  const { ark, pageCount } = result;
+  const gallicaUrl = gallicaPermalink(ark);
+
+  const doc = await loadDayDoc(supabase, day);
+  doc.gallica_issue_url = gallicaUrl;
+  doc.gallica_page_count = pageCount;
+  await saveDayDoc(supabase, day, doc, dryRun);
+
+  return { day, ark, pageCount, gallicaUrl, dryRun };
+}
 
 async function main() {
   const day = parseCliDate();
-  const supabase = makeSupabaseClient();
-
-  // ── 1. Resolve issue ARK via Gallica Issues + Pagination services ──
-  let ark: string;
-  let pageCount: number;
   try {
-    const result = await resolveIssueArk(DEBATS_PERIODICAL_ARK, day);
-    if (!result) {
-      logStructuredError(
-        { day, stage: "resolve-issue" },
-        new Error(`No Gallica issue found for Journal des Débats on ${day}`),
-      );
-      process.exit(1);
-    }
-    ark = result.ark;
-    pageCount = result.pageCount;
+    const summary = await runResolveIssue({
+      day,
+      dryRun: DRY_RUN,
+      refreshGallicaCache: REFRESH_GALLICA_CACHE,
+    });
+    console.log(JSON.stringify(summary));
   } catch (err) {
     logStructuredError({ day, stage: "resolve-issue" }, err);
     process.exit(1);
   }
-
-  const gallicaUrl = gallicaPermalink(ark);
-
-  // ── 2. Load existing doc, update gallica_issue_url, save ──
-  let doc;
-  try {
-    doc = await loadDayDoc(supabase, day);
-  } catch (err) {
-    logStructuredError({ day, stage: "load-doc" }, err);
-    process.exit(1);
-  }
-
-  doc.gallica_issue_url = gallicaUrl;
-
-  try {
-    await saveDayDoc(supabase, day, doc, DRY_RUN);
-  } catch (err) {
-    logStructuredError({ day, stage: "save-doc" }, err);
-    process.exit(1);
-  }
-
-  console.log(
-    JSON.stringify({ day, ark, pageCount, gallicaUrl, dryRun: DRY_RUN }),
-  );
 }
 
 main().catch((err) => {

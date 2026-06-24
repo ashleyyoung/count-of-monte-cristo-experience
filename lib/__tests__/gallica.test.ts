@@ -24,6 +24,7 @@ import {
   altoUrl,
   texteBrutUrl,
   gallicaPermalink,
+  parseArkFromGallicaUrl,
   pixelRegion,
   pctRegion,
   // Date utilities
@@ -173,6 +174,13 @@ describe("URL builders", () => {
     expect(gallicaPermalink("bpt6k446670p")).toBe(
       "https://gallica.bnf.fr/ark:/12148/bpt6k446670p",
     );
+  });
+
+  it("parseArkFromGallicaUrl", () => {
+    expect(
+      parseArkFromGallicaUrl("https://gallica.bnf.fr/ark:/12148/bpt6k446668c"),
+    ).toBe("bpt6k446668c");
+    expect(parseArkFromGallicaUrl("not-a-url")).toBeNull();
   });
 });
 

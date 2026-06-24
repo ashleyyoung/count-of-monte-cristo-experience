@@ -108,23 +108,32 @@ Add `--dry-run` to any of these to preview without writing.
 
 **Batch all dates (background-friendly):**
 
+`ingest-all` runs in a **single process** with shared year-level Issues XML cache (3 API calls for 1844–1846, not hundreds). Defaults: **60 s** between dates, **5 min** cooldown (doubling up to 15 min) after 403/DNS errors, retry pass after **10 min** for failed dates.
+
 ```bash
-# All 139 installments — resolve, pull scans, crop feuilleton strip
+# One-time: cache Issues XML to disk (when Gallica is reachable)
+npx tsx scripts/gallica/warm-issues-cache.ts
+
+# Recommended after resolve-issue URLs are written — pull + crop only
+npx tsx scripts/gallica/ingest-all.ts --skip-existing --steps=pull,crop
+
+# Full pipeline (resolve + pull + crop)
 npx tsx scripts/gallica/ingest-all.ts --skip-existing
 
 # Part 1 only, scans step
 npx tsx scripts/gallica/ingest-all.ts --part=1 --steps=pull --skip-existing
 
-# Date range
-npx tsx scripts/gallica/ingest-all.ts --from=1844-08-28 --to=1844-10-19 --skip-existing
+# Date range; tune throttling (seconds)
+npx tsx scripts/gallica/ingest-all.ts --from=1844-08-28 --to=1844-10-19 \
+  --skip-existing --delay-between-dates=60 --cooldown-on-error=300
 
-# Stop on first failure (default: log and continue)
+# Stop on first failure (default: log, cooldown, continue)
 npx tsx scripts/gallica/ingest-all.ts --stop-on-error
 ```
 
-Expect roughly 1 minute per issue for `pull` (13 s between IIIF page downloads). A full 139-date pull run is on the order of 2–3 hours.
+Expect roughly 1 minute per issue for `pull` (13 s between IIIF page downloads). A full 139-date pull run is on the order of **3–4 hours** including inter-date delays.
 
-**Gallica outages:** The Issues API sits behind Cloudflare. HTTP `522` (origin timeout) or `503` are usually transient; the client retries automatically (up to 4 attempts). If it still fails, wait a few minutes and rerun the same command. HTTP `403` from Cloudflare means bot protection blocked the request; try again from your local machine (not a cloud VM) or after a longer pause.
+**Gallica outages:** The Issues API sits behind Cloudflare. HTTP `522` (origin timeout) or `503` are usually transient; the client retries automatically (up to 6 attempts). If it still fails, wait a few minutes and rerun with `--skip-existing`. HTTP `403` from Cloudflare means bot protection blocked the request; `ingest-all` will cooldown and retry failed dates once.
 
 **DNS / network errors:** A message like `DNS lookup failed for gallica.bnf.fr (ENOTFOUND)` or bare `fetch failed` means your machine could not reach Gallica at all (not an app bug). Check `dig gallica.bnf.fr`, toggle VPN, or try a different DNS resolver (e.g. 1.1.1.1), then retry.
 
@@ -240,20 +249,21 @@ Then open [http://localhost:3001/day/1844-08-28](http://localhost:3001/day/1844-
 
 ## Script reference
 
-| Script                                    | When           | Notes                                         |
-| ----------------------------------------- | -------------- | --------------------------------------------- |
-| `scripts/parse-schedule.ts`               | Once           | Also writes `content/schedule.json`           |
-| `scripts/seed-contributors.ts`            | Once           | 12 contributors                               |
-| `scripts/upload-contributor-assets.ts`    | Once, optional | Idempotent; skips existing bios               |
-| `scripts/recompute-graph.ts`              | Once           | After contributors seeded                     |
-| `scripts/ingest-gutenberg.ts`             | Once           | `--dry-run` supported                         |
-| `scripts/gallica/resolve-issue.ts`        | Per date       | Sets `doc.gallica_issue_url`                  |
-| `scripts/gallica/pull-scans.ts`           | Per date       | Rate-limited; per-page `--skip-existing`      |
-| `scripts/gallica/crop-strip.ts`           | Per date       | `--region=x,y,w,h`; `--skip-existing`         |
-| `scripts/gallica/ingest-all.ts`           | Batch          | All dates; `--from`/`--to`/`--part`/`--steps` |
-| `scripts/gallica/alto-ocr.ts`             | Per date       | Diagnostic only                               |
-| `scripts/translate/translate-day.ts`      | Per date       | Full pipeline; UI trigger uses same script    |
-| `scripts/translate/extract-text.ts`       | Per date       | Manual pipeline step 1                        |
-| `scripts/translate/translate.ts`          | Per date       | Manual pipeline step 2                        |
-| `scripts/translate/update-day-content.ts` | Per date       | Manual pipeline step 3                        |
-| `scripts/translate/import-existing.ts`    | Per date       | `--source=berlioz\|gutenberg\|all`            |
+| Script                                    | When           | Notes                                      |
+| ----------------------------------------- | -------------- | ------------------------------------------ |
+| `scripts/parse-schedule.ts`               | Once           | Also writes `content/schedule.json`        |
+| `scripts/seed-contributors.ts`            | Once           | 12 contributors                            |
+| `scripts/upload-contributor-assets.ts`    | Once, optional | Idempotent; skips existing bios            |
+| `scripts/recompute-graph.ts`              | Once           | After contributors seeded                  |
+| `scripts/ingest-gutenberg.ts`             | Once           | `--dry-run` supported                      |
+| `scripts/gallica/resolve-issue.ts`        | Per date       | Sets `doc.gallica_issue_url`               |
+| `scripts/gallica/pull-scans.ts`           | Per date       | Rate-limited; per-page `--skip-existing`   |
+| `scripts/gallica/crop-strip.ts`           | Per date       | `--region=x,y,w,h`; `--skip-existing`      |
+| `scripts/gallica/ingest-all.ts`           | Batch          | Single process; throttling; retry pass     |
+| `scripts/gallica/warm-issues-cache.ts`    | Once           | Pre-fetch Issues XML for 1844–1846         |
+| `scripts/gallica/alto-ocr.ts`             | Per date       | Diagnostic only                            |
+| `scripts/translate/translate-day.ts`      | Per date       | Full pipeline; UI trigger uses same script |
+| `scripts/translate/extract-text.ts`       | Per date       | Manual pipeline step 1                     |
+| `scripts/translate/translate.ts`          | Per date       | Manual pipeline step 2                     |
+| `scripts/translate/update-day-content.ts` | Per date       | Manual pipeline step 3                     |
+| `scripts/translate/import-existing.ts`    | Per date       | `--source=berlioz\|gutenberg\|all`         |
