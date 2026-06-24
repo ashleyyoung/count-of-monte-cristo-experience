@@ -3,6 +3,9 @@ import path from "path";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  compiler: {
+    styledComponents: true,
+  },
   turbopack: {
     root: path.resolve(__dirname),
   },

@@ -1,89 +1,162 @@
+/* ==========================================================================
+   Monte Cristo Experience — Global tokens + base reset
+   All component-level styles live in styled-components.
+   This file holds only: CSS variables, font-variable mappings, body reset,
+   and the paper grain pseudo-element (which cannot live in a client component).
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   Design tokens — Direction 1 "Aged paper & sepia ink · subtle"
+   -------------------------------------------------------------------------- */
+
 :root {
-  --ink: #1a1410;
-  --parchment: #f4ead5;
-  --gold: #b8860b;
-  --sea: #1e3a4a;
-  --mist: rgba(26, 20, 16, 0.08);
+  /* Paper grounds */
+  --paper-base:    #f1e8d2;
+  --paper-card:    #efe6cf;
+  --paper-feature: #e9dec4;
+  --paper-deep:    #e2d6ba;
+
+  /* Inks */
+  --ink-primary:   #1d140a;
+  --ink-secondary: #3b2e1d;
+  --ink-tertiary:  #5b4631;
+  --ink-muted:     #6b5236;
+
+  /* Rules */
+  --rule-strong:   #5b4631;
+  --rule-mid:      #8a6f47;
+  --rule-light:    #b9a578;
+
+  /* Gilt */
+  --gilt-warm:     #c9a24b;
+  --gilt-light:    #e7c878;
+  --gilt-deep:     #a07f30;
+
+  /* Oxblood accent */
+  --oxblood:       #7c2d2a;
+
+  /* Font family aliases — resolved from next/font CSS variables */
+  --font-masthead-stack:   var(--font-masthead),   "UnifrakturMaguntia", cursive;
+  --font-display-stack:    var(--font-display),     "Bodoni Moda",        serif;
+  --font-body-stack:       var(--font-body),        "EB Garamond",        serif;
+  --font-labels-stack:     var(--font-labels),      "IM Fell English",    serif;
+  --font-supporting-stack: var(--font-supporting),  "Cormorant Garamond", serif;
+  --font-caption-stack:    var(--font-caption),     "IM Fell DW Pica",    serif;
+  --font-script-stack:     var(--font-script),      "Pinyon Script",      cursive;
 }
 
-* {
+/* --------------------------------------------------------------------------
+   Base reset
+   -------------------------------------------------------------------------- */
+
+*,
+*::before,
+*::after {
   box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  scroll-behavior: smooth;
 }
 
 html,
 body {
   margin: 0;
+  padding: 0;
   min-height: 100%;
 }
 
 body {
-  background:
-    radial-gradient(circle at top, rgba(184, 134, 11, 0.18), transparent 40%),
-    linear-gradient(180deg, #fdf8ee 0%, var(--parchment) 100%);
-  color: var(--ink);
-  font-family: var(--font-body), "Source Sans 3", sans-serif;
+  background-color: var(--paper-base);
+  color: var(--ink-primary);
+  font-family: var(--font-body-stack);
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  /* Position for grain overlay */
+  position: relative;
+  isolation: isolate;
 }
 
-.page {
-  min-height: 100vh;
-  display: grid;
-  place-items: center;
-  padding: 2rem;
+/* --------------------------------------------------------------------------
+   Paper grain overlay — foxing spots + scan lines
+   Applied via ::before so it overlays the whole page without affecting
+   layout. mix-blend-mode: multiply integrates with the background color.
+   A client-side styled-component can't do this reliably across all browsers,
+   so it lives here.
+   -------------------------------------------------------------------------- */
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+
+  /* Foxing / aging spots */
+  background-image:
+    radial-gradient(circle at 78% 22%, rgba(120, 84, 40, 0.16), transparent 9%),
+    radial-gradient(circle at 22% 74%, rgba(120, 84, 40, 0.13), transparent 11%);
+  mix-blend-mode: multiply;
+  opacity: 1;
 }
 
-.hero {
-  width: min(42rem, 100%);
-  padding: 2.5rem;
-  border: 1px solid var(--mist);
-  border-radius: 1.25rem;
-  background: rgba(255, 255, 255, 0.55);
-  box-shadow: 0 24px 60px rgba(30, 58, 74, 0.08);
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+
+  /* Horizontal scan-line grain */
+  background-image: repeating-linear-gradient(
+    0deg,
+    rgba(60, 40, 20, 0.04) 0 1px,
+    transparent 1px 3px
+  );
+  opacity: 0.5;
 }
 
-.eyebrow {
-  margin: 0 0 0.75rem;
-  color: var(--sea);
-  font-size: 0.85rem;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
+/* Ensure all page content sits above the grain layers */
+body > * {
+  position: relative;
+  z-index: 1;
 }
 
-h1 {
-  margin: 0 0 1rem;
-  font-family: var(--font-display), "Cormorant Garamond", serif;
-  font-size: clamp(2.5rem, 6vw, 3.75rem);
-  font-weight: 600;
+/* --------------------------------------------------------------------------
+   Typography base
+   -------------------------------------------------------------------------- */
+
+h1, h2, h3, h4, h5, h6 {
+  margin: 0;
+  font-family: var(--font-display-stack);
+  font-weight: 700;
   line-height: 1.05;
+  color: var(--ink-primary);
 }
 
-.lede {
-  margin: 0 0 1.75rem;
-  max-width: 36rem;
-  font-size: 1.05rem;
-  line-height: 1.7;
-}
-
-.status {
-  display: grid;
-  gap: 1rem;
+p {
   margin: 0;
-  padding-top: 1.25rem;
-  border-top: 1px solid var(--mist);
 }
 
-.status div {
-  display: grid;
-  gap: 0.25rem;
+a {
+  color: var(--ink-secondary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
-.status dt {
-  color: var(--sea);
-  font-size: 0.75rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+a:hover {
+  color: var(--oxblood);
 }
 
-.status dd {
-  margin: 0;
-  font-weight: 500;
+img, svg {
+  display: block;
+  max-width: 100%;
+}
+
+button {
+  cursor: pointer;
 }

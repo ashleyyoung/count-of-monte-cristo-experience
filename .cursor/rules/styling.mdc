@@ -1,0 +1,58 @@
+---
+description: Styling approach — styled-components, no Tailwind
+globs: **/*.tsx
+alwaysApply: false
+---
+
+# Styling
+
+Use `styled-components` for all component-level styles. Do not use Tailwind utility classes.
+
+## Token consumption
+
+Design tokens are CSS variables defined in `app/globals.css`. Reference them inside styled-components via `var(--token-name)`:
+
+```tsx
+const Card = styled.div`
+  background: var(--paper-card);
+  color: var(--ink-primary);
+  border: 1px solid var(--rule-light);
+`;
+```
+
+## App Router SSR setup
+
+Because styled-components is CSS-in-JS, style injection for RSC requires the registry:
+
+```tsx
+// components/StyledComponentsRegistry.tsx
+"use client";
+import React, { useState } from "react";
+import { useServerInsertedHTML } from "next/navigation";
+import { ServerStyleSheet, StyleSheetManager } from "styled-components";
+
+export default function StyledComponentsRegistry({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const [sheet] = useState(() => new ServerStyleSheet());
+  useServerInsertedHTML(() => <>{sheet.getStyleElement()}</>);
+  if (typeof window !== "undefined") return <>{children}</>;
+  return (
+    <StyleSheetManager sheet={sheet.instance}>{children}</StyleSheetManager>
+  );
+}
+```
+
+Wrap `{children}` in `app/layout.tsx` with `<StyledComponentsRegistry>`.
+
+## Client components
+
+Any file that uses `styled.x` must be a client component or imported only by client components. Add `"use client"` at the top of every styled-components file.
+
+## No inline styles, no CSS modules, no Tailwind
+
+- No `className="text-sm font-bold"` Tailwind utility classes
+- No CSS modules (`*.module.css`)
+- No inline `style={{ }}` props except for truly dynamic values (e.g. a runtime width derived from JS)

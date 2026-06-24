@@ -1,0 +1,1142 @@
+"use server";
+
+/**
+ * app/actions/admin.ts
+ *
+ * All admin write actions for the inline admin mode.
+ * Every action: asserts admin session, Zod-validates, writes base tables / R2.
+ * Callers call router.refresh() after each action to re-render from live SSR data.
+ * RLS admin write policies are the real enforcement; the UI toggle is convenience.
+ *
+ * Sprint 9 adds translateDay / visionTranscribe to this same module.
+ */
+
+import { spawn } from "node:child_process";
+import { revalidatePath } from "next/cache";
+import { z } from "zod";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
+import { putR2Object, putR2Text, r2PublicUrl } from "@/lib/r2-server";
+import {
+  DayDocSchema,
+  DocItemSchema,
+  parseDayDoc,
+  emptyDayDoc,
+  type DayDoc,
+  type DocItem,
+  type TextItem,
+} from "@/lib/types/content";
+import { recomputeGraphLayout } from "@/lib/graph-recompute";
+
+// ---------------------------------------------------------------------------
+// Admin session guard
+// ---------------------------------------------------------------------------
+
+async function assertAdmin(): Promise<void> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
+  if (error || !user) throw new Error("Unauthorized");
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+  if (profile?.role !== "admin") throw new Error("Forbidden");
+}
+
+// ---------------------------------------------------------------------------
+// Day content section helpers
+// ---------------------------------------------------------------------------
+
+export type DayContentSection =
+  | "overview"
+  | "chapter"
+  | "debats.music"
+  | "debats.theater"
+  | "debats.art"
+  | "debats.literature"
+  | "art_exhibitions"
+  | "science"
+  | "galignani";
+
+function getSectionItems(doc: DayDoc, section: DayContentSection): DocItem[] {
+  switch (section) {
+    case "debats.music":
+      return doc.debats.music;
+    case "debats.theater":
+      return doc.debats.theater;
+    case "debats.art":
+      return doc.debats.art;
+    case "debats.literature":
+      return doc.debats.literature;
+    default:
+      return (doc[section as keyof DayDoc] as DocItem[]) ?? [];
+  }
+}
+
+function setSectionItems(
+  doc: DayDoc,
+  section: DayContentSection,
+  items: DocItem[],
+): DayDoc {
+  switch (section) {
+    case "debats.music":
+      return { ...doc, debats: { ...doc.debats, music: items } };
+    case "debats.theater":
+      return { ...doc, debats: { ...doc.debats, theater: items } };
+    case "debats.art":
+      return { ...doc, debats: { ...doc.debats, art: items } };
+    case "debats.literature":
+      return { ...doc, debats: { ...doc.debats, literature: items } };
+    default:
+      return { ...doc, [section]: items };
+  }
+}
+
+async function loadDoc(date: string): Promise<DayDoc> {
+  const db = createAdminClient();
+  const { data } = await db
+    .from("day_content")
+    .select("doc")
+    .eq("installment_date", date)
+    .single();
+  if (!data?.doc) return emptyDayDoc();
+  return parseDayDoc(data.doc);
+}
+
+async function saveDoc(date: string, doc: DayDoc): Promise<void> {
+  const db = createAdminClient();
+  const validated = DayDocSchema.parse(doc);
+  const { error } = await db
+    .from("day_content")
+    .upsert(
+      { installment_date: date, doc: validated },
+      { onConflict: "installment_date" },
+    );
+  if (error) throw new Error(`Failed to save day_content: ${error.message}`);
+}
+
+// ---------------------------------------------------------------------------
+// Day content item actions
+// ---------------------------------------------------------------------------
+
+/**
+ * Add or replace a DocItem in a day section.
+ * For text items, pass textBody to upload to R2; the text_r2_key is generated server-side.
+ * Pass itemIndex = null to append; pass an index to replace.
+ */
+export async function upsertDayContentItem(
+  date: string,
+  section: DayContentSection,
+  item: DocItem,
+  textBody: string | null,
+  itemIndex: number | null,
+): Promise<{ ok: true }> {
+  await assertAdmin();
+  let finalItem = DocItemSchema.parse(item);
+
+  if (finalItem.kind === "text" && textBody !== null) {
+    const r2Key = `admin/day/${date}/${section.replace(".", "/")}/${crypto.randomUUID()}.txt`;
+    await putR2Text(r2Key, textBody);
+    finalItem = { ...finalItem, text_r2_key: r2Key };
+  }
+
+  // Guard: a text item must point at a real R2 object. This only triggers if a
+  // new text item is submitted without a body (the editor blocks this, but the
+  // guard prevents a corrupt "__pending__" key from ever being persisted).
+  if (finalItem.kind === "text" && finalItem.text_r2_key === "__pending__") {
+    throw new Error("Text item requires a prose body before it can be saved.");
+  }
+
+  const doc = await loadDoc(date);
+  const items = getSectionItems(doc, section);
+  const newItems =
+    itemIndex === null
+      ? [...items, finalItem]
+      : items.map((it, i) => (i === itemIndex ? finalItem : it));
+
+  await saveDoc(date, setSectionItems(doc, section, newItems));
+  revalidatePath(`/day/${date}`);
+  return { ok: true };
+}
+
+export async function deleteDayContentItem(
+  date: string,
+  section: DayContentSection,
+  itemIndex: number,
+): Promise<{ ok: true }> {
+  await assertAdmin();
+  const doc = await loadDoc(date);
+  const items = getSectionItems(doc, section);
+  const newItems = items.filter((_, i) => i !== itemIndex);
+  await saveDoc(date, setSectionItems(doc, section, newItems));
+  revalidatePath(`/day/${date}`);
+  return { ok: true };
+}
+
+export async function reorderDayContentItems(
+  date: string,
+  section: DayContentSection,
+  newOrder: DocItem[],
+): Promise<{ ok: true }> {
+  await assertAdmin();
+  const validated = z.array(DocItemSchema).parse(newOrder);
+  const doc = await loadDoc(date);
+  await saveDoc(date, setSectionItems(doc, section, validated));
+  revalidatePath(`/day/${date}`);
+  return { ok: true };
+}
+
+/**
+ * Mark an admin note resolved on a text item by slot_key.
+ */
+export async function resolveAdminNote(
+  date: string,
+  section: DayContentSection,
+  itemIndex: number,
+): Promise<{ ok: true }> {
+  await assertAdmin();
+  const doc = await loadDoc(date);
+  const items = getSectionItems(doc, section);
+  const item = items[itemIndex];
+  if (!item || item.kind !== "text") {
+    throw new Error(`No text item at index ${itemIndex} in ${section}.`);
+  }
+  const updatedItem = {
+    ...item,
+    admin_notes: undefined,
+    low_confidence: undefined,
+  };
+  const newItems = items.map((it, i) => (i === itemIndex ? updatedItem : it));
+  await saveDoc(date, setSectionItems(doc, section, newItems));
+  revalidatePath(`/day/${date}`);
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Media assets
+// ---------------------------------------------------------------------------
+
+export const MEDIA_KINDS = [
+  "illustration",
+  "portrait",
+  "caricature",
+  "playbill",
+  "architecture",
+  "novel_plate",
+  "scan",
+  "audio",
+  "other",
+] as const;
+export type MediaKind = (typeof MEDIA_KINDS)[number];
+
+const MediaAssetUpsertSchema = z.object({
+  id: z.string().uuid().optional(),
+  kind: z.enum(MEDIA_KINDS),
+  title: z.string().nullable(),
+  caption: z.string().nullable(),
+  r2_key: z.string().nullable(),
+  source_url: z.string().nullable(),
+  download_blocked: z.boolean().default(false),
+  download_blocked_reason: z.string().nullable(),
+  license: z.string().nullable(),
+  attribution: z.string().nullable(),
+  source: z.string().nullable(),
+  tags: z.array(z.string()).default([]),
+});
+
+export type MediaAssetUpsert = z.infer<typeof MediaAssetUpsertSchema>;
+
+export async function upsertMediaAsset(
+  data: MediaAssetUpsert,
+): Promise<{ id: string }> {
+  await assertAdmin();
+  const validated = MediaAssetUpsertSchema.parse(data);
+  const db = createAdminClient();
+
+  if (validated.id) {
+    const { error } = await db
+      .from("media_assets")
+      .update(validated)
+      .eq("id", validated.id);
+    if (error)
+      throw new Error(`Failed to update media_asset: ${error.message}`);
+    return { id: validated.id };
+  }
+
+  const { data: row, error } = await db
+    .from("media_assets")
+    .insert(validated)
+    .select("id")
+    .single();
+  if (error || !row)
+    throw new Error(`Failed to insert media_asset: ${error?.message}`);
+  return { id: row.id };
+}
+
+export async function uploadMediaToR2(
+  filename: string,
+  base64: string,
+  contentType: string,
+  kind: MediaKind,
+): Promise<{ id: string; r2_key: string }> {
+  await assertAdmin();
+  const bytes = Buffer.from(base64, "base64");
+  const r2Key = `media/${kind}/${crypto.randomUUID()}-${filename.replace(/[^a-z0-9._-]/gi, "_")}`;
+  await putR2Object(r2Key, bytes, contentType);
+
+  const db = createAdminClient();
+  const { data: row, error } = await db
+    .from("media_assets")
+    .insert({
+      kind,
+      r2_key: r2Key,
+      source_url: null,
+      download_blocked: false,
+      download_blocked_reason: null,
+      license: null,
+      attribution: null,
+      source: null,
+      title: filename,
+      caption: null,
+      tags: [],
+    })
+    .select("id")
+    .single();
+  if (error || !row)
+    throw new Error(
+      `Failed to insert media_asset after upload: ${error?.message}`,
+    );
+  return { id: row.id, r2_key: r2Key };
+}
+
+export interface MediaAssetSearchResult {
+  id: string;
+  kind: string;
+  r2_key: string | null;
+  source_url: string | null;
+  title: string | null;
+  caption: string | null;
+  attribution: string | null;
+  thumbnail_url: string | null;
+}
+
+export async function searchMediaAssets(
+  query: string,
+  kinds?: string[],
+): Promise<MediaAssetSearchResult[]> {
+  await assertAdmin();
+  const db = createAdminClient();
+
+  let qb = db
+    .from("media_assets")
+    .select("id, kind, r2_key, source_url, title, caption, attribution")
+    .order("created_at", { ascending: false })
+    .limit(48);
+
+  if (kinds && kinds.length > 0) qb = qb.in("kind", kinds);
+  // Strip characters that have meaning in PostgREST's .or()/ilike grammar
+  // (commas, parens, wildcards, escapes) so a search term can't break or be
+  // injected into the filter expression.
+  const safeQuery = query.replace(/[,()*%\\:"]/g, " ").trim();
+  if (safeQuery) {
+    qb = qb.or(
+      `title.ilike.%${safeQuery}%,attribution.ilike.%${safeQuery}%,caption.ilike.%${safeQuery}%`,
+    );
+  }
+
+  const { data, error } = await qb;
+  if (error) throw new Error(`Failed to search media_assets: ${error.message}`);
+
+  return (data ?? []).map((a) => ({
+    ...a,
+    thumbnail_url: a.r2_key ? r2PublicUrl(a.r2_key) : a.source_url,
+  }));
+}
+
+export async function upsertAssetLink(data: {
+  media_asset_id: string;
+  target_type: "installment" | "person" | "chapter";
+  target_key: string;
+  tab?: string | null;
+  section?: string | null;
+  sort_order?: number;
+}): Promise<{ ok: true }> {
+  await assertAdmin();
+  const db = createAdminClient();
+  const { error } = await db.from("asset_links").upsert({
+    ...data,
+    sort_order: data.sort_order ?? 0,
+  });
+  if (error) throw new Error(`Failed to upsert asset_link: ${error.message}`);
+  return { ok: true };
+}
+
+/**
+ * Update only a person's bio markdown (avoids needing to know all other fields).
+ */
+export async function updatePersonBio(
+  personId: string,
+  slug: string,
+  bioText: string,
+): Promise<{ ok: true }> {
+  await assertAdmin();
+  const r2Key = `people/${slug}/bio.md`;
+  await putR2Text(r2Key, bioText);
+  const db = createAdminClient();
+  const { error } = await db
+    .from("people")
+    .update({ bio_md_r2_key: r2Key })
+    .eq("id", personId);
+  if (error) throw new Error(`Failed to update bio: ${error.message}`);
+  revalidatePath(`/people/${slug}`);
+  return { ok: true };
+}
+
+/**
+ * Update only a person's autobio markdown.
+ */
+export async function updatePersonAutobio(
+  personId: string,
+  slug: string,
+  autobioText: string,
+): Promise<{ ok: true }> {
+  await assertAdmin();
+  const r2Key = `people/${slug}/autobio.md`;
+  await putR2Text(r2Key, autobioText);
+  const db = createAdminClient();
+  const { error } = await db
+    .from("people")
+    .update({ autobio_md_r2_key: r2Key })
+    .eq("id", personId);
+  if (error) throw new Error(`Failed to update autobio: ${error.message}`);
+  revalidatePath(`/people/${slug}`);
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// People
+// ---------------------------------------------------------------------------
+
+const PersonUpsertSchema = z.object({
+  id: z.string().uuid().optional(),
+  slug: z.string().min(1),
+  name: z.string().min(1),
+  category: z.enum(["contributor", "figure", "royalty"]),
+  beat: z
+    .enum([
+      "music",
+      "drama",
+      "art",
+      "literature",
+      "science",
+      "politics",
+      "foreign",
+      "economics",
+      "direction",
+    ])
+    .nullable(),
+  birth: z.number().int().nullable(),
+  death: z.number().int().nullable(),
+  is_contributor: z.boolean().default(false),
+  bio_md_r2_key: z.string().nullable(),
+  autobio_md_r2_key: z.string().nullable(),
+  portrait_media_asset_id: z.string().uuid().nullable(),
+  sources: z.array(z.unknown()).default([]),
+});
+
+export async function upsertPerson(
+  data: z.infer<typeof PersonUpsertSchema>,
+  bioText?: string,
+  autobioText?: string,
+): Promise<{ id: string }> {
+  await assertAdmin();
+  const validated = PersonUpsertSchema.parse(data);
+  const db = createAdminClient();
+
+  let bio_md_r2_key = validated.bio_md_r2_key;
+  let autobio_md_r2_key = validated.autobio_md_r2_key;
+
+  if (bioText !== undefined) {
+    bio_md_r2_key = `people/${validated.slug}/bio.md`;
+    await putR2Text(bio_md_r2_key, bioText);
+  }
+  if (autobioText !== undefined) {
+    autobio_md_r2_key = `people/${validated.slug}/autobio.md`;
+    await putR2Text(autobio_md_r2_key, autobioText);
+  }
+
+  const payload = { ...validated, bio_md_r2_key, autobio_md_r2_key };
+
+  if (validated.id) {
+    const { error } = await db
+      .from("people")
+      .update(payload)
+      .eq("id", validated.id);
+    if (error) throw new Error(`Failed to update person: ${error.message}`);
+    revalidatePath(`/people/${validated.slug}`);
+    return { id: validated.id };
+  }
+
+  const { data: row, error } = await db
+    .from("people")
+    .insert(payload)
+    .select("id")
+    .single();
+  if (error || !row)
+    throw new Error(`Failed to insert person: ${error?.message}`);
+  revalidatePath(`/people/${validated.slug}`);
+  return { id: row.id };
+}
+
+// ---------------------------------------------------------------------------
+// Life events
+// ---------------------------------------------------------------------------
+
+const LifeEventUpsertSchema = z.object({
+  id: z.string().uuid().optional(),
+  person_id: z.string().uuid(),
+  event_date: z.string().nullable(),
+  precision: z.enum(["day", "month", "year"]).nullable(),
+  title: z.string().min(1),
+  description: z.string().nullable(),
+  kind: z.enum([
+    "birth",
+    "death",
+    "work",
+    "appointment",
+    "award",
+    "publication",
+    "premiere",
+    "discovery",
+    "personal",
+  ]),
+  sources: z.array(z.string()).default([]),
+});
+
+export async function upsertLifeEvent(
+  data: z.infer<typeof LifeEventUpsertSchema>,
+): Promise<{ id: string }> {
+  await assertAdmin();
+  const validated = LifeEventUpsertSchema.parse(data);
+  const db = createAdminClient();
+
+  if (validated.id) {
+    const { error } = await db
+      .from("life_events")
+      .update(validated)
+      .eq("id", validated.id);
+    if (error) throw new Error(`Failed to update life_event: ${error.message}`);
+    return { id: validated.id };
+  }
+
+  const { data: row, error } = await db
+    .from("life_events")
+    .insert(validated)
+    .select("id")
+    .single();
+  if (error || !row)
+    throw new Error(`Failed to insert life_event: ${error?.message}`);
+  return { id: row.id };
+}
+
+export async function deleteLifeEvent(id: string): Promise<{ ok: true }> {
+  await assertAdmin();
+  const db = createAdminClient();
+  const { error } = await db.from("life_events").delete().eq("id", id);
+  if (error) throw new Error(`Failed to delete life_event: ${error.message}`);
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Relationships
+// ---------------------------------------------------------------------------
+
+const RelationshipUpsertSchema = z.object({
+  id: z.string().uuid().optional(),
+  from_person: z.string().uuid(),
+  to_person: z.string().uuid(),
+  kind: z.enum([
+    "family",
+    "romantic",
+    "friend",
+    "rival",
+    "mentor",
+    "collaborator",
+    "patron",
+    "royalty",
+    "professional",
+  ]),
+  label: z.string().nullable(),
+  description: z.string().nullable(),
+  start_year: z.number().int().nullable(),
+  end_year: z.number().int().nullable(),
+  sources: z.array(z.string()).default([]),
+});
+
+export async function upsertRelationship(
+  data: z.infer<typeof RelationshipUpsertSchema>,
+): Promise<{ id: string }> {
+  await assertAdmin();
+  const validated = RelationshipUpsertSchema.parse(data);
+  const db = createAdminClient();
+
+  if (validated.id) {
+    const { error } = await db
+      .from("relationships")
+      .update(validated)
+      .eq("id", validated.id);
+    if (error)
+      throw new Error(`Failed to update relationship: ${error.message}`);
+    return { id: validated.id };
+  }
+
+  const { data: row, error } = await db
+    .from("relationships")
+    .insert(validated)
+    .select("id")
+    .single();
+  if (error || !row)
+    throw new Error(`Failed to insert relationship: ${error?.message}`);
+  return { id: row.id };
+}
+
+export async function deleteRelationship(id: string): Promise<{ ok: true }> {
+  await assertAdmin();
+  const db = createAdminClient();
+  const { error } = await db.from("relationships").delete().eq("id", id);
+  if (error) throw new Error(`Failed to delete relationship: ${error.message}`);
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Contributor attributions
+// ---------------------------------------------------------------------------
+
+const ContribAttrSchema = z.object({
+  person_id: z.string().uuid(),
+  installment_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  section: z.string().min(1),
+});
+
+export async function upsertContributorAttribution(
+  data: z.infer<typeof ContribAttrSchema>,
+): Promise<{ ok: true }> {
+  await assertAdmin();
+  const validated = ContribAttrSchema.parse(data);
+  const db = createAdminClient();
+  const { error } = await db
+    .from("contributor_attributions")
+    .upsert(validated, { onConflict: "person_id,installment_date,section" });
+  if (error)
+    throw new Error(
+      `Failed to upsert contributor_attribution: ${error.message}`,
+    );
+  return { ok: true };
+}
+
+export async function deleteContributorAttribution(
+  personId: string,
+  installmentDate: string,
+  section: string,
+): Promise<{ ok: true }> {
+  await assertAdmin();
+  const db = createAdminClient();
+  const { error } = await db
+    .from("contributor_attributions")
+    .delete()
+    .eq("person_id", personId)
+    .eq("installment_date", installmentDate)
+    .eq("section", section);
+  if (error)
+    throw new Error(
+      `Failed to delete contributor_attribution: ${error.message}`,
+    );
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Editorial blocks
+// ---------------------------------------------------------------------------
+
+export async function upsertEditorialBlock(
+  key: string,
+  title: string,
+  bodyMd: string,
+): Promise<{ ok: true }> {
+  await assertAdmin();
+  const r2Key = `editorial/${key}.md`;
+  await putR2Text(r2Key, bodyMd);
+
+  const db = createAdminClient();
+  const { error } = await db
+    .from("editorial_blocks")
+    .upsert({ key, title, body_md_r2_key: r2Key }, { onConflict: "key" });
+  if (error)
+    throw new Error(`Failed to upsert editorial_block: ${error.message}`);
+  revalidatePath("/timeline");
+  revalidatePath("/");
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Graph edit actions (Sprint 7)
+// ---------------------------------------------------------------------------
+
+/**
+ * Write a person to the graph and recompute all layout variants.
+ * Called by GraphEditOverlay (UI defined in the Graph Engine plan).
+ */
+export async function upsertGraphPerson(
+  data: z.infer<typeof PersonUpsertSchema>,
+): Promise<{ id: string }> {
+  const result = await upsertPerson(data);
+  await recomputeGraphLayout();
+  revalidatePath("/debats");
+  return result;
+}
+
+/**
+ * Write a relationship and recompute all layout variants.
+ */
+export async function upsertGraphRelationship(
+  data: z.infer<typeof RelationshipUpsertSchema>,
+): Promise<{ id: string }> {
+  const result = await upsertRelationship(data);
+  await recomputeGraphLayout();
+  revalidatePath("/debats");
+  return result;
+}
+
+export async function deleteGraphRelationship(
+  id: string,
+): Promise<{ ok: true }> {
+  const result = await deleteRelationship(id);
+  await recomputeGraphLayout();
+  revalidatePath("/debats");
+  return result;
+}
+
+/**
+ * Manually trigger a full graph layout recompute across all variants.
+ */
+export async function triggerGraphRecompute(): Promise<{ variants: number }> {
+  await assertAdmin();
+  const results = await recomputeGraphLayout();
+  revalidatePath("/debats");
+  return { variants: results.length };
+}
+
+// ---------------------------------------------------------------------------
+// Local translation runner (Sprint 9 execution harness)
+//
+// Enqueues a per-day translation and spawns the local CLI runner
+// (scripts/translate/translate-day.ts) detached, so the heavy Claude work runs
+// on the admin's own machine without a serverless timeout. The button that
+// calls this is labelled "Re-translate day locally" and is shown only when this
+// runner is enabled. Fire-and-forget: the admin refreshes to see results.
+// ---------------------------------------------------------------------------
+
+/**
+ * Whether the local translation runner is available. It dispatches to a local
+ * CLI process, so it only makes sense when something is running on this machine
+ * (dev), or when explicitly enabled via env. Never enabled on a plain
+ * production deploy, where there is no local process to run the work.
+ */
+function isLocalTranslationRunnerEnabled(): boolean {
+  return (
+    process.env.NODE_ENV === "development" ||
+    process.env.LOCAL_TRANSLATION_RUNNER === "1"
+  );
+}
+
+export async function requestDayTranslation(
+  date: string,
+): Promise<{ accepted: boolean; runId?: string; reason?: string }> {
+  await assertAdmin();
+
+  if (!isLocalTranslationRunnerEnabled()) {
+    throw new Error(
+      "Local translation runner is disabled. It runs the translation on your own " +
+        "machine; set LOCAL_TRANSLATION_RUNNER=1 (or run in development) to enable it.",
+    );
+  }
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    throw new Error(`Invalid date: ${date}. Expected YYYY-MM-DD.`);
+  }
+
+  const db = createAdminClient();
+
+  // Double-run guard: don't enqueue if a run is already pending for this day.
+  const { data: active } = await db
+    .from("translation_runs")
+    .select("id")
+    .eq("installment_date", date)
+    .in("status", ["queued", "running"])
+    .limit(1)
+    .maybeSingle();
+  if (active?.id) {
+    return {
+      accepted: false,
+      runId: active.id as string,
+      reason: "A run is already queued or in progress for this day.",
+    };
+  }
+
+  // Best-effort: record which admin requested the run (column is nullable).
+  let requestedBy: string | null = null;
+  try {
+    const supabase = await createClient();
+    const { data } = await supabase.auth.getUser();
+    requestedBy = data.user?.id ?? null;
+  } catch {
+    requestedBy = null;
+  }
+
+  const { data: row, error } = await db
+    .from("translation_runs")
+    .insert({
+      installment_date: date,
+      status: "queued",
+      requested_by: requestedBy,
+    })
+    .select("id")
+    .single();
+  if (error || !row?.id) {
+    throw new Error(
+      `Failed to enqueue translation run: ${error?.message ?? "no id returned"}`,
+    );
+  }
+  const runId = row.id as string;
+
+  // Spawn the local CLI runner detached so it survives dev hot reloads and the
+  // action returns immediately. Inherits env (Supabase service role, Anthropic
+  // key, TRANSLATION_MODEL, …) so the child can do its work.
+  const child = spawn(
+    "npx",
+    [
+      "tsx",
+      "scripts/translate/translate-day.ts",
+      `--date=${date}`,
+      `--run-id=${runId}`,
+    ],
+    {
+      cwd: process.cwd(),
+      env: process.env,
+      detached: true,
+      stdio: "ignore",
+    },
+  );
+  // If the process can't even start, record it so the day page shows the error.
+  child.on("error", (e) => {
+    void db
+      .from("translation_runs")
+      .update({
+        status: "failed",
+        error: `spawn failed: ${e.message}`,
+        finished_at: new Date().toISOString(),
+      })
+      .eq("id", runId);
+  });
+  child.unref();
+
+  revalidatePath(`/day/${date}`);
+  return { accepted: true, runId };
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 9 — Translation actions
+// ---------------------------------------------------------------------------
+
+/**
+ * Run the full day translation pipeline synchronously (admin-only).
+ *
+ * For the async local-runner workflow, use requestDayTranslation() above.
+ * This action is for programmatic use (scripts, testing, or a direct "translate
+ * now and wait" flow if added later to the UI).
+ */
+export async function translateDay(
+  date: string,
+): Promise<import("@/lib/translate/pipeline").TranslationRunSummary> {
+  await assertAdmin();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    throw new Error(`Invalid date: ${date}. Expected YYYY-MM-DD.`);
+  }
+  const { runDayTranslation } = await import("@/lib/translate/pipeline");
+  const summary = await runDayTranslation(date, (msg) => {
+    console.log(`[translateDay] ${msg}`);
+  });
+  revalidatePath(`/day/${date}`);
+  return summary;
+}
+
+/**
+ * Fetch the translation version history for a specific text item.
+ * Returns rows without the prose body (that lives on R2; fetch separately if needed).
+ */
+export interface TranslationVersionMeta {
+  id: string;
+  slot_key: string;
+  section: string;
+  translation_origin: string;
+  model_used: string | null;
+  translator: string | null;
+  translation_source_url: string | null;
+  source_text_url: string | null;
+  fr_intermediate_r2_key: string | null;
+  text_r2_key: string;
+  cost_usd: number | null;
+  low_confidence: boolean;
+  admin_notes: string | null;
+  translated_at: string;
+  attribution: string;
+  license: string;
+}
+
+export async function getTranslationVersions(
+  date: string,
+  section: string,
+  slotKey: string,
+): Promise<TranslationVersionMeta[]> {
+  await assertAdmin();
+  const db = createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (db as any)
+    .from("translation_versions")
+    .select(
+      "id, slot_key, section, translation_origin, model_used, translator, " +
+        "translation_source_url, source_text_url, fr_intermediate_r2_key, " +
+        "text_r2_key, cost_usd, low_confidence, admin_notes, translated_at, " +
+        "attribution, license",
+    )
+    .eq("installment_date", date)
+    .eq("section", section)
+    .eq("slot_key", slotKey)
+    .order("translated_at", { ascending: false });
+
+  if (error) {
+    throw new Error(`Failed to fetch translation versions: ${error.message}`);
+  }
+  return (data ?? []) as TranslationVersionMeta[];
+}
+
+/**
+ * Fetch the prose text for a version from R2 (used by TranslationHistory compare panel).
+ */
+export async function getVersionText(r2Key: string): Promise<string> {
+  await assertAdmin();
+  const { getR2Text } = await import("@/lib/r2-server");
+  const text = await getR2Text(r2Key);
+  if (text === null) {
+    throw new Error(`R2 object not found: ${r2Key}`);
+  }
+  return text;
+}
+
+/**
+ * Promote a translation version to be the live item for a given section.
+ *
+ * Snapshots the current live item into translation_versions first (always reversible).
+ * Then overwrites the TextItem in day_content.doc with the promoted version's content.
+ */
+export async function promoteTranslationVersion(
+  versionId: string,
+  date: string,
+  section: DayContentSection,
+  slotKey: string,
+): Promise<{ ok: true }> {
+  await assertAdmin();
+  const db = createAdminClient();
+
+  // Load the version to promote
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: version, error: vErr } = await (db as any)
+    .from("translation_versions")
+    .select("*")
+    .eq("id", versionId)
+    .single();
+  if (vErr || !version) {
+    throw new Error(`Version not found: ${versionId}`);
+  }
+
+  const doc = await loadDoc(date);
+  const sectionItems = getSectionItems(doc, section);
+  // Match the live item strictly by slot_key (the stable identity).
+  const liveItem = sectionItems.find(
+    (i): i is TextItem => i.kind === "text" && i.slot_key === slotKey,
+  );
+
+  // Snapshot the displaced live item only when its current state is not already
+  // a translation_versions row (legacy items without a version id). Items
+  // produced by the pipeline always carry translation_version_id, so the prior
+  // state is already preserved and re-snapshotting would duplicate it.
+  if (liveItem && !liveItem.translation_version_id) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (db as any).from("translation_versions").insert({
+      installment_date: date,
+      section,
+      slot_key: slotKey,
+      text_r2_key: liveItem.text_r2_key,
+      source: liveItem.source,
+      original_date: liveItem.original_date,
+      gallica_url: liveItem.gallica_url,
+      license: liveItem.license,
+      attribution: liveItem.attribution,
+      contributor_id: liveItem.contributor_id ?? null,
+      translation_origin: liveItem.translation_origin ?? "machine_claude",
+      model_used: liveItem.translation_model ?? null,
+      translator: liveItem.translator ?? null,
+      translation_source_url: liveItem.translation_source_url ?? null,
+      source_text_url: liveItem.source_text_url ?? null,
+      fr_intermediate_r2_key: liveItem.fr_intermediate_r2_key ?? null,
+      cost_usd: null,
+      low_confidence: liveItem.low_confidence ?? false,
+      admin_notes: `[Snapshot of legacy live item displaced by promotion of version ${versionId}]`,
+    });
+  }
+
+  // Build updated item from the promoted version
+  const updatedItem: TextItem = {
+    kind: "text",
+    text_r2_key: version.text_r2_key,
+    source: version.source,
+    original_date: version.original_date ?? date,
+    gallica_url: version.gallica_url,
+    license: version.license,
+    attribution: version.attribution,
+    contributor_id: version.contributor_id ?? undefined,
+    slot_key: slotKey,
+    translation_origin: version.translation_origin,
+    translation_model: version.model_used ?? undefined,
+    translator: version.translator ?? undefined,
+    translation_source_url: version.translation_source_url ?? undefined,
+    source_text_url: version.source_text_url ?? undefined,
+    fr_intermediate_r2_key: version.fr_intermediate_r2_key ?? undefined,
+    low_confidence: version.low_confidence || undefined,
+    admin_notes: version.admin_notes ?? undefined,
+    translation_version_id: versionId,
+  };
+
+  // Replace the item with the matching slot_key; if none exists yet, append.
+  const matched = sectionItems.some(
+    (i) => i.kind === "text" && i.slot_key === slotKey,
+  );
+  const newItems = matched
+    ? sectionItems.map((item) =>
+        item.kind === "text" && item.slot_key === slotKey ? updatedItem : item,
+      )
+    : [...sectionItems, updatedItem];
+
+  await saveDoc(date, setSectionItems(doc, section, newItems));
+  revalidatePath(`/day/${date}`);
+  return { ok: true };
+}
+
+/**
+ * Hard-delete a translation version row.
+ * The live item in day_content.doc is NOT changed.
+ */
+export async function deleteTranslationVersion(
+  id: string,
+): Promise<{ ok: true }> {
+  await assertAdmin();
+  const db = createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (db as any)
+    .from("translation_versions")
+    .delete()
+    .eq("id", id);
+  if (error) {
+    throw new Error(`Failed to delete translation version: ${error.message}`);
+  }
+  return { ok: true };
+}
+
+/**
+ * On-demand vision OCR transcription for a page scan.
+ *
+ * Sends the IIIF page image to the vision model and stores the faithful French
+ * transcription as an alternate fr-intermediate source (NOT a translation_versions
+ * row directly). The admin then translates it to produce a comparable machine_claude
+ * version for side-by-side review.
+ *
+ * Never runs in the batch pipeline; manual only.
+ */
+export async function visionTranscribe(
+  date: string,
+  pageIndex: number,
+): Promise<{ r2_key: string; char_count: number; model: string }> {
+  await assertAdmin();
+
+  const db = createAdminClient();
+  const doc = await loadDoc(date);
+
+  const pageItem = doc.original_pages?.[pageIndex];
+  if (!pageItem) {
+    throw new Error(
+      `No page scan at index ${pageIndex} for ${date}. ` +
+        `Run scripts/gallica/pull-scans.ts first.`,
+    );
+  }
+
+  // Load image data from R2
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: assetRow, error: assetErr } = await (db as any)
+    .from("media_assets")
+    .select("r2_key, source_url")
+    .eq("id", pageItem.media_asset_id)
+    .single();
+
+  if (assetErr || !assetRow) {
+    throw new Error(
+      `media_asset not found for page ${pageIndex}: ${assetErr?.message ?? "no data"}`,
+    );
+  }
+
+  const { getR2Object, putR2Text } = await import("@/lib/r2-server");
+
+  let imageBase64: string;
+  let mediaType: "image/jpeg" | "image/png" | "image/webp" = "image/jpeg";
+
+  if (assetRow.r2_key) {
+    const buf = await getR2Object(assetRow.r2_key as string);
+    if (!buf) {
+      throw new Error(`R2 object not found: ${assetRow.r2_key}`);
+    }
+    imageBase64 = buf.toString("base64");
+    if ((assetRow.r2_key as string).endsWith(".png")) mediaType = "image/png";
+    else if ((assetRow.r2_key as string).endsWith(".webp"))
+      mediaType = "image/webp";
+  } else {
+    throw new Error(
+      `No R2 key for page ${pageIndex} asset. ` +
+        `Only R2-stored scans are supported for vision OCR.`,
+    );
+  }
+
+  const { transcribePageImage, VISION_MODEL } =
+    await import("@/lib/llm/translate");
+
+  const result = await transcribePageImage(imageBase64, mediaType, {
+    date,
+    page: pageIndex,
+  });
+
+  const r2Key = `${date}/fr-intermediate/vision-page${pageIndex}.txt`;
+  await putR2Text(r2Key, result.french_text);
+
+  console.log(
+    `[visionTranscribe] ${date} page ${pageIndex}: ${result.french_text.length} chars, ` +
+      `model=${result.model}, cost=$${result.cost_usd.toFixed(4)}`,
+  );
+
+  return {
+    r2_key: r2Key,
+    char_count: result.french_text.length,
+    model: VISION_MODEL,
+  };
+}

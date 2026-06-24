@@ -9,3 +9,9 @@ build/
 .next/
 .vercel/
 tsconfig.tsbuildinfo
+
+# Supabase CLI local link state (contains project URLs/refs)
+supabase/.temp/
+
+# Design export archives (source assets live in monte-cristo/ and the app)
+*.zip

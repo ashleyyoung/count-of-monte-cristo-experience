@@ -1,35 +1,151 @@
 import type { Metadata } from "next";
-import { Cormorant_Garamond, Source_Sans_3 } from "next/font/google";
+import {
+  UnifrakturMaguntia,
+  Bodoni_Moda,
+  EB_Garamond,
+  IM_Fell_English,
+  Cormorant_Garamond,
+  IM_Fell_DW_Pica,
+  Pinyon_Script,
+} from "next/font/google";
 import "./globals.css";
+import StyledComponentsRegistry from "@/components/StyledComponentsRegistry";
+import { AdminModeProvider } from "@/components/admin/AdminModeProvider";
+import AdminModeToggle from "@/components/admin/AdminModeToggle";
+import { createClient } from "@/lib/supabase/server";
 
-const display = Cormorant_Garamond({
+// ---------------------------------------------------------------------------
+// Fonts
+// ---------------------------------------------------------------------------
+
+/** Masthead / nameplate — blackletter */
+const masthead = UnifrakturMaguntia({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-masthead",
+  weight: "400",
+});
+
+/** Display / headline — high-contrast serif */
+const display = Bodoni_Moda({
   subsets: ["latin"],
   display: "swap",
   variable: "--font-display",
-  weight: ["400", "600", "700"],
+  weight: ["400", "500", "700", "900"],
+  style: ["normal", "italic"],
 });
 
-const body = Source_Sans_3({
+/** Body / prose */
+const body = EB_Garamond({
   subsets: ["latin"],
   display: "swap",
   variable: "--font-body",
-  weight: ["400", "500", "600"],
+  weight: ["400", "500"],
+  style: ["normal", "italic"],
 });
 
+/** Buttons / labels — old-style letterpress */
+const labels = IM_Fell_English({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-labels",
+  weight: "400",
+  style: ["normal", "italic"],
+});
+
+/** Supporting display */
+const supporting = Cormorant_Garamond({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-supporting",
+  weight: ["300", "400", "500", "600", "700"],
+  style: ["normal", "italic"],
+});
+
+/** Narrow caption alternate */
+const caption = IM_Fell_DW_Pica({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-caption",
+  weight: "400",
+  style: ["normal", "italic"],
+});
+
+/** Period-correct copperplate script — hover citation cards + admin note cards */
+const script = Pinyon_Script({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-script",
+  weight: "400",
+});
+
+// ---------------------------------------------------------------------------
+// Metadata
+// ---------------------------------------------------------------------------
+
 export const metadata: Metadata = {
-  title: "Count of Monte Cristo Experience",
+  title: "Le Comte de Monte-Cristo — Journal des Débats",
   description:
-    "An interactive experience inspired by Alexandre Dumas's The Count of Monte Cristo.",
+    "Follow the original serialization of Alexandre Dumas's masterpiece as it appeared in the Journal des Débats, 1844–1846.",
 };
 
-export default function RootLayout({
+// ---------------------------------------------------------------------------
+// Root layout
+// ---------------------------------------------------------------------------
+
+const fontVars = [
+  masthead.variable,
+  display.variable,
+  body.variable,
+  labels.variable,
+  supporting.variable,
+  caption.variable,
+  script.variable,
+].join(" ");
+
+export default async function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+}: Readonly<{ children: React.ReactNode }>) {
+  // Resolve admin status server-side so the toggle only renders for admins.
+  let isAdmin = false;
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (user) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+      isAdmin = profile?.role === "admin";
+    }
+  } catch {
+    // Non-fatal — admin mode simply won't appear.
+  }
+
   return (
-    <html lang="en" className={`${display.variable} ${body.variable}`}>
-      <body>{children}</body>
+    <html lang="fr" className={fontVars}>
+      <body>
+        <StyledComponentsRegistry>
+          <AdminModeProvider isAdmin={isAdmin}>
+            {isAdmin && (
+              <div
+                style={{
+                  position: "fixed",
+                  top: 10,
+                  right: 14,
+                  zIndex: 9999,
+                }}
+              >
+                <AdminModeToggle />
+              </div>
+            )}
+            {children}
+          </AdminModeProvider>
+        </StyledComponentsRegistry>
+      </body>
     </html>
   );
 }

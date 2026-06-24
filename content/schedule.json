@@ -1,0 +1,4519 @@
+{
+  "total": 139,
+  "parts": [
+    {
+      "part": 1,
+      "label": "Part 1: 28 August → 19 October 1844",
+      "date_range": "28 August → 19 October 1844",
+      "chapter_range": "Chapters I–XXX: Marseille, the betrayal, the Château d'If, escape, the treasure",
+      "installments": [
+        {
+          "date": "1844-08-28",
+          "part": 1,
+          "part_index": 1,
+          "global_index": 1,
+          "label": "I. Marseilles — Arrival · II. Father and Son",
+          "chapters": [
+            {
+              "num": "I",
+              "title": "Marseilles — Arrival",
+              "cont": false
+            },
+            {
+              "num": "II",
+              "title": "Father and Son",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1844-08-29",
+          "part": 1,
+          "part_index": 2,
+          "global_index": 2,
+          "label": "III. Les Catalans · IV. The Plot",
+          "chapters": [
+            {
+              "num": "III",
+              "title": "Les Catalans",
+              "cont": false
+            },
+            {
+              "num": "IV",
+              "title": "The Plot",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1844-08-31",
+          "part": 1,
+          "part_index": 3,
+          "global_index": 3,
+          "label": "V. The Betrothal",
+          "chapters": [
+            {
+              "num": "V",
+              "title": "The Betrothal",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1844-09-01",
+          "part": 1,
+          "part_index": 4,
+          "global_index": 4,
+          "label": "VI. The Deputy Crown Prosecutor",
+          "chapters": [
+            {
+              "num": "VI",
+              "title": "The Deputy Crown Prosecutor",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1844-09-04",
+          "part": 1,
+          "part_index": 5,
+          "global_index": 5,
+          "label": "VII. The Interrogation",
+          "chapters": [
+            {
+              "num": "VII",
+              "title": "The Interrogation",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1844-09-05",
+          "part": 1,
+          "part_index": 6,
+          "global_index": 6,
+          "label": "VIII. The Château d'If",
+          "chapters": [
+            {
+              "num": "VIII",
+              "title": "The Château d'If",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1844-09-06",
+          "part": 1,
+          "part_index": 7,
+          "global_index": 7,
+          "label": "IX. The Evening of the Betrothal · X. The Little Cabinet in the Tuileries",
+          "chapters": [
+            {
+              "num": "IX",
+              "title": "The Evening of the Betrothal",
+              "cont": false
+            },
+            {
+              "num": "X",
+              "title": "The Little Cabinet in the Tuileries",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1844-09-07",
+          "part": 1,
+          "part_index": 8,
+          "global_index": 8,
+          "label": "XI. The Corsican Ogre",
+          "chapters": [
+            {
+              "num": "XI",
+              "title": "The Corsican Ogre",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1844-09-11",
+          "part": 1,
+          "part_index": 9,
+          "global_index": 9,
+          "label": "XII. Father and Son · XIII. The Hundred Days",
+          "chapters": [
+            {
+              "num": "XII",
+              "title": "Father and Son",
+              "cont": false
+            },
+            {
+              "num": "XIII",
+              "title": "The Hundred Days",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1844-09-20",
+          "part": 1,
+          "part_index": 10,
+          "global_index": 10,
+          "label": "XIV. The Raving Prisoner and the Mad One",
+          "chapters": [
+            {
+              "num": "XIV",
+              "title": "The Raving Prisoner and the Mad One",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1844-09-21",
+          "part": 1,
+          "part_index": 11,
+          "global_index": 11,
+          "label": "XV. Number 34 and Number 27",
+          "chapters": [
+            {
+              "num": "XV",
+              "title": "Number 34 and Number 27",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1844-09-22",
+          "part": 1,
+          "part_index": 12,
+          "global_index": 12,
+          "label": "XV. Number 34 and Number 27 (cont.) · XVI. An Italian Scholar",
+          "chapters": [
+            {
+              "num": "XV",
+              "title": "Number 34 and Number 27",
+              "cont": true
+            },
+            {
+              "num": "XVI",
+              "title": "An Italian Scholar",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1844-09-25",
+          "part": 1,
+          "part_index": 13,
+          "global_index": 13,
+          "label": "XVII. The Abbé's Cell",
+          "chapters": [
+            {
+              "num": "XVII",
+              "title": "The Abbé's Cell",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1844-09-26",
+          "part": 1,
+          "part_index": 14,
+          "global_index": 14,
+          "label": "XVII. The Abbé's Cell (cont.)",
+          "chapters": [
+            {
+              "num": "XVII",
+              "title": "The Abbé's Cell",
+              "cont": true
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1844-09-27",
+          "part": 1,
+          "part_index": 15,
+          "global_index": 15,
+          "label": "XVIII. The Treasure",
+          "chapters": [
+            {
+              "num": "XVIII",
+              "title": "The Treasure",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1844-09-28",
+          "part": 1,
+          "part_index": 16,
+          "global_index": 16,
+          "label": "XIX. The Third Seizure",
+          "chapters": [
+            {
+              "num": "XIX",
+              "title": "The Third Seizure",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1844-09-29",
+          "part": 1,
+          "part_index": 17,
+          "global_index": 17,
+          "label": "XX. The Graveyard of the Château d'If · XXI. The Island of Tiboulen",
+          "chapters": [
+            {
+              "num": "XX",
+              "title": "The Graveyard of the Château d'If",
+              "cont": false
+            },
+            {
+              "num": "XXI",
+              "title": "The Island of Tiboulen",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1844-10-03",
+          "part": 1,
+          "part_index": 18,
+          "global_index": 18,
+          "label": "XXI. The Island of Tiboulen (cont.) · XXII. The Smugglers",
+          "chapters": [
+            {
+              "num": "XXI",
+              "title": "The Island of Tiboulen",
+              "cont": true
+            },
+            {
+              "num": "XXII",
+              "title": "The Smugglers",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1844-10-04",
+          "part": 1,
+          "part_index": 19,
+          "global_index": 19,
+          "label": "XXII. The Smugglers (cont.) · XXIII. The Island of Monte Cristo",
+          "chapters": [
+            {
+              "num": "XXII",
+              "title": "The Smugglers",
+              "cont": true
+            },
+            {
+              "num": "XXIII",
+              "title": "The Island of Monte Cristo",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1844-10-05",
+          "part": 1,
+          "part_index": 20,
+          "global_index": 20,
+          "label": "XXIV. Dazzled",
+          "chapters": [
+            {
+              "num": "XXIV",
+              "title": "Dazzled",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1844-10-06",
+          "part": 1,
+          "part_index": 21,
+          "global_index": 21,
+          "label": "XXV. The Stranger",
+          "chapters": [
+            {
+              "num": "XXV",
+              "title": "The Stranger",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1844-10-10",
+          "part": 1,
+          "part_index": 22,
+          "global_index": 22,
+          "label": "XXVI. At the Sign of the Pont du Gard",
+          "chapters": [
+            {
+              "num": "XXVI",
+              "title": "At the Sign of the Pont du Gard",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1844-10-11",
+          "part": 1,
+          "part_index": 23,
+          "global_index": 23,
+          "label": "XXVI. At the Sign of the Pont du Gard (cont.) · XXVII. Caderousse's Story",
+          "chapters": [
+            {
+              "num": "XXVI",
+              "title": "At the Sign of the Pont du Gard",
+              "cont": true
+            },
+            {
+              "num": "XXVII",
+              "title": "Caderousse's Story",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1844-10-12",
+          "part": 1,
+          "part_index": 24,
+          "global_index": 24,
+          "label": "XXVII. Caderousse's Story (cont.)",
+          "chapters": [
+            {
+              "num": "XXVII",
+              "title": "Caderousse's Story",
+              "cont": true
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1844-10-13",
+          "part": 1,
+          "part_index": 25,
+          "global_index": 25,
+          "label": "XXVIII. The Prison Register · XXIX. Morrel and Company",
+          "chapters": [
+            {
+              "num": "XXVIII",
+              "title": "The Prison Register",
+              "cont": false
+            },
+            {
+              "num": "XXIX",
+              "title": "Morrel and Company",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1844-10-17",
+          "part": 1,
+          "part_index": 26,
+          "global_index": 26,
+          "label": "XXIX. Morrel and Company (cont.)",
+          "chapters": [
+            {
+              "num": "XXIX",
+              "title": "Morrel and Company",
+              "cont": true
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1844-10-18",
+          "part": 1,
+          "part_index": 27,
+          "global_index": 27,
+          "label": "XXX. September the Fifth",
+          "chapters": [
+            {
+              "num": "XXX",
+              "title": "September the Fifth",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1844-10-19",
+          "part": 1,
+          "part_index": 28,
+          "global_index": 28,
+          "label": "XXX. September the Fifth (cont.)",
+          "chapters": [
+            {
+              "num": "XXX",
+              "title": "September the Fifth",
+              "cont": true
+            }
+          ],
+          "is_hiatus_after": false
+        }
+      ]
+    },
+    {
+      "part": 2,
+      "label": "Part 2: 31 October → 26 November 1844",
+      "date_range": "31 October → 26 November 1844",
+      "chapter_range": "Chapters XXXI–XXXIX: Italy, Sinbad, Rome, the carnival, the Count's grand entrance",
+      "installments": [
+        {
+          "date": "1844-10-31",
+          "part": 2,
+          "part_index": 1,
+          "global_index": 29,
+          "label": "XXXI. Italy — Sinbad the Sailor",
+          "chapters": [
+            {
+              "num": "XXXI",
+              "title": "Italy — Sinbad the Sailor",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1844-11-01",
+          "part": 2,
+          "part_index": 2,
+          "global_index": 30,
+          "label": "XXXI. Italy — Sinbad the Sailor (cont.)",
+          "chapters": [
+            {
+              "num": "XXXI",
+              "title": "Italy — Sinbad the Sailor",
+              "cont": true
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1844-11-02",
+          "part": 2,
+          "part_index": 3,
+          "global_index": 31,
+          "label": "XXXII. The Awakening",
+          "chapters": [
+            {
+              "num": "XXXII",
+              "title": "The Awakening",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1844-11-03",
+          "part": 2,
+          "part_index": 4,
+          "global_index": 32,
+          "label": "XXXIII. Roman Bandits",
+          "chapters": [
+            {
+              "num": "XXXIII",
+              "title": "Roman Bandits",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1844-11-06",
+          "part": 2,
+          "part_index": 5,
+          "global_index": 33,
+          "label": "XXXIII. Roman Bandits (cont.)",
+          "chapters": [
+            {
+              "num": "XXXIII",
+              "title": "Roman Bandits",
+              "cont": true
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1844-11-07",
+          "part": 2,
+          "part_index": 6,
+          "global_index": 34,
+          "label": "XXXIII. Roman Bandits (cont.)",
+          "chapters": [
+            {
+              "num": "XXXIII",
+              "title": "Roman Bandits",
+              "cont": true
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1844-11-08",
+          "part": 2,
+          "part_index": 7,
+          "global_index": 35,
+          "label": "XXXIII. Roman Bandits (cont.) · XXXIV. The Apparition",
+          "chapters": [
+            {
+              "num": "XXXIII",
+              "title": "Roman Bandits",
+              "cont": true
+            },
+            {
+              "num": "XXXIV",
+              "title": "The Apparition",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1844-11-09",
+          "part": 2,
+          "part_index": 8,
+          "global_index": 36,
+          "label": "XXXIV. The Apparition (cont.)",
+          "chapters": [
+            {
+              "num": "XXXIV",
+              "title": "The Apparition",
+              "cont": true
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1844-11-13",
+          "part": 2,
+          "part_index": 9,
+          "global_index": 37,
+          "label": "XXXIV. The Apparition (cont.) · XXXV. La Mazzolata",
+          "chapters": [
+            {
+              "num": "XXXIV",
+              "title": "The Apparition",
+              "cont": true
+            },
+            {
+              "num": "XXXV",
+              "title": "La Mazzolata",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1844-11-14",
+          "part": 2,
+          "part_index": 10,
+          "global_index": 38,
+          "label": "XXXV. La Mazzolata (cont.)",
+          "chapters": [
+            {
+              "num": "XXXV",
+              "title": "La Mazzolata",
+              "cont": true
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1844-11-15",
+          "part": 2,
+          "part_index": 11,
+          "global_index": 39,
+          "label": "XXXVI. The Carnival in Rome",
+          "chapters": [
+            {
+              "num": "XXXVI",
+              "title": "The Carnival in Rome",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1844-11-16",
+          "part": 2,
+          "part_index": 12,
+          "global_index": 40,
+          "label": "XXXVI. The Carnival in Rome (cont.)",
+          "chapters": [
+            {
+              "num": "XXXVI",
+              "title": "The Carnival in Rome",
+              "cont": true
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1844-11-20",
+          "part": 2,
+          "part_index": 13,
+          "global_index": 41,
+          "label": "XXXVII. The Catacombs of Saint Sebastian",
+          "chapters": [
+            {
+              "num": "XXXVII",
+              "title": "The Catacombs of Saint Sebastian",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1844-11-21",
+          "part": 2,
+          "part_index": 14,
+          "global_index": 42,
+          "label": "XXXVII. The Catacombs of Saint Sebastian (cont.)",
+          "chapters": [
+            {
+              "num": "XXXVII",
+              "title": "The Catacombs of Saint Sebastian",
+              "cont": true
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1844-11-26",
+          "part": 2,
+          "part_index": 15,
+          "global_index": 43,
+          "label": "XXXVIII. The Rendez-vous · XXXIX. The Guests",
+          "chapters": [
+            {
+              "num": "XXXVIII",
+              "title": "The Rendez-vous",
+              "cont": false
+            },
+            {
+              "num": "XXXIX",
+              "title": "The Guests",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": true
+        }
+      ]
+    },
+    {
+      "part": 3,
+      "label": "Part 3: 20 June → 3 August 1845",
+      "date_range": "20 June → 3 August 1845",
+      "chapter_range": "Chapters XXXIX–LXI: Paris society, the revenge machinery assembles",
+      "installments": [
+        {
+          "date": "1845-06-20",
+          "part": 3,
+          "part_index": 1,
+          "global_index": 44,
+          "label": "XXXIX. The Guests (cont.)",
+          "chapters": [
+            {
+              "num": "XXXIX",
+              "title": "The Guests",
+              "cont": true
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-06-21",
+          "part": 3,
+          "part_index": 2,
+          "global_index": 45,
+          "label": "XXXIX. The Guests (cont.)",
+          "chapters": [
+            {
+              "num": "XXXIX",
+              "title": "The Guests",
+              "cont": true
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-06-22",
+          "part": 3,
+          "part_index": 3,
+          "global_index": 46,
+          "label": "XXXIX. The Guests (cont.) · XL. Breakfast",
+          "chapters": [
+            {
+              "num": "XXXIX",
+              "title": "The Guests",
+              "cont": true
+            },
+            {
+              "num": "XL",
+              "title": "Breakfast",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-06-25",
+          "part": 3,
+          "part_index": 4,
+          "global_index": 47,
+          "label": "XLI. The Introduction",
+          "chapters": [
+            {
+              "num": "XLI",
+              "title": "The Introduction",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-06-26",
+          "part": 3,
+          "part_index": 5,
+          "global_index": 48,
+          "label": "XLI. The Introduction (cont.)",
+          "chapters": [
+            {
+              "num": "XLI",
+              "title": "The Introduction",
+              "cont": true
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-06-27",
+          "part": 3,
+          "part_index": 6,
+          "global_index": 49,
+          "label": "XLI. The Introduction (cont.) · XLII. Monsieur Bertuccio",
+          "chapters": [
+            {
+              "num": "XLI",
+              "title": "The Introduction",
+              "cont": true
+            },
+            {
+              "num": "XLII",
+              "title": "Monsieur Bertuccio",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-06-28",
+          "part": 3,
+          "part_index": 7,
+          "global_index": 50,
+          "label": "XLIII. The House at Auteuil",
+          "chapters": [
+            {
+              "num": "XLIII",
+              "title": "The House at Auteuil",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-06-29",
+          "part": 3,
+          "part_index": 8,
+          "global_index": 51,
+          "label": "XLIV. The Vendetta",
+          "chapters": [
+            {
+              "num": "XLIV",
+              "title": "The Vendetta",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-07-02",
+          "part": 3,
+          "part_index": 9,
+          "global_index": 52,
+          "label": "XLIV. The Vendetta (cont.)",
+          "chapters": [
+            {
+              "num": "XLIV",
+              "title": "The Vendetta",
+              "cont": true
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-07-03",
+          "part": 3,
+          "part_index": 10,
+          "global_index": 53,
+          "label": "XLIV. The Vendetta (cont.)",
+          "chapters": [
+            {
+              "num": "XLIV",
+              "title": "The Vendetta",
+              "cont": true
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-07-04",
+          "part": 3,
+          "part_index": 11,
+          "global_index": 54,
+          "label": "XLV. The Shower of Blood",
+          "chapters": [
+            {
+              "num": "XLV",
+              "title": "The Shower of Blood",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-07-05",
+          "part": 3,
+          "part_index": 12,
+          "global_index": 55,
+          "label": "XLV. The Shower of Blood (cont.) · XLVI. Unlimited Credit",
+          "chapters": [
+            {
+              "num": "XLV",
+              "title": "The Shower of Blood",
+              "cont": true
+            },
+            {
+              "num": "XLVI",
+              "title": "Unlimited Credit",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-07-06",
+          "part": 3,
+          "part_index": 13,
+          "global_index": 56,
+          "label": "XLVI. Unlimited Credit (cont.)",
+          "chapters": [
+            {
+              "num": "XLVI",
+              "title": "Unlimited Credit",
+              "cont": true
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-07-10",
+          "part": 3,
+          "part_index": 14,
+          "global_index": 57,
+          "label": "XLVII. The Dapple-Greys",
+          "chapters": [
+            {
+              "num": "XLVII",
+              "title": "The Dapple-Greys",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-07-11",
+          "part": 3,
+          "part_index": 15,
+          "global_index": 58,
+          "label": "XLVII. The Dapple-Greys (cont.) · XLVIII. Ideology",
+          "chapters": [
+            {
+              "num": "XLVII",
+              "title": "The Dapple-Greys",
+              "cont": true
+            },
+            {
+              "num": "XLVIII",
+              "title": "Ideology",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-07-12",
+          "part": 3,
+          "part_index": 16,
+          "global_index": 59,
+          "label": "XLVIII. Ideology (cont.)",
+          "chapters": [
+            {
+              "num": "XLVIII",
+              "title": "Ideology",
+              "cont": true
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-07-13",
+          "part": 3,
+          "part_index": 17,
+          "global_index": 60,
+          "label": "XLIX. Haydée · L. The Morrels",
+          "chapters": [
+            {
+              "num": "XLIX",
+              "title": "Haydée",
+              "cont": false
+            },
+            {
+              "num": "L",
+              "title": "The Morrels",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-07-17",
+          "part": 3,
+          "part_index": 18,
+          "global_index": 61,
+          "label": "L. The Morrels (cont.) · LI. Pyramus and Thisbe",
+          "chapters": [
+            {
+              "num": "L",
+              "title": "The Morrels",
+              "cont": true
+            },
+            {
+              "num": "LI",
+              "title": "Pyramus and Thisbe",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-07-18",
+          "part": 3,
+          "part_index": 19,
+          "global_index": 62,
+          "label": "LII. Pyramus and Thisbe (cont.)",
+          "chapters": [
+            {
+              "num": "LII",
+              "title": "Pyramus and Thisbe",
+              "cont": true
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-07-19",
+          "part": 3,
+          "part_index": 20,
+          "global_index": 63,
+          "label": "LIII. Toxicology",
+          "chapters": [
+            {
+              "num": "LIII",
+              "title": "Toxicology",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-07-20",
+          "part": 3,
+          "part_index": 21,
+          "global_index": 64,
+          "label": "LIII. Toxicology (cont.)",
+          "chapters": [
+            {
+              "num": "LIII",
+              "title": "Toxicology",
+              "cont": true
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-07-23",
+          "part": 3,
+          "part_index": 22,
+          "global_index": 65,
+          "label": "LIV. Robert le Diable",
+          "chapters": [
+            {
+              "num": "LIV",
+              "title": "Robert le Diable",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-07-24",
+          "part": 3,
+          "part_index": 23,
+          "global_index": 66,
+          "label": "LIV. Robert le Diable (cont.) · LV. Rise and Fall",
+          "chapters": [
+            {
+              "num": "LIV",
+              "title": "Robert le Diable",
+              "cont": true
+            },
+            {
+              "num": "LV",
+              "title": "Rise and Fall",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-07-25",
+          "part": 3,
+          "part_index": 24,
+          "global_index": 67,
+          "label": "LV. Rise and Fall (cont.) · LVI. Andrea Cavalcanti",
+          "chapters": [
+            {
+              "num": "LV",
+              "title": "Rise and Fall",
+              "cont": true
+            },
+            {
+              "num": "LVI",
+              "title": "Andrea Cavalcanti",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-07-26",
+          "part": 3,
+          "part_index": 25,
+          "global_index": 68,
+          "label": "LVI. Andrea Cavalcanti (cont.)",
+          "chapters": [
+            {
+              "num": "LVI",
+              "title": "Andrea Cavalcanti",
+              "cont": true
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-07-27",
+          "part": 3,
+          "part_index": 26,
+          "global_index": 69,
+          "label": "LVI. Andrea Cavalcanti (cont.)",
+          "chapters": [
+            {
+              "num": "LVI",
+              "title": "Andrea Cavalcanti",
+              "cont": true
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-07-31",
+          "part": 3,
+          "part_index": 27,
+          "global_index": 70,
+          "label": "LVII. The Alfalfa Field",
+          "chapters": [
+            {
+              "num": "LVII",
+              "title": "The Alfalfa Field",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-08-01",
+          "part": 3,
+          "part_index": 28,
+          "global_index": 71,
+          "label": "LVIII. Monsieur Noirtier de Villefort · LIX. The Will",
+          "chapters": [
+            {
+              "num": "LVIII",
+              "title": "Monsieur Noirtier de Villefort",
+              "cont": false
+            },
+            {
+              "num": "LIX",
+              "title": "The Will",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-08-02",
+          "part": 3,
+          "part_index": 29,
+          "global_index": 72,
+          "label": "LIX. The Will (cont.) · LX. The Telegraph",
+          "chapters": [
+            {
+              "num": "LIX",
+              "title": "The Will",
+              "cont": true
+            },
+            {
+              "num": "LX",
+              "title": "The Telegraph",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-08-03",
+          "part": 3,
+          "part_index": 30,
+          "global_index": 73,
+          "label": "LX. The Telegraph (cont.) · LXI. How to Rescue a Gardener from Dormice Who Are Eating His Peaches",
+          "chapters": [
+            {
+              "num": "LX",
+              "title": "The Telegraph",
+              "cont": true
+            },
+            {
+              "num": "LXI",
+              "title": "How to Rescue a Gardener from Dormice Who Are Eating His Peaches",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        }
+      ]
+    },
+    {
+      "part": 4,
+      "label": "Part 4: 12 August 1845 → 16 January 1846",
+      "date_range": "12 August 1845 → 16 January 1846",
+      "chapter_range": "Chapters LXII–CXVII: the long unraveling and the finale",
+      "installments": [
+        {
+          "date": "1845-08-12",
+          "part": 4,
+          "part_index": 1,
+          "global_index": 74,
+          "label": "LXII. Ghosts",
+          "chapters": [
+            {
+              "num": "LXII",
+              "title": "Ghosts",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-08-13",
+          "part": 4,
+          "part_index": 2,
+          "global_index": 75,
+          "label": "LXIII. Dinner",
+          "chapters": [
+            {
+              "num": "LXIII",
+              "title": "Dinner",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-08-14",
+          "part": 4,
+          "part_index": 3,
+          "global_index": 76,
+          "label": "LXIV. The Beggar",
+          "chapters": [
+            {
+              "num": "LXIV",
+              "title": "The Beggar",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-08-15",
+          "part": 4,
+          "part_index": 4,
+          "global_index": 77,
+          "label": "LXV. A Domestic Scene",
+          "chapters": [
+            {
+              "num": "LXV",
+              "title": "A Domestic Scene",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-08-16",
+          "part": 4,
+          "part_index": 5,
+          "global_index": 78,
+          "label": "LXVI. Marriage Plans",
+          "chapters": [
+            {
+              "num": "LXVI",
+              "title": "Marriage Plans",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-08-17",
+          "part": 4,
+          "part_index": 6,
+          "global_index": 79,
+          "label": "LXVII. The Crown Prosecutor's Office",
+          "chapters": [
+            {
+              "num": "LXVII",
+              "title": "The Crown Prosecutor's Office",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-08-20",
+          "part": 4,
+          "part_index": 7,
+          "global_index": 80,
+          "label": "LXVIII. A Summer Ball · LXIX. Information",
+          "chapters": [
+            {
+              "num": "LXVIII",
+              "title": "A Summer Ball",
+              "cont": false
+            },
+            {
+              "num": "LXIX",
+              "title": "Information",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-08-21",
+          "part": 4,
+          "part_index": 8,
+          "global_index": 81,
+          "label": "LXIX. Information (cont.)",
+          "chapters": [
+            {
+              "num": "LXIX",
+              "title": "Information",
+              "cont": true
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-08-22",
+          "part": 4,
+          "part_index": 9,
+          "global_index": 82,
+          "label": "LXX. The Ball",
+          "chapters": [
+            {
+              "num": "LXX",
+              "title": "The Ball",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-08-23",
+          "part": 4,
+          "part_index": 10,
+          "global_index": 83,
+          "label": "LXXI. Bread and Salt · LXXII. Madame de Saint-Méran",
+          "chapters": [
+            {
+              "num": "LXXI",
+              "title": "Bread and Salt",
+              "cont": false
+            },
+            {
+              "num": "LXXII",
+              "title": "Madame de Saint-Méran",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-08-27",
+          "part": 4,
+          "part_index": 11,
+          "global_index": 84,
+          "label": "LXXIII. The Promise",
+          "chapters": [
+            {
+              "num": "LXXIII",
+              "title": "The Promise",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-08-28",
+          "part": 4,
+          "part_index": 12,
+          "global_index": 85,
+          "label": "LXXIII. The Promise (cont.)",
+          "chapters": [
+            {
+              "num": "LXXIII",
+              "title": "The Promise",
+              "cont": true
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-08-29",
+          "part": 4,
+          "part_index": 13,
+          "global_index": 86,
+          "label": "LXXIII. The Promise (cont.)",
+          "chapters": [
+            {
+              "num": "LXXIII",
+              "title": "The Promise",
+              "cont": true
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-08-30",
+          "part": 4,
+          "part_index": 14,
+          "global_index": 87,
+          "label": "LXXIV. The Villefort Family Vault",
+          "chapters": [
+            {
+              "num": "LXXIV",
+              "title": "The Villefort Family Vault",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-08-31",
+          "part": 4,
+          "part_index": 15,
+          "global_index": 88,
+          "label": "LXXV. The Judicial Inquiry",
+          "chapters": [
+            {
+              "num": "LXXV",
+              "title": "The Judicial Inquiry",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-09-03",
+          "part": 4,
+          "part_index": 16,
+          "global_index": 89,
+          "label": "LXXVI. The Progress of the Younger Cavalcanti",
+          "chapters": [
+            {
+              "num": "LXXVI",
+              "title": "The Progress of the Younger Cavalcanti",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-09-04",
+          "part": 4,
+          "part_index": 17,
+          "global_index": 90,
+          "label": "LXXVII. Haydée",
+          "chapters": [
+            {
+              "num": "LXXVII",
+              "title": "Haydée",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-09-05",
+          "part": 4,
+          "part_index": 18,
+          "global_index": 91,
+          "label": "LXXVII. Haydée (cont.)",
+          "chapters": [
+            {
+              "num": "LXXVII",
+              "title": "Haydée",
+              "cont": true
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-09-06",
+          "part": 4,
+          "part_index": 19,
+          "global_index": 92,
+          "label": "LXXVIII. A Correspondent Writes from Janina",
+          "chapters": [
+            {
+              "num": "LXXVIII",
+              "title": "A Correspondent Writes from Janina",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-09-10",
+          "part": 4,
+          "part_index": 20,
+          "global_index": 93,
+          "label": "LXXVIII. A Correspondent Writes from Janina (cont.)",
+          "chapters": [
+            {
+              "num": "LXXVIII",
+              "title": "A Correspondent Writes from Janina",
+              "cont": true
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-09-11",
+          "part": 4,
+          "part_index": 21,
+          "global_index": 94,
+          "label": "LXXIX. Lemonade",
+          "chapters": [
+            {
+              "num": "LXXIX",
+              "title": "Lemonade",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-09-12",
+          "part": 4,
+          "part_index": 22,
+          "global_index": 95,
+          "label": "LXXX. The Accusation",
+          "chapters": [
+            {
+              "num": "LXXX",
+              "title": "The Accusation",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-09-13",
+          "part": 4,
+          "part_index": 23,
+          "global_index": 96,
+          "label": "LXXXI. The Retired Baker's Room",
+          "chapters": [
+            {
+              "num": "LXXXI",
+              "title": "The Retired Baker's Room",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-09-17",
+          "part": 4,
+          "part_index": 24,
+          "global_index": 97,
+          "label": "LXXXI. The Retired Baker's Room (cont.)",
+          "chapters": [
+            {
+              "num": "LXXXI",
+              "title": "The Retired Baker's Room",
+              "cont": true
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-09-18",
+          "part": 4,
+          "part_index": 25,
+          "global_index": 98,
+          "label": "LXXXII. Breaking and Entering",
+          "chapters": [
+            {
+              "num": "LXXXII",
+              "title": "Breaking and Entering",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-09-19",
+          "part": 4,
+          "part_index": 26,
+          "global_index": 99,
+          "label": "LXXXII. Breaking and Entering (cont.)",
+          "chapters": [
+            {
+              "num": "LXXXII",
+              "title": "Breaking and Entering",
+              "cont": true
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-09-20",
+          "part": 4,
+          "part_index": 27,
+          "global_index": 100,
+          "label": "LXXXIII. The Hand of God",
+          "chapters": [
+            {
+              "num": "LXXXIII",
+              "title": "The Hand of God",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-09-25",
+          "part": 4,
+          "part_index": 28,
+          "global_index": 101,
+          "label": "LXXXIV. Beauchamp",
+          "chapters": [
+            {
+              "num": "LXXXIV",
+              "title": "Beauchamp",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-09-26",
+          "part": 4,
+          "part_index": 29,
+          "global_index": 102,
+          "label": "LXXXV. The Journey",
+          "chapters": [
+            {
+              "num": "LXXXV",
+              "title": "The Journey",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-09-27",
+          "part": 4,
+          "part_index": 30,
+          "global_index": 103,
+          "label": "LXXXV. The Journey (cont.)",
+          "chapters": [
+            {
+              "num": "LXXXV",
+              "title": "The Journey",
+              "cont": true
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-10-02",
+          "part": 4,
+          "part_index": 31,
+          "global_index": 104,
+          "label": "LXXXVI. Judgement is Passed",
+          "chapters": [
+            {
+              "num": "LXXXVI",
+              "title": "Judgement is Passed",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-10-03",
+          "part": 4,
+          "part_index": 32,
+          "global_index": 105,
+          "label": "LXXXVI. Judgement is Passed (cont.)",
+          "chapters": [
+            {
+              "num": "LXXXVI",
+              "title": "Judgement is Passed",
+              "cont": true
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-10-04",
+          "part": 4,
+          "part_index": 33,
+          "global_index": 106,
+          "label": "LXXXVII. Provocation",
+          "chapters": [
+            {
+              "num": "LXXXVII",
+              "title": "Provocation",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-10-10",
+          "part": 4,
+          "part_index": 34,
+          "global_index": 107,
+          "label": "LXXXVIII. The Insult",
+          "chapters": [
+            {
+              "num": "LXXXVIII",
+              "title": "The Insult",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-10-11",
+          "part": 4,
+          "part_index": 35,
+          "global_index": 108,
+          "label": "LXXXIX. Night",
+          "chapters": [
+            {
+              "num": "LXXXIX",
+              "title": "Night",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-10-12",
+          "part": 4,
+          "part_index": 36,
+          "global_index": 109,
+          "label": "XC. The Encounter",
+          "chapters": [
+            {
+              "num": "XC",
+              "title": "The Encounter",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-10-15",
+          "part": 4,
+          "part_index": 37,
+          "global_index": 110,
+          "label": "XC. The Encounter (cont.)",
+          "chapters": [
+            {
+              "num": "XC",
+              "title": "The Encounter",
+              "cont": true
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-10-16",
+          "part": 4,
+          "part_index": 38,
+          "global_index": 111,
+          "label": "XCI. Mother and Son",
+          "chapters": [
+            {
+              "num": "XCI",
+              "title": "Mother and Son",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-10-17",
+          "part": 4,
+          "part_index": 39,
+          "global_index": 112,
+          "label": "XCII. The Suicide",
+          "chapters": [
+            {
+              "num": "XCII",
+              "title": "The Suicide",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-10-18",
+          "part": 4,
+          "part_index": 40,
+          "global_index": 113,
+          "label": "XCIII. Valentine",
+          "chapters": [
+            {
+              "num": "XCIII",
+              "title": "Valentine",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-10-22",
+          "part": 4,
+          "part_index": 41,
+          "global_index": 114,
+          "label": "XCIV. The Confession",
+          "chapters": [
+            {
+              "num": "XCIV",
+              "title": "The Confession",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-10-23",
+          "part": 4,
+          "part_index": 42,
+          "global_index": 115,
+          "label": "XCV. Father and Daughter",
+          "chapters": [
+            {
+              "num": "XCV",
+              "title": "Father and Daughter",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-10-24",
+          "part": 4,
+          "part_index": 43,
+          "global_index": 116,
+          "label": "XCVI. The Marriage Contract",
+          "chapters": [
+            {
+              "num": "XCVI",
+              "title": "The Marriage Contract",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-10-25",
+          "part": 4,
+          "part_index": 44,
+          "global_index": 117,
+          "label": "XCVI. The Marriage Contract (cont.)",
+          "chapters": [
+            {
+              "num": "XCVI",
+              "title": "The Marriage Contract",
+              "cont": true
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-11-06",
+          "part": 4,
+          "part_index": 45,
+          "global_index": 118,
+          "label": "XCVII. The Road for Belgium · XCVIII. The Inn of the Bell and Bottle",
+          "chapters": [
+            {
+              "num": "XCVII",
+              "title": "The Road for Belgium",
+              "cont": false
+            },
+            {
+              "num": "XCVIII",
+              "title": "The Inn of the Bell and Bottle",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-11-07",
+          "part": 4,
+          "part_index": 46,
+          "global_index": 119,
+          "label": "XCVIII. The Inn of the Bell and Bottle (cont.)",
+          "chapters": [
+            {
+              "num": "XCVIII",
+              "title": "The Inn of the Bell and Bottle",
+              "cont": true
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-11-08",
+          "part": 4,
+          "part_index": 47,
+          "global_index": 120,
+          "label": "XCIX. The Law",
+          "chapters": [
+            {
+              "num": "XCIX",
+              "title": "The Law",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-11-09",
+          "part": 4,
+          "part_index": 48,
+          "global_index": 121,
+          "label": "C. The Apparition · CI. Locusta",
+          "chapters": [
+            {
+              "num": "C",
+              "title": "The Apparition",
+              "cont": false
+            },
+            {
+              "num": "CI",
+              "title": "Locusta",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-11-12",
+          "part": 4,
+          "part_index": 49,
+          "global_index": 122,
+          "label": "CII. Valentine",
+          "chapters": [
+            {
+              "num": "CII",
+              "title": "Valentine",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-11-13",
+          "part": 4,
+          "part_index": 50,
+          "global_index": 123,
+          "label": "CIII. Maximilien",
+          "chapters": [
+            {
+              "num": "CIII",
+              "title": "Maximilien",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-11-14",
+          "part": 4,
+          "part_index": 51,
+          "global_index": 124,
+          "label": "CIV. The Signature of Baron Danglars",
+          "chapters": [
+            {
+              "num": "CIV",
+              "title": "The Signature of Baron Danglars",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-11-15",
+          "part": 4,
+          "part_index": 52,
+          "global_index": 125,
+          "label": "CIV. The Signature of Baron Danglars (cont.) · CV. The Père Lachaise Cemetery",
+          "chapters": [
+            {
+              "num": "CIV",
+              "title": "The Signature of Baron Danglars",
+              "cont": true
+            },
+            {
+              "num": "CV",
+              "title": "The Père Lachaise Cemetery",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-11-16",
+          "part": 4,
+          "part_index": 53,
+          "global_index": 126,
+          "label": "CV. The Père Lachaise Cemetery (cont.)",
+          "chapters": [
+            {
+              "num": "CV",
+              "title": "The Père Lachaise Cemetery",
+              "cont": true
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-11-17",
+          "part": 4,
+          "part_index": 54,
+          "global_index": 127,
+          "label": "CVI. The Share-Out",
+          "chapters": [
+            {
+              "num": "CVI",
+              "title": "The Share-Out",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-11-22",
+          "part": 4,
+          "part_index": 55,
+          "global_index": 128,
+          "label": "CVI. The Share-Out (cont.)",
+          "chapters": [
+            {
+              "num": "CVI",
+              "title": "The Share-Out",
+              "cont": true
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-11-23",
+          "part": 4,
+          "part_index": 56,
+          "global_index": 129,
+          "label": "CVII. The Lion's Pit",
+          "chapters": [
+            {
+              "num": "CVII",
+              "title": "The Lion's Pit",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-11-27",
+          "part": 4,
+          "part_index": 57,
+          "global_index": 130,
+          "label": "CVIII. The Judge",
+          "chapters": [
+            {
+              "num": "CVIII",
+              "title": "The Judge",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-11-28",
+          "part": 4,
+          "part_index": 58,
+          "global_index": 131,
+          "label": "CIX. The Assizes",
+          "chapters": [
+            {
+              "num": "CIX",
+              "title": "The Assizes",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-11-29",
+          "part": 4,
+          "part_index": 59,
+          "global_index": 132,
+          "label": "CX. The Indictment",
+          "chapters": [
+            {
+              "num": "CX",
+              "title": "The Indictment",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-12-25",
+          "part": 4,
+          "part_index": 60,
+          "global_index": 133,
+          "label": "CXI. Expiation",
+          "chapters": [
+            {
+              "num": "CXI",
+              "title": "Expiation",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-12-26",
+          "part": 4,
+          "part_index": 61,
+          "global_index": 134,
+          "label": "CXII. Departure",
+          "chapters": [
+            {
+              "num": "CXII",
+              "title": "Departure",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-12-27",
+          "part": 4,
+          "part_index": 62,
+          "global_index": 135,
+          "label": "CXIII. The Past",
+          "chapters": [
+            {
+              "num": "CXIII",
+              "title": "The Past",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1845-12-28",
+          "part": 4,
+          "part_index": 63,
+          "global_index": 136,
+          "label": "CXIV. Peppino",
+          "chapters": [
+            {
+              "num": "CXIV",
+              "title": "Peppino",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1846-01-01",
+          "part": 4,
+          "part_index": 64,
+          "global_index": 137,
+          "label": "CXIV. Peppino (cont.) · CXV. Luigi Vampa's Bill of Fare",
+          "chapters": [
+            {
+              "num": "CXIV",
+              "title": "Peppino",
+              "cont": true
+            },
+            {
+              "num": "CXV",
+              "title": "Luigi Vampa's Bill of Fare",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1846-01-02",
+          "part": 4,
+          "part_index": 65,
+          "global_index": 138,
+          "label": "CXVI. The Pardon · CXVII. October the Fifth",
+          "chapters": [
+            {
+              "num": "CXVI",
+              "title": "The Pardon",
+              "cont": false
+            },
+            {
+              "num": "CXVII",
+              "title": "October the Fifth",
+              "cont": false
+            }
+          ],
+          "is_hiatus_after": false
+        },
+        {
+          "date": "1846-01-16",
+          "part": 4,
+          "part_index": 66,
+          "global_index": 139,
+          "label": "CXVII. October the Fifth (cont.)",
+          "chapters": [
+            {
+              "num": "CXVII",
+              "title": "October the Fifth",
+              "cont": true
+            }
+          ],
+          "is_hiatus_after": false
+        }
+      ]
+    }
+  ],
+  "installments": [
+    {
+      "date": "1844-08-28",
+      "part": 1,
+      "part_index": 1,
+      "global_index": 1,
+      "label": "I. Marseilles — Arrival · II. Father and Son",
+      "chapters": [
+        {
+          "num": "I",
+          "title": "Marseilles — Arrival",
+          "cont": false
+        },
+        {
+          "num": "II",
+          "title": "Father and Son",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1844-08-29",
+      "part": 1,
+      "part_index": 2,
+      "global_index": 2,
+      "label": "III. Les Catalans · IV. The Plot",
+      "chapters": [
+        {
+          "num": "III",
+          "title": "Les Catalans",
+          "cont": false
+        },
+        {
+          "num": "IV",
+          "title": "The Plot",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1844-08-31",
+      "part": 1,
+      "part_index": 3,
+      "global_index": 3,
+      "label": "V. The Betrothal",
+      "chapters": [
+        {
+          "num": "V",
+          "title": "The Betrothal",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1844-09-01",
+      "part": 1,
+      "part_index": 4,
+      "global_index": 4,
+      "label": "VI. The Deputy Crown Prosecutor",
+      "chapters": [
+        {
+          "num": "VI",
+          "title": "The Deputy Crown Prosecutor",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1844-09-04",
+      "part": 1,
+      "part_index": 5,
+      "global_index": 5,
+      "label": "VII. The Interrogation",
+      "chapters": [
+        {
+          "num": "VII",
+          "title": "The Interrogation",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1844-09-05",
+      "part": 1,
+      "part_index": 6,
+      "global_index": 6,
+      "label": "VIII. The Château d'If",
+      "chapters": [
+        {
+          "num": "VIII",
+          "title": "The Château d'If",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1844-09-06",
+      "part": 1,
+      "part_index": 7,
+      "global_index": 7,
+      "label": "IX. The Evening of the Betrothal · X. The Little Cabinet in the Tuileries",
+      "chapters": [
+        {
+          "num": "IX",
+          "title": "The Evening of the Betrothal",
+          "cont": false
+        },
+        {
+          "num": "X",
+          "title": "The Little Cabinet in the Tuileries",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1844-09-07",
+      "part": 1,
+      "part_index": 8,
+      "global_index": 8,
+      "label": "XI. The Corsican Ogre",
+      "chapters": [
+        {
+          "num": "XI",
+          "title": "The Corsican Ogre",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1844-09-11",
+      "part": 1,
+      "part_index": 9,
+      "global_index": 9,
+      "label": "XII. Father and Son · XIII. The Hundred Days",
+      "chapters": [
+        {
+          "num": "XII",
+          "title": "Father and Son",
+          "cont": false
+        },
+        {
+          "num": "XIII",
+          "title": "The Hundred Days",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1844-09-20",
+      "part": 1,
+      "part_index": 10,
+      "global_index": 10,
+      "label": "XIV. The Raving Prisoner and the Mad One",
+      "chapters": [
+        {
+          "num": "XIV",
+          "title": "The Raving Prisoner and the Mad One",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1844-09-21",
+      "part": 1,
+      "part_index": 11,
+      "global_index": 11,
+      "label": "XV. Number 34 and Number 27",
+      "chapters": [
+        {
+          "num": "XV",
+          "title": "Number 34 and Number 27",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1844-09-22",
+      "part": 1,
+      "part_index": 12,
+      "global_index": 12,
+      "label": "XV. Number 34 and Number 27 (cont.) · XVI. An Italian Scholar",
+      "chapters": [
+        {
+          "num": "XV",
+          "title": "Number 34 and Number 27",
+          "cont": true
+        },
+        {
+          "num": "XVI",
+          "title": "An Italian Scholar",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1844-09-25",
+      "part": 1,
+      "part_index": 13,
+      "global_index": 13,
+      "label": "XVII. The Abbé's Cell",
+      "chapters": [
+        {
+          "num": "XVII",
+          "title": "The Abbé's Cell",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1844-09-26",
+      "part": 1,
+      "part_index": 14,
+      "global_index": 14,
+      "label": "XVII. The Abbé's Cell (cont.)",
+      "chapters": [
+        {
+          "num": "XVII",
+          "title": "The Abbé's Cell",
+          "cont": true
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1844-09-27",
+      "part": 1,
+      "part_index": 15,
+      "global_index": 15,
+      "label": "XVIII. The Treasure",
+      "chapters": [
+        {
+          "num": "XVIII",
+          "title": "The Treasure",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1844-09-28",
+      "part": 1,
+      "part_index": 16,
+      "global_index": 16,
+      "label": "XIX. The Third Seizure",
+      "chapters": [
+        {
+          "num": "XIX",
+          "title": "The Third Seizure",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1844-09-29",
+      "part": 1,
+      "part_index": 17,
+      "global_index": 17,
+      "label": "XX. The Graveyard of the Château d'If · XXI. The Island of Tiboulen",
+      "chapters": [
+        {
+          "num": "XX",
+          "title": "The Graveyard of the Château d'If",
+          "cont": false
+        },
+        {
+          "num": "XXI",
+          "title": "The Island of Tiboulen",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1844-10-03",
+      "part": 1,
+      "part_index": 18,
+      "global_index": 18,
+      "label": "XXI. The Island of Tiboulen (cont.) · XXII. The Smugglers",
+      "chapters": [
+        {
+          "num": "XXI",
+          "title": "The Island of Tiboulen",
+          "cont": true
+        },
+        {
+          "num": "XXII",
+          "title": "The Smugglers",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1844-10-04",
+      "part": 1,
+      "part_index": 19,
+      "global_index": 19,
+      "label": "XXII. The Smugglers (cont.) · XXIII. The Island of Monte Cristo",
+      "chapters": [
+        {
+          "num": "XXII",
+          "title": "The Smugglers",
+          "cont": true
+        },
+        {
+          "num": "XXIII",
+          "title": "The Island of Monte Cristo",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1844-10-05",
+      "part": 1,
+      "part_index": 20,
+      "global_index": 20,
+      "label": "XXIV. Dazzled",
+      "chapters": [
+        {
+          "num": "XXIV",
+          "title": "Dazzled",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1844-10-06",
+      "part": 1,
+      "part_index": 21,
+      "global_index": 21,
+      "label": "XXV. The Stranger",
+      "chapters": [
+        {
+          "num": "XXV",
+          "title": "The Stranger",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1844-10-10",
+      "part": 1,
+      "part_index": 22,
+      "global_index": 22,
+      "label": "XXVI. At the Sign of the Pont du Gard",
+      "chapters": [
+        {
+          "num": "XXVI",
+          "title": "At the Sign of the Pont du Gard",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1844-10-11",
+      "part": 1,
+      "part_index": 23,
+      "global_index": 23,
+      "label": "XXVI. At the Sign of the Pont du Gard (cont.) · XXVII. Caderousse's Story",
+      "chapters": [
+        {
+          "num": "XXVI",
+          "title": "At the Sign of the Pont du Gard",
+          "cont": true
+        },
+        {
+          "num": "XXVII",
+          "title": "Caderousse's Story",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1844-10-12",
+      "part": 1,
+      "part_index": 24,
+      "global_index": 24,
+      "label": "XXVII. Caderousse's Story (cont.)",
+      "chapters": [
+        {
+          "num": "XXVII",
+          "title": "Caderousse's Story",
+          "cont": true
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1844-10-13",
+      "part": 1,
+      "part_index": 25,
+      "global_index": 25,
+      "label": "XXVIII. The Prison Register · XXIX. Morrel and Company",
+      "chapters": [
+        {
+          "num": "XXVIII",
+          "title": "The Prison Register",
+          "cont": false
+        },
+        {
+          "num": "XXIX",
+          "title": "Morrel and Company",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1844-10-17",
+      "part": 1,
+      "part_index": 26,
+      "global_index": 26,
+      "label": "XXIX. Morrel and Company (cont.)",
+      "chapters": [
+        {
+          "num": "XXIX",
+          "title": "Morrel and Company",
+          "cont": true
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1844-10-18",
+      "part": 1,
+      "part_index": 27,
+      "global_index": 27,
+      "label": "XXX. September the Fifth",
+      "chapters": [
+        {
+          "num": "XXX",
+          "title": "September the Fifth",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1844-10-19",
+      "part": 1,
+      "part_index": 28,
+      "global_index": 28,
+      "label": "XXX. September the Fifth (cont.)",
+      "chapters": [
+        {
+          "num": "XXX",
+          "title": "September the Fifth",
+          "cont": true
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1844-10-31",
+      "part": 2,
+      "part_index": 1,
+      "global_index": 29,
+      "label": "XXXI. Italy — Sinbad the Sailor",
+      "chapters": [
+        {
+          "num": "XXXI",
+          "title": "Italy — Sinbad the Sailor",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1844-11-01",
+      "part": 2,
+      "part_index": 2,
+      "global_index": 30,
+      "label": "XXXI. Italy — Sinbad the Sailor (cont.)",
+      "chapters": [
+        {
+          "num": "XXXI",
+          "title": "Italy — Sinbad the Sailor",
+          "cont": true
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1844-11-02",
+      "part": 2,
+      "part_index": 3,
+      "global_index": 31,
+      "label": "XXXII. The Awakening",
+      "chapters": [
+        {
+          "num": "XXXII",
+          "title": "The Awakening",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1844-11-03",
+      "part": 2,
+      "part_index": 4,
+      "global_index": 32,
+      "label": "XXXIII. Roman Bandits",
+      "chapters": [
+        {
+          "num": "XXXIII",
+          "title": "Roman Bandits",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1844-11-06",
+      "part": 2,
+      "part_index": 5,
+      "global_index": 33,
+      "label": "XXXIII. Roman Bandits (cont.)",
+      "chapters": [
+        {
+          "num": "XXXIII",
+          "title": "Roman Bandits",
+          "cont": true
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1844-11-07",
+      "part": 2,
+      "part_index": 6,
+      "global_index": 34,
+      "label": "XXXIII. Roman Bandits (cont.)",
+      "chapters": [
+        {
+          "num": "XXXIII",
+          "title": "Roman Bandits",
+          "cont": true
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1844-11-08",
+      "part": 2,
+      "part_index": 7,
+      "global_index": 35,
+      "label": "XXXIII. Roman Bandits (cont.) · XXXIV. The Apparition",
+      "chapters": [
+        {
+          "num": "XXXIII",
+          "title": "Roman Bandits",
+          "cont": true
+        },
+        {
+          "num": "XXXIV",
+          "title": "The Apparition",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1844-11-09",
+      "part": 2,
+      "part_index": 8,
+      "global_index": 36,
+      "label": "XXXIV. The Apparition (cont.)",
+      "chapters": [
+        {
+          "num": "XXXIV",
+          "title": "The Apparition",
+          "cont": true
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1844-11-13",
+      "part": 2,
+      "part_index": 9,
+      "global_index": 37,
+      "label": "XXXIV. The Apparition (cont.) · XXXV. La Mazzolata",
+      "chapters": [
+        {
+          "num": "XXXIV",
+          "title": "The Apparition",
+          "cont": true
+        },
+        {
+          "num": "XXXV",
+          "title": "La Mazzolata",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1844-11-14",
+      "part": 2,
+      "part_index": 10,
+      "global_index": 38,
+      "label": "XXXV. La Mazzolata (cont.)",
+      "chapters": [
+        {
+          "num": "XXXV",
+          "title": "La Mazzolata",
+          "cont": true
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1844-11-15",
+      "part": 2,
+      "part_index": 11,
+      "global_index": 39,
+      "label": "XXXVI. The Carnival in Rome",
+      "chapters": [
+        {
+          "num": "XXXVI",
+          "title": "The Carnival in Rome",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1844-11-16",
+      "part": 2,
+      "part_index": 12,
+      "global_index": 40,
+      "label": "XXXVI. The Carnival in Rome (cont.)",
+      "chapters": [
+        {
+          "num": "XXXVI",
+          "title": "The Carnival in Rome",
+          "cont": true
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1844-11-20",
+      "part": 2,
+      "part_index": 13,
+      "global_index": 41,
+      "label": "XXXVII. The Catacombs of Saint Sebastian",
+      "chapters": [
+        {
+          "num": "XXXVII",
+          "title": "The Catacombs of Saint Sebastian",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1844-11-21",
+      "part": 2,
+      "part_index": 14,
+      "global_index": 42,
+      "label": "XXXVII. The Catacombs of Saint Sebastian (cont.)",
+      "chapters": [
+        {
+          "num": "XXXVII",
+          "title": "The Catacombs of Saint Sebastian",
+          "cont": true
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1844-11-26",
+      "part": 2,
+      "part_index": 15,
+      "global_index": 43,
+      "label": "XXXVIII. The Rendez-vous · XXXIX. The Guests",
+      "chapters": [
+        {
+          "num": "XXXVIII",
+          "title": "The Rendez-vous",
+          "cont": false
+        },
+        {
+          "num": "XXXIX",
+          "title": "The Guests",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": true
+    },
+    {
+      "date": "1845-06-20",
+      "part": 3,
+      "part_index": 1,
+      "global_index": 44,
+      "label": "XXXIX. The Guests (cont.)",
+      "chapters": [
+        {
+          "num": "XXXIX",
+          "title": "The Guests",
+          "cont": true
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-06-21",
+      "part": 3,
+      "part_index": 2,
+      "global_index": 45,
+      "label": "XXXIX. The Guests (cont.)",
+      "chapters": [
+        {
+          "num": "XXXIX",
+          "title": "The Guests",
+          "cont": true
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-06-22",
+      "part": 3,
+      "part_index": 3,
+      "global_index": 46,
+      "label": "XXXIX. The Guests (cont.) · XL. Breakfast",
+      "chapters": [
+        {
+          "num": "XXXIX",
+          "title": "The Guests",
+          "cont": true
+        },
+        {
+          "num": "XL",
+          "title": "Breakfast",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-06-25",
+      "part": 3,
+      "part_index": 4,
+      "global_index": 47,
+      "label": "XLI. The Introduction",
+      "chapters": [
+        {
+          "num": "XLI",
+          "title": "The Introduction",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-06-26",
+      "part": 3,
+      "part_index": 5,
+      "global_index": 48,
+      "label": "XLI. The Introduction (cont.)",
+      "chapters": [
+        {
+          "num": "XLI",
+          "title": "The Introduction",
+          "cont": true
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-06-27",
+      "part": 3,
+      "part_index": 6,
+      "global_index": 49,
+      "label": "XLI. The Introduction (cont.) · XLII. Monsieur Bertuccio",
+      "chapters": [
+        {
+          "num": "XLI",
+          "title": "The Introduction",
+          "cont": true
+        },
+        {
+          "num": "XLII",
+          "title": "Monsieur Bertuccio",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-06-28",
+      "part": 3,
+      "part_index": 7,
+      "global_index": 50,
+      "label": "XLIII. The House at Auteuil",
+      "chapters": [
+        {
+          "num": "XLIII",
+          "title": "The House at Auteuil",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-06-29",
+      "part": 3,
+      "part_index": 8,
+      "global_index": 51,
+      "label": "XLIV. The Vendetta",
+      "chapters": [
+        {
+          "num": "XLIV",
+          "title": "The Vendetta",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-07-02",
+      "part": 3,
+      "part_index": 9,
+      "global_index": 52,
+      "label": "XLIV. The Vendetta (cont.)",
+      "chapters": [
+        {
+          "num": "XLIV",
+          "title": "The Vendetta",
+          "cont": true
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-07-03",
+      "part": 3,
+      "part_index": 10,
+      "global_index": 53,
+      "label": "XLIV. The Vendetta (cont.)",
+      "chapters": [
+        {
+          "num": "XLIV",
+          "title": "The Vendetta",
+          "cont": true
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-07-04",
+      "part": 3,
+      "part_index": 11,
+      "global_index": 54,
+      "label": "XLV. The Shower of Blood",
+      "chapters": [
+        {
+          "num": "XLV",
+          "title": "The Shower of Blood",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-07-05",
+      "part": 3,
+      "part_index": 12,
+      "global_index": 55,
+      "label": "XLV. The Shower of Blood (cont.) · XLVI. Unlimited Credit",
+      "chapters": [
+        {
+          "num": "XLV",
+          "title": "The Shower of Blood",
+          "cont": true
+        },
+        {
+          "num": "XLVI",
+          "title": "Unlimited Credit",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-07-06",
+      "part": 3,
+      "part_index": 13,
+      "global_index": 56,
+      "label": "XLVI. Unlimited Credit (cont.)",
+      "chapters": [
+        {
+          "num": "XLVI",
+          "title": "Unlimited Credit",
+          "cont": true
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-07-10",
+      "part": 3,
+      "part_index": 14,
+      "global_index": 57,
+      "label": "XLVII. The Dapple-Greys",
+      "chapters": [
+        {
+          "num": "XLVII",
+          "title": "The Dapple-Greys",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-07-11",
+      "part": 3,
+      "part_index": 15,
+      "global_index": 58,
+      "label": "XLVII. The Dapple-Greys (cont.) · XLVIII. Ideology",
+      "chapters": [
+        {
+          "num": "XLVII",
+          "title": "The Dapple-Greys",
+          "cont": true
+        },
+        {
+          "num": "XLVIII",
+          "title": "Ideology",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-07-12",
+      "part": 3,
+      "part_index": 16,
+      "global_index": 59,
+      "label": "XLVIII. Ideology (cont.)",
+      "chapters": [
+        {
+          "num": "XLVIII",
+          "title": "Ideology",
+          "cont": true
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-07-13",
+      "part": 3,
+      "part_index": 17,
+      "global_index": 60,
+      "label": "XLIX. Haydée · L. The Morrels",
+      "chapters": [
+        {
+          "num": "XLIX",
+          "title": "Haydée",
+          "cont": false
+        },
+        {
+          "num": "L",
+          "title": "The Morrels",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-07-17",
+      "part": 3,
+      "part_index": 18,
+      "global_index": 61,
+      "label": "L. The Morrels (cont.) · LI. Pyramus and Thisbe",
+      "chapters": [
+        {
+          "num": "L",
+          "title": "The Morrels",
+          "cont": true
+        },
+        {
+          "num": "LI",
+          "title": "Pyramus and Thisbe",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-07-18",
+      "part": 3,
+      "part_index": 19,
+      "global_index": 62,
+      "label": "LII. Pyramus and Thisbe (cont.)",
+      "chapters": [
+        {
+          "num": "LII",
+          "title": "Pyramus and Thisbe",
+          "cont": true
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-07-19",
+      "part": 3,
+      "part_index": 20,
+      "global_index": 63,
+      "label": "LIII. Toxicology",
+      "chapters": [
+        {
+          "num": "LIII",
+          "title": "Toxicology",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-07-20",
+      "part": 3,
+      "part_index": 21,
+      "global_index": 64,
+      "label": "LIII. Toxicology (cont.)",
+      "chapters": [
+        {
+          "num": "LIII",
+          "title": "Toxicology",
+          "cont": true
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-07-23",
+      "part": 3,
+      "part_index": 22,
+      "global_index": 65,
+      "label": "LIV. Robert le Diable",
+      "chapters": [
+        {
+          "num": "LIV",
+          "title": "Robert le Diable",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-07-24",
+      "part": 3,
+      "part_index": 23,
+      "global_index": 66,
+      "label": "LIV. Robert le Diable (cont.) · LV. Rise and Fall",
+      "chapters": [
+        {
+          "num": "LIV",
+          "title": "Robert le Diable",
+          "cont": true
+        },
+        {
+          "num": "LV",
+          "title": "Rise and Fall",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-07-25",
+      "part": 3,
+      "part_index": 24,
+      "global_index": 67,
+      "label": "LV. Rise and Fall (cont.) · LVI. Andrea Cavalcanti",
+      "chapters": [
+        {
+          "num": "LV",
+          "title": "Rise and Fall",
+          "cont": true
+        },
+        {
+          "num": "LVI",
+          "title": "Andrea Cavalcanti",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-07-26",
+      "part": 3,
+      "part_index": 25,
+      "global_index": 68,
+      "label": "LVI. Andrea Cavalcanti (cont.)",
+      "chapters": [
+        {
+          "num": "LVI",
+          "title": "Andrea Cavalcanti",
+          "cont": true
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-07-27",
+      "part": 3,
+      "part_index": 26,
+      "global_index": 69,
+      "label": "LVI. Andrea Cavalcanti (cont.)",
+      "chapters": [
+        {
+          "num": "LVI",
+          "title": "Andrea Cavalcanti",
+          "cont": true
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-07-31",
+      "part": 3,
+      "part_index": 27,
+      "global_index": 70,
+      "label": "LVII. The Alfalfa Field",
+      "chapters": [
+        {
+          "num": "LVII",
+          "title": "The Alfalfa Field",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-08-01",
+      "part": 3,
+      "part_index": 28,
+      "global_index": 71,
+      "label": "LVIII. Monsieur Noirtier de Villefort · LIX. The Will",
+      "chapters": [
+        {
+          "num": "LVIII",
+          "title": "Monsieur Noirtier de Villefort",
+          "cont": false
+        },
+        {
+          "num": "LIX",
+          "title": "The Will",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-08-02",
+      "part": 3,
+      "part_index": 29,
+      "global_index": 72,
+      "label": "LIX. The Will (cont.) · LX. The Telegraph",
+      "chapters": [
+        {
+          "num": "LIX",
+          "title": "The Will",
+          "cont": true
+        },
+        {
+          "num": "LX",
+          "title": "The Telegraph",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-08-03",
+      "part": 3,
+      "part_index": 30,
+      "global_index": 73,
+      "label": "LX. The Telegraph (cont.) · LXI. How to Rescue a Gardener from Dormice Who Are Eating His Peaches",
+      "chapters": [
+        {
+          "num": "LX",
+          "title": "The Telegraph",
+          "cont": true
+        },
+        {
+          "num": "LXI",
+          "title": "How to Rescue a Gardener from Dormice Who Are Eating His Peaches",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-08-12",
+      "part": 4,
+      "part_index": 1,
+      "global_index": 74,
+      "label": "LXII. Ghosts",
+      "chapters": [
+        {
+          "num": "LXII",
+          "title": "Ghosts",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-08-13",
+      "part": 4,
+      "part_index": 2,
+      "global_index": 75,
+      "label": "LXIII. Dinner",
+      "chapters": [
+        {
+          "num": "LXIII",
+          "title": "Dinner",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-08-14",
+      "part": 4,
+      "part_index": 3,
+      "global_index": 76,
+      "label": "LXIV. The Beggar",
+      "chapters": [
+        {
+          "num": "LXIV",
+          "title": "The Beggar",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-08-15",
+      "part": 4,
+      "part_index": 4,
+      "global_index": 77,
+      "label": "LXV. A Domestic Scene",
+      "chapters": [
+        {
+          "num": "LXV",
+          "title": "A Domestic Scene",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-08-16",
+      "part": 4,
+      "part_index": 5,
+      "global_index": 78,
+      "label": "LXVI. Marriage Plans",
+      "chapters": [
+        {
+          "num": "LXVI",
+          "title": "Marriage Plans",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-08-17",
+      "part": 4,
+      "part_index": 6,
+      "global_index": 79,
+      "label": "LXVII. The Crown Prosecutor's Office",
+      "chapters": [
+        {
+          "num": "LXVII",
+          "title": "The Crown Prosecutor's Office",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-08-20",
+      "part": 4,
+      "part_index": 7,
+      "global_index": 80,
+      "label": "LXVIII. A Summer Ball · LXIX. Information",
+      "chapters": [
+        {
+          "num": "LXVIII",
+          "title": "A Summer Ball",
+          "cont": false
+        },
+        {
+          "num": "LXIX",
+          "title": "Information",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-08-21",
+      "part": 4,
+      "part_index": 8,
+      "global_index": 81,
+      "label": "LXIX. Information (cont.)",
+      "chapters": [
+        {
+          "num": "LXIX",
+          "title": "Information",
+          "cont": true
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-08-22",
+      "part": 4,
+      "part_index": 9,
+      "global_index": 82,
+      "label": "LXX. The Ball",
+      "chapters": [
+        {
+          "num": "LXX",
+          "title": "The Ball",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-08-23",
+      "part": 4,
+      "part_index": 10,
+      "global_index": 83,
+      "label": "LXXI. Bread and Salt · LXXII. Madame de Saint-Méran",
+      "chapters": [
+        {
+          "num": "LXXI",
+          "title": "Bread and Salt",
+          "cont": false
+        },
+        {
+          "num": "LXXII",
+          "title": "Madame de Saint-Méran",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-08-27",
+      "part": 4,
+      "part_index": 11,
+      "global_index": 84,
+      "label": "LXXIII. The Promise",
+      "chapters": [
+        {
+          "num": "LXXIII",
+          "title": "The Promise",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-08-28",
+      "part": 4,
+      "part_index": 12,
+      "global_index": 85,
+      "label": "LXXIII. The Promise (cont.)",
+      "chapters": [
+        {
+          "num": "LXXIII",
+          "title": "The Promise",
+          "cont": true
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-08-29",
+      "part": 4,
+      "part_index": 13,
+      "global_index": 86,
+      "label": "LXXIII. The Promise (cont.)",
+      "chapters": [
+        {
+          "num": "LXXIII",
+          "title": "The Promise",
+          "cont": true
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-08-30",
+      "part": 4,
+      "part_index": 14,
+      "global_index": 87,
+      "label": "LXXIV. The Villefort Family Vault",
+      "chapters": [
+        {
+          "num": "LXXIV",
+          "title": "The Villefort Family Vault",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-08-31",
+      "part": 4,
+      "part_index": 15,
+      "global_index": 88,
+      "label": "LXXV. The Judicial Inquiry",
+      "chapters": [
+        {
+          "num": "LXXV",
+          "title": "The Judicial Inquiry",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-09-03",
+      "part": 4,
+      "part_index": 16,
+      "global_index": 89,
+      "label": "LXXVI. The Progress of the Younger Cavalcanti",
+      "chapters": [
+        {
+          "num": "LXXVI",
+          "title": "The Progress of the Younger Cavalcanti",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-09-04",
+      "part": 4,
+      "part_index": 17,
+      "global_index": 90,
+      "label": "LXXVII. Haydée",
+      "chapters": [
+        {
+          "num": "LXXVII",
+          "title": "Haydée",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-09-05",
+      "part": 4,
+      "part_index": 18,
+      "global_index": 91,
+      "label": "LXXVII. Haydée (cont.)",
+      "chapters": [
+        {
+          "num": "LXXVII",
+          "title": "Haydée",
+          "cont": true
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-09-06",
+      "part": 4,
+      "part_index": 19,
+      "global_index": 92,
+      "label": "LXXVIII. A Correspondent Writes from Janina",
+      "chapters": [
+        {
+          "num": "LXXVIII",
+          "title": "A Correspondent Writes from Janina",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-09-10",
+      "part": 4,
+      "part_index": 20,
+      "global_index": 93,
+      "label": "LXXVIII. A Correspondent Writes from Janina (cont.)",
+      "chapters": [
+        {
+          "num": "LXXVIII",
+          "title": "A Correspondent Writes from Janina",
+          "cont": true
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-09-11",
+      "part": 4,
+      "part_index": 21,
+      "global_index": 94,
+      "label": "LXXIX. Lemonade",
+      "chapters": [
+        {
+          "num": "LXXIX",
+          "title": "Lemonade",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-09-12",
+      "part": 4,
+      "part_index": 22,
+      "global_index": 95,
+      "label": "LXXX. The Accusation",
+      "chapters": [
+        {
+          "num": "LXXX",
+          "title": "The Accusation",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-09-13",
+      "part": 4,
+      "part_index": 23,
+      "global_index": 96,
+      "label": "LXXXI. The Retired Baker's Room",
+      "chapters": [
+        {
+          "num": "LXXXI",
+          "title": "The Retired Baker's Room",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-09-17",
+      "part": 4,
+      "part_index": 24,
+      "global_index": 97,
+      "label": "LXXXI. The Retired Baker's Room (cont.)",
+      "chapters": [
+        {
+          "num": "LXXXI",
+          "title": "The Retired Baker's Room",
+          "cont": true
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-09-18",
+      "part": 4,
+      "part_index": 25,
+      "global_index": 98,
+      "label": "LXXXII. Breaking and Entering",
+      "chapters": [
+        {
+          "num": "LXXXII",
+          "title": "Breaking and Entering",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-09-19",
+      "part": 4,
+      "part_index": 26,
+      "global_index": 99,
+      "label": "LXXXII. Breaking and Entering (cont.)",
+      "chapters": [
+        {
+          "num": "LXXXII",
+          "title": "Breaking and Entering",
+          "cont": true
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-09-20",
+      "part": 4,
+      "part_index": 27,
+      "global_index": 100,
+      "label": "LXXXIII. The Hand of God",
+      "chapters": [
+        {
+          "num": "LXXXIII",
+          "title": "The Hand of God",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-09-25",
+      "part": 4,
+      "part_index": 28,
+      "global_index": 101,
+      "label": "LXXXIV. Beauchamp",
+      "chapters": [
+        {
+          "num": "LXXXIV",
+          "title": "Beauchamp",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-09-26",
+      "part": 4,
+      "part_index": 29,
+      "global_index": 102,
+      "label": "LXXXV. The Journey",
+      "chapters": [
+        {
+          "num": "LXXXV",
+          "title": "The Journey",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-09-27",
+      "part": 4,
+      "part_index": 30,
+      "global_index": 103,
+      "label": "LXXXV. The Journey (cont.)",
+      "chapters": [
+        {
+          "num": "LXXXV",
+          "title": "The Journey",
+          "cont": true
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-10-02",
+      "part": 4,
+      "part_index": 31,
+      "global_index": 104,
+      "label": "LXXXVI. Judgement is Passed",
+      "chapters": [
+        {
+          "num": "LXXXVI",
+          "title": "Judgement is Passed",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-10-03",
+      "part": 4,
+      "part_index": 32,
+      "global_index": 105,
+      "label": "LXXXVI. Judgement is Passed (cont.)",
+      "chapters": [
+        {
+          "num": "LXXXVI",
+          "title": "Judgement is Passed",
+          "cont": true
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-10-04",
+      "part": 4,
+      "part_index": 33,
+      "global_index": 106,
+      "label": "LXXXVII. Provocation",
+      "chapters": [
+        {
+          "num": "LXXXVII",
+          "title": "Provocation",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-10-10",
+      "part": 4,
+      "part_index": 34,
+      "global_index": 107,
+      "label": "LXXXVIII. The Insult",
+      "chapters": [
+        {
+          "num": "LXXXVIII",
+          "title": "The Insult",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-10-11",
+      "part": 4,
+      "part_index": 35,
+      "global_index": 108,
+      "label": "LXXXIX. Night",
+      "chapters": [
+        {
+          "num": "LXXXIX",
+          "title": "Night",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-10-12",
+      "part": 4,
+      "part_index": 36,
+      "global_index": 109,
+      "label": "XC. The Encounter",
+      "chapters": [
+        {
+          "num": "XC",
+          "title": "The Encounter",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-10-15",
+      "part": 4,
+      "part_index": 37,
+      "global_index": 110,
+      "label": "XC. The Encounter (cont.)",
+      "chapters": [
+        {
+          "num": "XC",
+          "title": "The Encounter",
+          "cont": true
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-10-16",
+      "part": 4,
+      "part_index": 38,
+      "global_index": 111,
+      "label": "XCI. Mother and Son",
+      "chapters": [
+        {
+          "num": "XCI",
+          "title": "Mother and Son",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-10-17",
+      "part": 4,
+      "part_index": 39,
+      "global_index": 112,
+      "label": "XCII. The Suicide",
+      "chapters": [
+        {
+          "num": "XCII",
+          "title": "The Suicide",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-10-18",
+      "part": 4,
+      "part_index": 40,
+      "global_index": 113,
+      "label": "XCIII. Valentine",
+      "chapters": [
+        {
+          "num": "XCIII",
+          "title": "Valentine",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-10-22",
+      "part": 4,
+      "part_index": 41,
+      "global_index": 114,
+      "label": "XCIV. The Confession",
+      "chapters": [
+        {
+          "num": "XCIV",
+          "title": "The Confession",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-10-23",
+      "part": 4,
+      "part_index": 42,
+      "global_index": 115,
+      "label": "XCV. Father and Daughter",
+      "chapters": [
+        {
+          "num": "XCV",
+          "title": "Father and Daughter",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-10-24",
+      "part": 4,
+      "part_index": 43,
+      "global_index": 116,
+      "label": "XCVI. The Marriage Contract",
+      "chapters": [
+        {
+          "num": "XCVI",
+          "title": "The Marriage Contract",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-10-25",
+      "part": 4,
+      "part_index": 44,
+      "global_index": 117,
+      "label": "XCVI. The Marriage Contract (cont.)",
+      "chapters": [
+        {
+          "num": "XCVI",
+          "title": "The Marriage Contract",
+          "cont": true
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-11-06",
+      "part": 4,
+      "part_index": 45,
+      "global_index": 118,
+      "label": "XCVII. The Road for Belgium · XCVIII. The Inn of the Bell and Bottle",
+      "chapters": [
+        {
+          "num": "XCVII",
+          "title": "The Road for Belgium",
+          "cont": false
+        },
+        {
+          "num": "XCVIII",
+          "title": "The Inn of the Bell and Bottle",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-11-07",
+      "part": 4,
+      "part_index": 46,
+      "global_index": 119,
+      "label": "XCVIII. The Inn of the Bell and Bottle (cont.)",
+      "chapters": [
+        {
+          "num": "XCVIII",
+          "title": "The Inn of the Bell and Bottle",
+          "cont": true
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-11-08",
+      "part": 4,
+      "part_index": 47,
+      "global_index": 120,
+      "label": "XCIX. The Law",
+      "chapters": [
+        {
+          "num": "XCIX",
+          "title": "The Law",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-11-09",
+      "part": 4,
+      "part_index": 48,
+      "global_index": 121,
+      "label": "C. The Apparition · CI. Locusta",
+      "chapters": [
+        {
+          "num": "C",
+          "title": "The Apparition",
+          "cont": false
+        },
+        {
+          "num": "CI",
+          "title": "Locusta",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-11-12",
+      "part": 4,
+      "part_index": 49,
+      "global_index": 122,
+      "label": "CII. Valentine",
+      "chapters": [
+        {
+          "num": "CII",
+          "title": "Valentine",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-11-13",
+      "part": 4,
+      "part_index": 50,
+      "global_index": 123,
+      "label": "CIII. Maximilien",
+      "chapters": [
+        {
+          "num": "CIII",
+          "title": "Maximilien",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-11-14",
+      "part": 4,
+      "part_index": 51,
+      "global_index": 124,
+      "label": "CIV. The Signature of Baron Danglars",
+      "chapters": [
+        {
+          "num": "CIV",
+          "title": "The Signature of Baron Danglars",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-11-15",
+      "part": 4,
+      "part_index": 52,
+      "global_index": 125,
+      "label": "CIV. The Signature of Baron Danglars (cont.) · CV. The Père Lachaise Cemetery",
+      "chapters": [
+        {
+          "num": "CIV",
+          "title": "The Signature of Baron Danglars",
+          "cont": true
+        },
+        {
+          "num": "CV",
+          "title": "The Père Lachaise Cemetery",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-11-16",
+      "part": 4,
+      "part_index": 53,
+      "global_index": 126,
+      "label": "CV. The Père Lachaise Cemetery (cont.)",
+      "chapters": [
+        {
+          "num": "CV",
+          "title": "The Père Lachaise Cemetery",
+          "cont": true
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-11-17",
+      "part": 4,
+      "part_index": 54,
+      "global_index": 127,
+      "label": "CVI. The Share-Out",
+      "chapters": [
+        {
+          "num": "CVI",
+          "title": "The Share-Out",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-11-22",
+      "part": 4,
+      "part_index": 55,
+      "global_index": 128,
+      "label": "CVI. The Share-Out (cont.)",
+      "chapters": [
+        {
+          "num": "CVI",
+          "title": "The Share-Out",
+          "cont": true
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-11-23",
+      "part": 4,
+      "part_index": 56,
+      "global_index": 129,
+      "label": "CVII. The Lion's Pit",
+      "chapters": [
+        {
+          "num": "CVII",
+          "title": "The Lion's Pit",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-11-27",
+      "part": 4,
+      "part_index": 57,
+      "global_index": 130,
+      "label": "CVIII. The Judge",
+      "chapters": [
+        {
+          "num": "CVIII",
+          "title": "The Judge",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-11-28",
+      "part": 4,
+      "part_index": 58,
+      "global_index": 131,
+      "label": "CIX. The Assizes",
+      "chapters": [
+        {
+          "num": "CIX",
+          "title": "The Assizes",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-11-29",
+      "part": 4,
+      "part_index": 59,
+      "global_index": 132,
+      "label": "CX. The Indictment",
+      "chapters": [
+        {
+          "num": "CX",
+          "title": "The Indictment",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-12-25",
+      "part": 4,
+      "part_index": 60,
+      "global_index": 133,
+      "label": "CXI. Expiation",
+      "chapters": [
+        {
+          "num": "CXI",
+          "title": "Expiation",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-12-26",
+      "part": 4,
+      "part_index": 61,
+      "global_index": 134,
+      "label": "CXII. Departure",
+      "chapters": [
+        {
+          "num": "CXII",
+          "title": "Departure",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-12-27",
+      "part": 4,
+      "part_index": 62,
+      "global_index": 135,
+      "label": "CXIII. The Past",
+      "chapters": [
+        {
+          "num": "CXIII",
+          "title": "The Past",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1845-12-28",
+      "part": 4,
+      "part_index": 63,
+      "global_index": 136,
+      "label": "CXIV. Peppino",
+      "chapters": [
+        {
+          "num": "CXIV",
+          "title": "Peppino",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1846-01-01",
+      "part": 4,
+      "part_index": 64,
+      "global_index": 137,
+      "label": "CXIV. Peppino (cont.) · CXV. Luigi Vampa's Bill of Fare",
+      "chapters": [
+        {
+          "num": "CXIV",
+          "title": "Peppino",
+          "cont": true
+        },
+        {
+          "num": "CXV",
+          "title": "Luigi Vampa's Bill of Fare",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1846-01-02",
+      "part": 4,
+      "part_index": 65,
+      "global_index": 138,
+      "label": "CXVI. The Pardon · CXVII. October the Fifth",
+      "chapters": [
+        {
+          "num": "CXVI",
+          "title": "The Pardon",
+          "cont": false
+        },
+        {
+          "num": "CXVII",
+          "title": "October the Fifth",
+          "cont": false
+        }
+      ],
+      "is_hiatus_after": false
+    },
+    {
+      "date": "1846-01-16",
+      "part": 4,
+      "part_index": 66,
+      "global_index": 139,
+      "label": "CXVII. October the Fifth (cont.)",
+      "chapters": [
+        {
+          "num": "CXVII",
+          "title": "October the Fifth",
+          "cont": true
+        }
+      ],
+      "is_hiatus_after": false
+    }
+  ]
+}

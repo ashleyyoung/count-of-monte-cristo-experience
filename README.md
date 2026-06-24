@@ -10,6 +10,19 @@ An interactive experience inspired by Alexandre Dumas's _The Count of Monte Cris
 
 Frontend setup follows patterns from [stock-tracker](https://github.com/ashleyyoung/stock-tracker) (`dashboard/`).
 
+## Package manager
+
+**Use Yarn only** for this repo. Do not use `npm install`, `npm run`, or `npx` for project scripts unless a one-off tool has no yarn equivalent.
+
+```bash
+yarn install          # install dependencies (not npm install)
+yarn dev              # start dev server
+yarn add <package>    # add a dependency
+yarn remove <package> # remove a dependency
+```
+
+`yarn.lock` is the lockfile. Do not commit `package-lock.json`.
+
 ## Prerequisites
 
 - Node.js 20+
@@ -65,6 +78,12 @@ Set `R2_BUCKET_NAME=count-of-monte-cristo-experience` in `.env.local` and on Ver
 | `yarn build`     | Production Next.js build                  |
 | `yarn typecheck` | TypeScript check                          |
 | `yarn check`     | Lint + typecheck                          |
+
+## Data ingestion
+
+See [README_data_ingestion.md](./README_data_ingestion.md) for the phased runbook: schedule seeding, contributors, Gutenberg chapters, Gallica scans, and translation jobs.
+
+Translation architecture and version history: [README_translation_architecture.md](./README_translation_architecture.md).
 
 ## Project layout
 
