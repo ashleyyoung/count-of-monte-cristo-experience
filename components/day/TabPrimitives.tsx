@@ -5,7 +5,6 @@
  * Each tab imports from here to stay DRY.
  */
 
-import type { ReactNode } from "react";
 import styled from "styled-components";
 import type { ResolvedDocItem } from "@/lib/content";
 import type { ContributorInfo } from "./ContributorByline";
@@ -13,7 +12,11 @@ import ContributorByline from "./ContributorByline";
 import Cite, { type CiteSource } from "@/components/ui/Cite";
 import { useAdminMode } from "@/components/admin/AdminModeProvider";
 import TranslationHistory from "@/components/admin/TranslationHistory";
-import type { DayContentSection } from "@/app/actions/admin";
+import type { DayContentSection } from "@/lib/types/day-content-section";
+import {
+  pickProseRenderer,
+  renderProseParagraphs,
+} from "@/lib/render-prose";
 
 // ---------------------------------------------------------------------------
 // Base layout
@@ -91,17 +94,6 @@ export const BlockImage = styled.img`
 // Render helpers
 // ---------------------------------------------------------------------------
 
-/** Gutenberg plain-text italics: _word_ → <em>word</em> */
-function renderGutenbergInline(text: string): ReactNode {
-  const parts = text.split(/(_[^_\n]+_)/g);
-  return parts.map((part, j) => {
-    if (part.startsWith("_") && part.endsWith("_") && part.length > 2) {
-      return <em key={j}>{part.slice(1, -1)}</em>;
-    }
-    return part;
-  });
-}
-
 export interface AdminItemContext {
   /** The installment date (YYYY-MM-DD) for history lookups. */
   date: string;
@@ -127,7 +119,6 @@ export function renderItems(
 
   return items.map((item, i) => {
     if (item.kind === "text") {
-      const paragraphs = item.text.split(/\n\n+/).filter(Boolean);
       const contributor = item.contributor_id && contributors
         ? contributors.get(item.contributor_id) ?? null
         : null;
@@ -146,7 +137,6 @@ export function renderItems(
         <TextItemWrapper
           key={i}
           item={item}
-          paragraphs={paragraphs}
           contributor={contributor}
           citeSource={citeSource}
           citeN={i + 1}
@@ -182,14 +172,12 @@ export function renderItems(
 /** Internal component for a single text item — uses hooks for admin mode. */
 function TextItemWrapper({
   item,
-  paragraphs,
   contributor,
   citeSource,
   citeN,
   adminContext,
 }: {
   item: import("@/lib/content").ResolvedTextItem;
-  paragraphs: string[];
   contributor: ContributorInfo | null;
   citeSource: CiteSource;
   citeN: number;
@@ -209,17 +197,12 @@ function TextItemWrapper({
       ? "Compare translations"
       : undefined;
 
+  const renderInline = pickProseRenderer(item.translation_origin);
+
   return (
     <div>
-      <ProseBlock>
-        {paragraphs.map((p, j) => <p key={j}>{renderGutenbergInline(p)}</p>)}
-      </ProseBlock>
-      {contributor && (
-        <ContributorByline contributor={contributor} />
-      )}
-      <span style={{ display: "inline-flex", alignItems: "baseline", gap: 2, marginTop: 6 }}>
-        <Cite source={citeSource} n={citeN} />
-        {showHistory && (
+      {showHistory && (
+        <div style={{ marginBottom: 8 }}>
           <TranslationHistory
             date={adminContext.date}
             section={adminContext.section}
@@ -227,9 +210,19 @@ function TextItemWrapper({
             currentVersionId={item.translation_version_id}
             currentText={item.text}
             currentAttribution={item.attribution}
+            currentTranslationOrigin={item.translation_origin}
             label={historyLabel}
           />
-        )}
+        </div>
+      )}
+      <ProseBlock>
+        {renderProseParagraphs(item.text, renderInline)}
+      </ProseBlock>
+      {contributor && (
+        <ContributorByline contributor={contributor} />
+      )}
+      <span style={{ display: "inline-flex", alignItems: "baseline", gap: 2, marginTop: 6 }}>
+        <Cite source={citeSource} n={citeN} />
       </span>
     </div>
   );

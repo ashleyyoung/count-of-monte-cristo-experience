@@ -50,8 +50,8 @@ Writes: translation_versions rows + day_content.doc for the date.
 Usage:
   npx tsx scripts/translate/translate-day.ts --date=YYYY-MM-DD [--force-fetch] [--model=<anthropic-model-id>] [--run-id=<uuid>]
 
-  --model   Override TRANSLATION_MODEL for this run (default: env or claude-opus-4-8).
-            Use claude-sonnet-4-5 for bulk runs at lower cost.`;
+  --model   Override TRANSLATION_MODEL for this run (default: env or claude-sonnet-4-5).
+            Use claude-opus-4-8 for higher-quality one-off runs.`;
 
 // ---------------------------------------------------------------------------
 // Env + client

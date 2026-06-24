@@ -263,7 +263,7 @@ async function snapshotToVersions(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: ReturnType<typeof makeClient>,
   date: string,
-  section: SectionKey,
+  section: SectionKey | "translated_pages",
   item: TextItem,
   log: (msg: string) => void,
 ): Promise<void> {
@@ -529,11 +529,58 @@ export async function runDayTranslation(
         `Cost: $${totalUsage.cost_usd.toFixed(4)} (${totalUsage.tokens_in}in / ${totalUsage.tokens_out}out).`,
     );
 
+    // Attribute the run cost evenly across the pages translated.
+    const perPageCost =
+      pages.length > 0 ? totalUsage.cost_usd / pages.length : 0;
+
+    // Index existing page items by slot_key so re-runs version in place.
+    const existingPages = new Map<string, TextItem>(
+      (doc.translated_pages ?? [])
+        .filter((i): i is TextItem => i.kind === "text" && Boolean(i.slot_key))
+        .map((i) => [i.slot_key as string, i]),
+    );
+
     const pageItems: TextItem[] = [];
     for (const { pageNumber, text } of pages) {
-      const pageKey = `${date}/en/paper-page-${pageNumber}/${runStamp}.txt`;
+      const slotKey = `paper-page-${pageNumber}`;
+      const pageKey = `${date}/en/${slotKey}/${runStamp}.txt`;
       await putR2Text(pageKey, text);
       log(`[pipeline] Page ${pageNumber}: EN text written to R2: ${pageKey}`);
+
+      // Snapshot a legacy live page item (no version id) before overwriting so
+      // prior paid runs enter history. Items the pipeline produced already carry
+      // translation_version_id, so their prior state is already a version row.
+      const existingItem = existingPages.get(slotKey);
+      if (existingItem && !existingItem.translation_version_id) {
+        log(
+          `[pipeline] ${slotKey}: snapshotting legacy page item before overwrite.`,
+        );
+        await snapshotToVersions(
+          supabase,
+          date,
+          "translated_pages",
+          existingItem,
+          log,
+        );
+      }
+
+      const versionId = await insertVersionRow(supabase, {
+        installment_date: date,
+        section: "translated_pages",
+        slot_key: slotKey,
+        text_r2_key: pageKey,
+        source: "Journal des Débats",
+        original_date: date,
+        gallica_url: gallicaUrl,
+        license: "Public Domain",
+        attribution: `Machine translation by ${totalUsage.model}`,
+        model_used: totalUsage.model,
+        source_text_url: sourceTextUrl,
+        fr_intermediate_r2_key: frIntermediateKeyUsed,
+        cost_usd: perPageCost,
+        low_confidence: frenchSourceLowConfidence,
+        admin_notes: null,
+      });
 
       pageItems.push({
         kind: "text",
@@ -543,12 +590,13 @@ export async function runDayTranslation(
         gallica_url: gallicaUrl,
         license: "Public Domain",
         attribution: `Machine translation by ${totalUsage.model}`,
-        slot_key: `paper-page-${pageNumber}`,
+        slot_key: slotKey,
         translation_origin: "machine_claude",
         translation_model: totalUsage.model,
         source_text_url: sourceTextUrl,
         fr_intermediate_r2_key: frIntermediateKeyUsed,
         low_confidence: frenchSourceLowConfidence || undefined,
+        translation_version_id: versionId,
       });
     }
 

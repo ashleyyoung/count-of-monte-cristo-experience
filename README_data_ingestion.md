@@ -127,7 +127,7 @@ npx tsx scripts/translate/transcribe-french-vision.ts --date=$DATE   # last reso
 
 # C. Translate the French in R2 -> English, saved to day_content
 npx tsx scripts/translate/translate-day.ts --date=$DATE
-# Bulk / lower cost: pass --model=claude-sonnet-4-5 (or claude-haiku-4-5)
+# Default model is claude-sonnet-4-5. For higher quality: --model=claude-opus-4-8
 ```
 
 Translation is saved to `day_content` incrementally as each section completes —

@@ -14,110 +14,27 @@
 import { spawn } from "node:child_process";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { assertAdmin } from "@/lib/admin/assert-admin";
+import {
+  getSectionItems,
+  loadDoc,
+  saveDoc,
+  setSectionItems,
+} from "@/lib/admin/day-content-io";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { putR2Object, putR2Text, r2PublicUrl } from "@/lib/r2-server";
 import {
-  DayDocSchema,
   DocItemSchema,
-  parseDayDoc,
-  emptyDayDoc,
-  type DayDoc,
   type DocItem,
   type TextItem,
 } from "@/lib/types/content";
 import { recomputeGraphLayout } from "@/lib/graph-recompute";
-
-// ---------------------------------------------------------------------------
-// Admin session guard
-// ---------------------------------------------------------------------------
-
-async function assertAdmin(): Promise<void> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-  if (error || !user) throw new Error("Unauthorized");
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-  if (profile?.role !== "admin") throw new Error("Forbidden");
-}
-
-// ---------------------------------------------------------------------------
-// Day content section helpers
-// ---------------------------------------------------------------------------
-
-export type DayContentSection =
-  | "overview"
-  | "chapter"
-  | "debats.music"
-  | "debats.theater"
-  | "debats.art"
-  | "debats.literature"
-  | "art_exhibitions"
-  | "science"
-  | "galignani";
-
-function getSectionItems(doc: DayDoc, section: DayContentSection): DocItem[] {
-  switch (section) {
-    case "debats.music":
-      return doc.debats.music;
-    case "debats.theater":
-      return doc.debats.theater;
-    case "debats.art":
-      return doc.debats.art;
-    case "debats.literature":
-      return doc.debats.literature;
-    default:
-      return (doc[section as keyof DayDoc] as DocItem[]) ?? [];
-  }
-}
-
-function setSectionItems(
-  doc: DayDoc,
-  section: DayContentSection,
-  items: DocItem[],
-): DayDoc {
-  switch (section) {
-    case "debats.music":
-      return { ...doc, debats: { ...doc.debats, music: items } };
-    case "debats.theater":
-      return { ...doc, debats: { ...doc.debats, theater: items } };
-    case "debats.art":
-      return { ...doc, debats: { ...doc.debats, art: items } };
-    case "debats.literature":
-      return { ...doc, debats: { ...doc.debats, literature: items } };
-    default:
-      return { ...doc, [section]: items };
-  }
-}
-
-async function loadDoc(date: string): Promise<DayDoc> {
-  const db = createAdminClient();
-  const { data } = await db
-    .from("day_content")
-    .select("doc")
-    .eq("installment_date", date)
-    .single();
-  if (!data?.doc) return emptyDayDoc();
-  return parseDayDoc(data.doc);
-}
-
-async function saveDoc(date: string, doc: DayDoc): Promise<void> {
-  const db = createAdminClient();
-  const validated = DayDocSchema.parse(doc);
-  const { error } = await db
-    .from("day_content")
-    .upsert(
-      { installment_date: date, doc: validated },
-      { onConflict: "installment_date" },
-    );
-  if (error) throw new Error(`Failed to save day_content: ${error.message}`);
-}
+import {
+  MEDIA_KINDS,
+  type MediaKind,
+  type MediaAssetSearchResult,
+} from "@/lib/types/media";
+import type { DayContentSection } from "@/lib/types/day-content-section";
 
 // ---------------------------------------------------------------------------
 // Day content item actions
@@ -220,19 +137,6 @@ export async function resolveAdminNote(
 // Media assets
 // ---------------------------------------------------------------------------
 
-export const MEDIA_KINDS = [
-  "illustration",
-  "portrait",
-  "caricature",
-  "playbill",
-  "architecture",
-  "novel_plate",
-  "scan",
-  "audio",
-  "other",
-] as const;
-export type MediaKind = (typeof MEDIA_KINDS)[number];
-
 const MediaAssetUpsertSchema = z.object({
   id: z.string().uuid().optional(),
   kind: z.enum(MEDIA_KINDS),
@@ -248,10 +152,8 @@ const MediaAssetUpsertSchema = z.object({
   tags: z.array(z.string()).default([]),
 });
 
-export type MediaAssetUpsert = z.infer<typeof MediaAssetUpsertSchema>;
-
 export async function upsertMediaAsset(
-  data: MediaAssetUpsert,
+  data: z.infer<typeof MediaAssetUpsertSchema>,
 ): Promise<{ id: string }> {
   await assertAdmin();
   const validated = MediaAssetUpsertSchema.parse(data);
@@ -311,17 +213,6 @@ export async function uploadMediaToR2(
       `Failed to insert media_asset after upload: ${error?.message}`,
     );
   return { id: row.id, r2_key: r2Key };
-}
-
-export interface MediaAssetSearchResult {
-  id: string;
-  kind: string;
-  r2_key: string | null;
-  source_url: string | null;
-  title: string | null;
-  caption: string | null;
-  attribution: string | null;
-  thumbnail_url: string | null;
 }
 
 export async function searchMediaAssets(
@@ -872,188 +763,6 @@ export async function translateDay(
   });
   revalidatePath(`/day/${date}`);
   return summary;
-}
-
-/**
- * Fetch the translation version history for a specific text item.
- * Returns rows without the prose body (that lives on R2; fetch separately if needed).
- */
-export interface TranslationVersionMeta {
-  id: string;
-  slot_key: string;
-  section: string;
-  translation_origin: string;
-  model_used: string | null;
-  translator: string | null;
-  translation_source_url: string | null;
-  source_text_url: string | null;
-  fr_intermediate_r2_key: string | null;
-  text_r2_key: string;
-  cost_usd: number | null;
-  low_confidence: boolean;
-  admin_notes: string | null;
-  translated_at: string;
-  attribution: string;
-  license: string;
-}
-
-export async function getTranslationVersions(
-  date: string,
-  section: string,
-  slotKey: string,
-): Promise<TranslationVersionMeta[]> {
-  await assertAdmin();
-  const db = createAdminClient();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (db as any)
-    .from("translation_versions")
-    .select(
-      "id, slot_key, section, translation_origin, model_used, translator, " +
-        "translation_source_url, source_text_url, fr_intermediate_r2_key, " +
-        "text_r2_key, cost_usd, low_confidence, admin_notes, translated_at, " +
-        "attribution, license",
-    )
-    .eq("installment_date", date)
-    .eq("section", section)
-    .eq("slot_key", slotKey)
-    .order("translated_at", { ascending: false });
-
-  if (error) {
-    throw new Error(`Failed to fetch translation versions: ${error.message}`);
-  }
-  return (data ?? []) as TranslationVersionMeta[];
-}
-
-/**
- * Fetch the prose text for a version from R2 (used by TranslationHistory compare panel).
- */
-export async function getVersionText(r2Key: string): Promise<string> {
-  await assertAdmin();
-  const { getR2Text } = await import("@/lib/r2-server");
-  const text = await getR2Text(r2Key);
-  if (text === null) {
-    throw new Error(`R2 object not found: ${r2Key}`);
-  }
-  return text;
-}
-
-/**
- * Promote a translation version to be the live item for a given section.
- *
- * Snapshots the current live item into translation_versions first (always reversible).
- * Then overwrites the TextItem in day_content.doc with the promoted version's content.
- */
-export async function promoteTranslationVersion(
-  versionId: string,
-  date: string,
-  section: DayContentSection,
-  slotKey: string,
-): Promise<{ ok: true }> {
-  await assertAdmin();
-  const db = createAdminClient();
-
-  // Load the version to promote
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: version, error: vErr } = await (db as any)
-    .from("translation_versions")
-    .select("*")
-    .eq("id", versionId)
-    .single();
-  if (vErr || !version) {
-    throw new Error(`Version not found: ${versionId}`);
-  }
-
-  const doc = await loadDoc(date);
-  const sectionItems = getSectionItems(doc, section);
-  // Match the live item strictly by slot_key (the stable identity).
-  const liveItem = sectionItems.find(
-    (i): i is TextItem => i.kind === "text" && i.slot_key === slotKey,
-  );
-
-  // Snapshot the displaced live item only when its current state is not already
-  // a translation_versions row (legacy items without a version id). Items
-  // produced by the pipeline always carry translation_version_id, so the prior
-  // state is already preserved and re-snapshotting would duplicate it.
-  if (liveItem && !liveItem.translation_version_id) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (db as any).from("translation_versions").insert({
-      installment_date: date,
-      section,
-      slot_key: slotKey,
-      text_r2_key: liveItem.text_r2_key,
-      source: liveItem.source,
-      original_date: liveItem.original_date,
-      gallica_url: liveItem.gallica_url,
-      license: liveItem.license,
-      attribution: liveItem.attribution,
-      contributor_id: liveItem.contributor_id ?? null,
-      translation_origin: liveItem.translation_origin ?? "machine_claude",
-      model_used: liveItem.translation_model ?? null,
-      translator: liveItem.translator ?? null,
-      translation_source_url: liveItem.translation_source_url ?? null,
-      source_text_url: liveItem.source_text_url ?? null,
-      fr_intermediate_r2_key: liveItem.fr_intermediate_r2_key ?? null,
-      cost_usd: null,
-      low_confidence: liveItem.low_confidence ?? false,
-      admin_notes: `[Snapshot of legacy live item displaced by promotion of version ${versionId}]`,
-    });
-  }
-
-  // Build updated item from the promoted version
-  const updatedItem: TextItem = {
-    kind: "text",
-    text_r2_key: version.text_r2_key,
-    source: version.source,
-    original_date: version.original_date ?? date,
-    gallica_url: version.gallica_url,
-    license: version.license,
-    attribution: version.attribution,
-    contributor_id: version.contributor_id ?? undefined,
-    slot_key: slotKey,
-    translation_origin: version.translation_origin,
-    translation_model: version.model_used ?? undefined,
-    translator: version.translator ?? undefined,
-    translation_source_url: version.translation_source_url ?? undefined,
-    source_text_url: version.source_text_url ?? undefined,
-    fr_intermediate_r2_key: version.fr_intermediate_r2_key ?? undefined,
-    low_confidence: version.low_confidence || undefined,
-    admin_notes: version.admin_notes ?? undefined,
-    translation_version_id: versionId,
-  };
-
-  // Replace the item with the matching slot_key; if none exists yet, append.
-  const matched = sectionItems.some(
-    (i) => i.kind === "text" && i.slot_key === slotKey,
-  );
-  const newItems = matched
-    ? sectionItems.map((item) =>
-        item.kind === "text" && item.slot_key === slotKey ? updatedItem : item,
-      )
-    : [...sectionItems, updatedItem];
-
-  await saveDoc(date, setSectionItems(doc, section, newItems));
-  revalidatePath(`/day/${date}`);
-  return { ok: true };
-}
-
-/**
- * Hard-delete a translation version row.
- * The live item in day_content.doc is NOT changed.
- */
-export async function deleteTranslationVersion(
-  id: string,
-): Promise<{ ok: true }> {
-  await assertAdmin();
-  const db = createAdminClient();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (db as any)
-    .from("translation_versions")
-    .delete()
-    .eq("id", id);
-  if (error) {
-    throw new Error(`Failed to delete translation version: ${error.message}`);
-  }
-  return { ok: true };
 }
 
 /**

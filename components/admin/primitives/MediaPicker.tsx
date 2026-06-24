@@ -9,9 +9,9 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import styled from "styled-components";
-import { searchMediaAssets, type MediaAssetSearchResult } from "@/app/actions/admin";
+import { searchMediaAssets } from "@/app/actions/admin";
 import MediaUploadField from "./MediaUploadField";
-import type { MediaKind } from "@/app/actions/admin";
+import type { MediaAssetSearchResult, MediaKind } from "@/lib/types/media";
 
 interface MediaPickerProps {
   open: boolean;

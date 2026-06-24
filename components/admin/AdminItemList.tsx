@@ -19,8 +19,8 @@ import ItemEditor from "@/components/admin/primitives/ItemEditor";
 import {
   deleteDayContentItem,
   reorderDayContentItems,
-  type DayContentSection,
 } from "@/app/actions/admin";
+import type { DayContentSection } from "@/lib/types/day-content-section";
 import { renderItems, type AdminItemContext } from "@/components/day/TabPrimitives";
 import type { ResolvedDocItem } from "@/lib/content";
 import type { DocItem } from "@/lib/types/content";

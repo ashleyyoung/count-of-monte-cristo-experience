@@ -311,6 +311,7 @@ export default function DayPageView({
           activeTab={activeTab}
           tabContent={tabContent}
           installmentDate={installment.date}
+          translatedPageCount={data.resolved.translated_pages?.length ?? 0}
         />
 
         <ParisSidebar

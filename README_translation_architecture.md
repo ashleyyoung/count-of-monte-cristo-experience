@@ -53,12 +53,13 @@ Our `machine_claude` translation is **always retained** in `translation_versions
 
 The model is **fully configurable via env vars; nothing is hardcoded.** Swapping engines is a one-variable change with no code edit.
 
-| Role                                   | Model (env)                                        | Notes                                                                                                                                 |
-| -------------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| Translation (current default)          | `claude-opus-4-8` (`TRANSLATION_MODEL`)            | Default **because Claude Fable 5 is presently blocked from public use** (no known return date); strong period voice, cheaper ($5/$25) |
-| Translation (preferred when available) | `claude-fable-5` (`TRANSLATION_MODEL`)             | Tops EQ-Bench Creative Writing; flip the env var to adopt it the moment it is unblocked, no code change                               |
-| Translation (any)                      | any Anthropic model id (`TRANSLATION_MODEL`)       | Same client path; `model_used` recorded per version for comparison                                                                    |
-| Vision transcription (experimental)    | `TRANSLATION_VISION_MODEL` (→ `TRANSLATION_MODEL`) | Cropped section images; parse-then-translate, never one-shot image to English                                                         |
+| Role                                   | Model (env)                                          | Notes                                                                                                              |
+| -------------------------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Translation (current default)          | `claude-sonnet-4-5` (`TRANSLATION_MODEL`)            | Strong quality at lower cost for bulk day runs ($3/$15); override with `--model` or env for Opus/Fable experiments |
+| Translation (higher quality)           | `claude-opus-4-8` (`--model` or `TRANSLATION_MODEL`) | Heavier voice work or difficult sections; ~$5/$25                                                                  |
+| Translation (preferred when available) | `claude-fable-5` (`TRANSLATION_MODEL`)               | Tops EQ-Bench Creative Writing; flip the env var when it is unblocked, no code change                              |
+| Translation (any)                      | any Anthropic model id (`TRANSLATION_MODEL`)         | Same client path; `model_used` recorded per version for comparison                                                 |
+| Vision transcription (experimental)    | `TRANSLATION_VISION_MODEL` (→ `TRANSLATION_MODEL`)   | Cropped section images; parse-then-translate, never one-shot image to English                                      |
 
 Every translation is stamped with `model_used` and retained in `translation_versions`, so work done under one engine stays labeled and a section can be re-translated under a different/newer engine later for side-by-side comparison.
 
@@ -71,10 +72,9 @@ System prompt is tuned for 1844-46 Débats voice: preserve register (Berlioz wit
 ```
 ANTHROPIC_API_KEY=
 TRANSLATION_PROVIDER=anthropic
-# Default while Claude Fable 5 is blocked from public use; switch to claude-fable-5 when it returns.
-TRANSLATION_MODEL=claude-opus-4-8
+TRANSLATION_MODEL=claude-sonnet-4-5
 # Optional; vision OCR model. Falls back to TRANSLATION_MODEL when unset.
-TRANSLATION_VISION_MODEL=claude-opus-4-8
+TRANSLATION_VISION_MODEL=claude-sonnet-4-5
 ```
 
 ---
@@ -158,12 +158,13 @@ gallica/{date}/page-{n}.jpg                   Full-page facsimiles
 - **"Re-translate day locally"** button on day pages enqueues a run and dispatches it to the local CLI runner (see "Running translations locally" below): re-translates `machine_claude` items in place; for `existing_published` / public-domain items (incl. the Gutenberg chapter) generates a non-live Claude **challenger** instead of overwriting.
 - **`<TranslationHistory>`** (per item, admin-only): lists versions by `translated_at desc` (live badged vs challengers), side-by-side diff of live EN vs version EN with the French source in a third panel, promote-to-current (reversible), delete.
 - **Chapter "Compare translations"**: Project Gutenberg public-domain EN vs our Claude EN vs the French original, to judge whether ours is better and promote if so.
+- **Translated paper (per-page)**: the full-page translations on the Translated paper tab use the same version history as section tabs, keyed by `slot_key = paper-page-N` under `section = translated_pages`. Each run snapshots the prior page text and writes a new version, so re-running under a different model (e.g. Opus then Sonnet) lets you compare page by page. The French panel shows only that page, sliced from the stitched intermediate.
 
 ---
 
 ## Cost ledger (informational; cost is not a constraint)
 
-Spend depends on the configured `TRANSLATION_MODEL`. Opus 4.8 is $5/$25 per M tokens; Fable 5 is $10/$50.
+Spend depends on the configured `TRANSLATION_MODEL`. Sonnet 4.5 (default) is $3/$15 per M tokens; Opus 4.8 is $5/$25; Fable 5 is $10/$50.
 
 | Pass                               | Volume                                             | Opus 4.8   | Fable 5    |
 | ---------------------------------- | -------------------------------------------------- | ---------- | ---------- |

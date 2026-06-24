@@ -4,7 +4,7 @@ import type { DayPageData } from "@/lib/content";
 import type { ContributorInfo } from "./ContributorByline";
 import { TabSection, TabSectionTitle, EmptyState } from "./TabPrimitives";
 import AdminItemList from "@/components/admin/AdminItemList";
-import type { DayContentSection } from "@/app/actions/admin";
+import type { DayContentSection } from "@/lib/types/day-content-section";
 
 interface Props {
   data: DayPageData;

@@ -30,6 +30,7 @@ const BASE_TABS: { id: TabId; label: string }[] = [
 interface Props {
   activeTab: TabId;
   chapters: Chapter[];
+  translatedPageCount?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -77,7 +78,11 @@ const Tab = styled.button<{ $active: boolean }>`
 // Component
 // ---------------------------------------------------------------------------
 
-export default function TabRow({ activeTab, chapters }: Props) {
+export default function TabRow({
+  activeTab,
+  chapters,
+  translatedPageCount = 0,
+}: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -96,6 +101,13 @@ export default function TabRow({ activeTab, chapters }: Props) {
       }
     } else {
       params.delete("chapter");
+    }
+    if (id === "translated" && translatedPageCount > 1) {
+      if (!params.get("page")) {
+        params.set("page", "1");
+      }
+    } else {
+      params.delete("page");
     }
     router.replace(`?${params.toString()}`, { scroll: false });
   }

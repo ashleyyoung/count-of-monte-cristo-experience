@@ -18,6 +18,7 @@ interface Props {
   activeTab: TabId;
   tabContent: React.ReactNode;
   installmentDate: string;
+  translatedPageCount?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -141,6 +142,7 @@ export default function ReadingColumn({
   activeTab,
   tabContent,
   installmentDate,
+  translatedPageCount = 0,
 }: Props) {
   const searchParams = useSearchParams();
   const hasChapterAudio = chapters.some((ch) => hasNarration(ch.num));
@@ -199,7 +201,11 @@ export default function ReadingColumn({
         </CtaRow>
       )}
 
-      <TabRow activeTab={activeTab} chapters={chapters} />
+      <TabRow
+        activeTab={activeTab}
+        chapters={chapters}
+        translatedPageCount={translatedPageCount}
+      />
 
       <TabContent role="tabpanel">{tabContent}</TabContent>
     </Column>

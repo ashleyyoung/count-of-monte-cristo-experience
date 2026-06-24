@@ -18,11 +18,16 @@ import styled from "styled-components";
 import {
   getTranslationVersions,
   getVersionText,
+  getVersionPageFrench,
   promoteTranslationVersion,
   deleteTranslationVersion,
-  type TranslationVersionMeta,
-} from "@/app/actions/admin";
-import type { DayContentSection } from "@/app/actions/admin";
+} from "@/app/actions/translation-versions";
+import type { DayContentSection } from "@/lib/types/day-content-section";
+import type { TranslationVersionMeta } from "@/lib/types/translation-versions";
+import {
+  pickProseRenderer,
+  renderProseParagraphs,
+} from "@/lib/render-prose";
 
 // ---------------------------------------------------------------------------
 // Styled components
@@ -212,6 +217,20 @@ const ComparePaneText = styled.div`
   font-size: 13px;
   line-height: 1.6;
   color: var(--ink-secondary);
+
+  p + p {
+    margin-top: 1em;
+  }
+  p {
+    margin: 0;
+  }
+`;
+
+const ComparePaneTextPlain = styled.div`
+  font-family: var(--font-body-stack);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink-secondary);
   white-space: pre-wrap;
 `;
 
@@ -285,14 +304,19 @@ interface CompareState {
 function ComparePanel({
   compare,
   liveAttribution,
+  liveTranslationOrigin,
   version,
   onClose,
 }: {
   compare: CompareState;
   liveAttribution: string;
+  liveTranslationOrigin?: string;
   version: TranslationVersionMeta;
   onClose: () => void;
 }) {
+  const liveRenderer = pickProseRenderer(liveTranslationOrigin);
+  const versionRenderer = pickProseRenderer(version.translation_origin);
+
   return (
     <div>
       <ActionRow style={{ marginBottom: 8 }}>
@@ -301,7 +325,9 @@ function ComparePanel({
       <CompareGrid>
         <ComparePane>
           <ComparePaneLabel>Live — {liveAttribution}</ComparePaneLabel>
-          <ComparePaneText>{compare.liveText}</ComparePaneText>
+          <ComparePaneText>
+            {renderProseParagraphs(compare.liveText, liveRenderer)}
+          </ComparePaneText>
         </ComparePane>
         <ComparePane>
           <ComparePaneLabel>
@@ -309,12 +335,14 @@ function ComparePanel({
             {version.model_used ?? version.translator ?? "unknown"} ·{" "}
             {formatDate(version.translated_at)}
           </ComparePaneLabel>
-          <ComparePaneText>{compare.versionText}</ComparePaneText>
+          <ComparePaneText>
+            {renderProseParagraphs(compare.versionText, versionRenderer)}
+          </ComparePaneText>
         </ComparePane>
         {compare.frText && (
           <FRSourcePane>
             <ComparePaneLabel>French source (admin only)</ComparePaneLabel>
-            <ComparePaneText>{compare.frText}</ComparePaneText>
+            <ComparePaneTextPlain>{compare.frText}</ComparePaneTextPlain>
           </FRSourcePane>
         )}
       </CompareGrid>
@@ -334,6 +362,8 @@ interface Props {
   /** The already-resolved live English text (avoids a convention-based R2 refetch). */
   currentText?: string;
   currentAttribution?: string;
+  /** Live item translation_origin — selects the prose inline renderer in compare. */
+  currentTranslationOrigin?: string;
   /** Custom pill label (e.g. "Compare translations" for chapter) */
   label?: string;
 }
@@ -345,6 +375,7 @@ export default function TranslationHistory({
   currentVersionId,
   currentText,
   currentAttribution,
+  currentTranslationOrigin,
   label,
 }: Props) {
   const [open, setOpen] = useState(false);
@@ -372,12 +403,22 @@ export default function TranslationHistory({
   }
 
   function handleOpenCompare(version: TranslationVersionMeta) {
+    // For full-page translations the fr_intermediate is the whole stitched issue;
+    // show only the matching page so the French panel stays readable.
+    const pageMatch =
+      section === "translated_pages"
+        ? slotKey.match(/^paper-page-(\d+)$/)
+        : null;
+    const pageNumber = pageMatch ? parseInt(pageMatch[1], 10) : null;
+
     startTransition(async () => {
       try {
         const [versionText, frText] = await Promise.all([
           getVersionText(version.text_r2_key),
           version.fr_intermediate_r2_key
-            ? getVersionText(version.fr_intermediate_r2_key)
+            ? pageNumber != null
+              ? getVersionPageFrench(version.fr_intermediate_r2_key, pageNumber)
+              : getVersionText(version.fr_intermediate_r2_key)
             : Promise.resolve(null),
         ]);
 
@@ -466,6 +507,7 @@ export default function TranslationHistory({
                 <ComparePanel
                   compare={compare}
                   liveAttribution={currentAttribution ?? "Live version"}
+                  liveTranslationOrigin={currentTranslationOrigin}
                   version={compareVersion}
                   onClose={() => { setCompare(null); setCompareVersion(null); }}
                 />

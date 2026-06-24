@@ -9,7 +9,8 @@
 
 import React, { useRef, useState } from "react";
 import styled from "styled-components";
-import { uploadMediaToR2, type MediaKind } from "@/app/actions/admin";
+import { uploadMediaToR2 } from "@/app/actions/admin";
+import type { MediaKind } from "@/lib/types/media";
 
 interface MediaUploadFieldProps {
   kind: MediaKind;

@@ -13,8 +13,7 @@
  *  - Retry-with-backoff on transient errors (rate limit, server, connection,
  *    timeout): max 4 attempts, exponential + jitter.
  *  - Returns TranslationUsage with cost_usd computed from inline pricing table.
- *  - Default model: claude-opus-4-8. Preferred model when unblocked: claude-fable-5
- *    (switch via TRANSLATION_MODEL — zero code changes required).
+ *  - Default model: claude-sonnet-4-5. Override via TRANSLATION_MODEL or --model.
  */
 
 import Anthropic, {
@@ -31,10 +30,10 @@ import Anthropic, {
 export const PROVIDER = process.env.TRANSLATION_PROVIDER ?? "anthropic";
 
 /**
- * Default: claude-opus-4-8 (best available while claude-fable-5 is blocked).
- * Switch to claude-fable-5 via TRANSLATION_MODEL once it returns to public access.
+ * Default: claude-sonnet-4-5 (strong quality at lower cost for bulk day runs).
+ * Override via TRANSLATION_MODEL or --model= on translate-day / ingest-day.
  */
-export const MODEL = process.env.TRANSLATION_MODEL ?? "claude-opus-4-8";
+export const MODEL = process.env.TRANSLATION_MODEL ?? "claude-sonnet-4-5";
 
 /** Resolve the model for a run: CLI/env override wins over TRANSLATION_MODEL default. */
 export function resolveTranslationModel(override?: string): string {
@@ -50,7 +49,7 @@ export interface TranslationBatchOptions {
 
 /**
  * Model used for on-demand vision OCR transcription.
- * Falls back to MODEL when unset (Opus 4.8 has strong vision capability).
+ * Falls back to MODEL when unset.
  */
 export const VISION_MODEL = process.env.TRANSLATION_VISION_MODEL ?? MODEL;
 
@@ -107,10 +106,10 @@ interface ModelPricing {
 const PRICING: Record<string, ModelPricing> = {
   // Claude Fable 5 (preferred when unblocked)
   "claude-fable-5": { inputPerMillion: 10, outputPerMillion: 50 },
-  // Claude Opus 4.8 (current default)
-  "claude-opus-4-8": { inputPerMillion: 5, outputPerMillion: 25 },
-  // Claude Sonnet 4.5 (lower quality; not intended for this pipeline)
+  // Claude Sonnet 4.5 (current default)
   "claude-sonnet-4-5": { inputPerMillion: 3, outputPerMillion: 15 },
+  // Claude Opus 4.8 (higher quality override)
+  "claude-opus-4-8": { inputPerMillion: 5, outputPerMillion: 25 },
   // Claude Haiku 4.5 (bulk / cost-sensitive runs)
   "claude-haiku-4-5": { inputPerMillion: 1, outputPerMillion: 5 },
 };
@@ -265,7 +264,7 @@ Guidelines:
 - Keep period terminology. For genuinely obscure references (titles, institutions, persons) gloss in [square brackets] with a brief identifier on first mention; do not gloss anything a general reader would recognise.
 - Resolve proper nouns to their full identity on first occurrence (e.g. "Hector Berlioz" not just "Berlioz", "the Opéra-Comique" with its French name).
 - Do not modernise idioms or domesticate cultural references.
-- Output Markdown: preserve the source paragraph breaks; use **bold** sparingly for section titles if present in the source; no added commentary, preambles, or headers beyond what is in the source.
+- Output Markdown: preserve the source paragraph breaks; use **bold** sparingly for section titles if present in the source; for composite mastheads (e.g. the feuilleton header), keep the section label in **bold** and the newspaper title in *italic* within the same line, e.g. **FEUILLETON of the *Journal des Débats***; no added commentary, preambles, or headers beyond what is in the source.
 - When a passage is illegible or ambiguous, render your best interpretation and append (in parentheses): [uncertain transcription] or [text unclear].
 - If you have low confidence in the accuracy of the whole section (e.g. badly corrupted OCR), set the low_confidence flag to true in your output.
 
@@ -416,32 +415,12 @@ ${frenchText}
   }
 }
 
-// ---------------------------------------------------------------------------
-// French page splitting (ALTO / texteBrut stitch markers)
-// ---------------------------------------------------------------------------
+import { splitFrenchPages } from "@/lib/translate/french-pages";
 
-export interface FrenchPageChunk {
-  pageNumber: number;
-  text: string;
-}
-
-/** Split stitched French source on `--- Page N ---` markers from ALTO/texteBrut. */
-export function splitFrenchPages(frenchText: string): FrenchPageChunk[] {
-  const parts = frenchText.split(/^--- Page \d+ ---\n?/m);
-  const markers = [...frenchText.matchAll(/^--- Page (\d+) ---/gm)];
-
-  if (markers.length === 0) {
-    const trimmed = frenchText.trim();
-    return trimmed.length > 0 ? [{ pageNumber: 1, text: frenchText }] : [];
-  }
-
-  return markers
-    .map((m, i) => ({
-      pageNumber: parseInt(m[1], 10),
-      text: parts[i + 1] ?? "",
-    }))
-    .filter(({ text }) => text.trim().length > 0);
-}
+export {
+  splitFrenchPages,
+  type FrenchPageChunk,
+} from "@/lib/translate/french-pages";
 
 function parseSegmentationJson(rawText: string): SegmentedTranslation {
   let raw = rawText

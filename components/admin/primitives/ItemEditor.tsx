@@ -12,10 +12,11 @@
 import React, { useState } from "react";
 import styled from "styled-components";
 import { useRouter } from "next/navigation";
-import { upsertDayContentItem, type DayContentSection } from "@/app/actions/admin";
+import { upsertDayContentItem } from "@/app/actions/admin";
+import type { DayContentSection } from "@/lib/types/day-content-section";
 import type { DocItem } from "@/lib/types/content";
 import MediaPicker from "./MediaPicker";
-import type { MediaAssetSearchResult } from "@/app/actions/admin";
+import type { MediaAssetSearchResult } from "@/lib/types/media";
 
 interface ItemEditorProps {
   open: boolean;

@@ -1,9 +1,12 @@
 "use client";
 
 import styled from "styled-components";
+import { useSearchParams } from "next/navigation";
 import type { DayPageData } from "@/lib/content";
+import { resolveActivePaperPage } from "@/lib/paper-pages";
 import type { ContributorInfo } from "./ContributorByline";
-import type { DayContentSection } from "@/app/actions/admin";
+import type { DayContentSection } from "@/lib/types/day-content-section";
+import PaperPageSubTabRow from "./PaperPageSubTabRow";
 import { TabSection, TabSectionTitle, EmptyState, renderItems } from "./TabPrimitives";
 
 interface Props {
@@ -56,6 +59,7 @@ function getSectionItems(
 }
 
 export default function TranslatedPaperTab({ data, contributors }: Props) {
+  const searchParams = useSearchParams();
   const { resolved, installment_date } = data;
 
   // Per-page translations are the primary view: each page is translated
@@ -63,17 +67,22 @@ export default function TranslatedPaperTab({ data, contributors }: Props) {
   const pages = resolved.translated_pages ?? [];
 
   if (pages.length > 0) {
+    const activePage = resolveActivePaperPage(
+      pages.length,
+      searchParams.get("page"),
+    );
+    const item = pages[activePage - 1];
+
     return (
       <TabSection>
-        {pages.map((item, i) => (
-          <SectionBlock key={i} $first={i === 0}>
-            <TabSectionTitle>Page {i + 1}</TabSectionTitle>
-            {renderItems([item], contributors, {
-              date: installment_date,
-              section: "overview",
-            })}
-          </SectionBlock>
-        ))}
+        {pages.length > 1 && (
+          <PaperPageSubTabRow pageCount={pages.length} activePage={activePage} />
+        )}
+        {item &&
+          renderItems([item], contributors, {
+            date: installment_date,
+            section: "translated_pages",
+          })}
       </TabSection>
     );
   }
