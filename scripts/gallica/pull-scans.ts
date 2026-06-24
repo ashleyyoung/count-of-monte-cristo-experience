@@ -12,11 +12,7 @@
  *   npx tsx scripts/gallica/pull-scans.ts --date=1844-08-28 --dry-run
  */
 
-import {
-  fetchIIIFPage,
-  fetchIIIFDimensions,
-  pixelRegion,
-} from "../../lib/gallica";
+import { fetchIIIFPage } from "../../lib/gallica";
 import { putR2Object, r2ObjectExists } from "../../lib/r2-server";
 import {
   makeSupabaseClient,
@@ -122,7 +118,6 @@ export async function runPullScans(
     }
 
     let mediaAssetId = priorItem?.media_asset_id ?? "";
-    let dims = { width: 0, height: 0 };
 
     if (skipExisting && alreadyInR2) {
       console.log(
@@ -142,23 +137,12 @@ export async function runPullScans(
       const imageBuffer = await fetchIIIFPage(ark, page);
       fetchedSinceLastDelay++;
 
-      try {
-        dims = await fetchIIIFDimensions(ark, page);
-      } catch {
-        dims = { width: 0, height: 0 };
-      }
-
       if (dryRun) {
         console.log(`[dry-run] Would upload ${r2Key} to R2`);
       } else {
         await putR2Object(r2Key, imageBuffer, "image/jpeg");
       }
     }
-
-    const iiifRegion =
-      dims.width > 0
-        ? pixelRegion({ x: 0, y: 0, w: dims.width, h: dims.height })
-        : null;
 
     if (!mediaAssetId) {
       mediaAssetId = await insertMediaAsset(
@@ -169,7 +153,7 @@ export async function runPullScans(
           caption: `${ATTRIBUTION_PREFIX}, ${day}, page ${page} of ${pageCount}`,
           source: SOURCE_LABEL,
           source_url: pageUrl,
-          iiif_region: iiifRegion,
+          iiif_region: null,
           license: LICENSE,
           attribution: `${ATTRIBUTION_PREFIX}, ${day} — Gallica / BnF`,
           r2_key: r2Key,

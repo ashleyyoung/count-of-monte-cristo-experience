@@ -184,13 +184,21 @@ export interface TexteBrutOptions {
   date: string;
   ark: string;
   log: (msg: string) => void;
+  /** When true, return R2 cached French intermediate if valid (no Gallica call). */
+  skipIfCached?: boolean;
 }
 
 /** Fetch Gallica texteBrut, write it to R2, and return it. Throws on failure. */
 export async function fetchTexteBrutToR2(
   options: TexteBrutOptions,
 ): Promise<FrenchSourceResult> {
-  const { date, ark, log } = options;
+  const { date, ark, log, skipIfCached = false } = options;
+
+  if (skipIfCached) {
+    const cached = await loadCachedFrench(date, ark, log);
+    if (cached) return cached;
+  }
+
   const sourceTextUrl = texteBrutUrl(ark);
 
   log(`[french-source] Fetching Gallica texteBrut…`);

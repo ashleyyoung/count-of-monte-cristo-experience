@@ -104,6 +104,29 @@ set -a && source .env && set +a
 npx tsx scripts/ingest-day.ts --date=1844-08-29
 ```
 
+To batch a date range (skips gaps automatically, pauses between dates, prints a failure summary):
+
+```bash
+# Optional: pre-warm year-level Issues XML (3 calls for 1844–1846, not one per date)
+npx tsx scripts/gallica/warm-issues-cache.ts
+
+npx tsx scripts/ingest-range.ts --from=1844-08-28 --to=1844-09-07
+```
+
+Set `GALLICA_CONTACT=you@example.com` in `.env` so Gallica requests identify your project (BnF asks bots to include contact info; helps with Cloudflare).
+
+Pass `--delay=N` (seconds, default 60) to adjust the pause between dates. On throttle/DNS errors, `ingest-range` cools down (default 5 min, doubling up to 15 min) and retries failed dates once after a 10-minute pause. The script only processes dates in the serialization schedule; non-publication days like Sundays are silently skipped.
+
+To pull scans and French source first, then translate in a separate pass:
+
+```bash
+npx tsx scripts/ingest-range.ts --from=1844-08-31 --to=1844-09-07 --skip-translation
+
+for DATE in 1844-08-28 1844-08-29 1844-08-31 ...; do
+  npx tsx scripts/translate/translate-day.ts --date=$DATE
+done
+```
+
 This runs, in order: `resolve-issue`, `pull-scans`, `crop-strip`,
 `fetch-french-textebrut`, `translate-day`. Scans and crops already in R2 are
 skipped by default; pass `--force` to overwrite them. Translation is saved to

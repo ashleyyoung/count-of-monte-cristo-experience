@@ -17,6 +17,7 @@
  *  - ALTO / Pagination: no published limit; callers add polite delays (≥1 s)
  */
 
+import dns from "node:dns/promises";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { XMLParser } from "fast-xml-parser";
@@ -123,6 +124,34 @@ export function iiifImageUrl(
  */
 export function iiifInfoUrl(issueArk: string, page: number): string {
   return `${GALLICA_BASE}/iiif/ark:/12148/${issueArk}/f${page}/info.json`;
+}
+
+/** IIIF Presentation manifest URL — page dimensions for all canvases in one request. */
+export function iiifManifestUrl(issueArk: string): string {
+  return `${GALLICA_BASE}/iiif/ark:/12148/${issueArk}/manifest.json`;
+}
+
+/**
+ * Fetch all page dimensions in one manifest request. Returns 1-indexed map.
+ * The manifest is metadata, not a full/full image request, so it is not subject
+ * to the 5/min IIIF image rate limit.
+ */
+export async function fetchIIIFManifestDimensions(
+  issueArk: string,
+): Promise<Map<number, IIIFDimensions>> {
+  const url = iiifManifestUrl(issueArk);
+  const text = await gallicaFetch(url);
+  const manifest = JSON.parse(text) as {
+    sequences?: { canvases?: { width?: number; height?: number }[] }[];
+  };
+  const canvases = manifest?.sequences?.[0]?.canvases ?? [];
+  const map = new Map<number, IIIFDimensions>();
+  canvases.forEach((c, i) => {
+    if (c.width && c.height) {
+      map.set(i + 1, { width: c.width, height: c.height });
+    }
+  });
+  return map;
 }
 
 /**
@@ -512,7 +541,7 @@ function buildGallicaHeaders(url: string): Record<string, string> {
 /** Per-attempt fetch timeout (Gallica Issues can take 10+ s when healthy). */
 const FETCH_TIMEOUT_MS = 90_000;
 
-const FETCH_MAX_ATTEMPTS = Number(process.env.GALLICA_MAX_ATTEMPTS) || 6;
+const FETCH_MAX_ATTEMPTS = Number(process.env.GALLICA_MAX_ATTEMPTS) || 8;
 
 /** Cap on any single backoff wait (default 5 min). Override via GALLICA_MAX_BACKOFF_MS. */
 const MAX_BACKOFF_MS = Number(process.env.GALLICA_MAX_BACKOFF_MS) || 300_000;
@@ -537,9 +566,23 @@ function retryDelayMs(
     const base = Math.min(60_000 * 2 ** attempt, MAX_BACKOFF_MS);
     return base + Math.floor(Math.random() * 2_000);
   }
+  // 522 (Cloudflare connection timed out), 524 (a timeout occurred),
+  // 525 (SSL handshake failed) — Gallica's origin is struggling and
+  // typically stays down for several minutes. Start at 30s so we don't
+  // burn all attempts in under 90s.
+  if (status === 522 || status === 524 || status === 525) {
+    const cfDelays = [
+      30_000, 60_000, 120_000, 180_000, 240_000, 300_000, 300_000, 300_000,
+    ];
+    return (cfDelays[attempt] ?? 300_000) + Math.floor(Math.random() * 5_000);
+  }
+  // DNS / socket failures. The network may be down for minutes; give it
+  // more room than the old 6-step ladder, and cap later waits at 2 min.
   if (networkCode === "ENOTFOUND" || networkCode === "EAI_AGAIN") {
-    const dnsDelays = [5_000, 15_000, 30_000, 60_000, 90_000, 120_000];
-    return (dnsDelays[attempt] ?? 120_000) + Math.floor(Math.random() * 500);
+    const dnsDelays = [
+      5_000, 15_000, 30_000, 60_000, 90_000, 120_000, 120_000, 120_000,
+    ];
+    return (dnsDelays[attempt] ?? 120_000) + Math.floor(Math.random() * 1_000);
   }
   const base = Math.min(2_000 * 2 ** attempt, MAX_BACKOFF_MS);
   return base + Math.floor(Math.random() * 500);
@@ -547,6 +590,146 @@ function retryDelayMs(
 
 async function sleep(ms: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Poll dns.resolve4 (bypasses OS cache) every `intervalMs` until the hostname
+ * resolves or `maxWaitMs` elapses. Used after ENOTFOUND to avoid blindly
+ * sleeping a fixed duration when DNS may recover in seconds.
+ *
+ * Returns immediately (without error) if the probe times out, so the caller's
+ * retry loop can make one more fetch attempt and fail with a clear error if DNS
+ * is truly broken.
+ */
+async function waitForDnsResolution(
+  hostname: string,
+  log: (msg: string) => void,
+  maxWaitMs: number,
+  intervalMs = 5_000,
+): Promise<void> {
+  const deadline = Date.now() + maxWaitMs;
+  while (Date.now() < deadline) {
+    await sleep(intervalMs);
+    try {
+      await dns.resolve4(hostname);
+      log(`DNS probe: ${hostname} resolved — proceeding with retry`);
+      return;
+    } catch {
+      const remaining = Math.max(0, deadline - Date.now());
+      if (remaining > 0) {
+        log(
+          `DNS probe: ${hostname} still unreachable; ${(remaining / 1000).toFixed(0)}s remaining…`,
+        );
+      }
+    }
+  }
+  log(`DNS probe: timed out waiting for ${hostname} — retrying anyway`);
+}
+
+// ---------------------------------------------------------------------------
+// Per-class request spacing (BnF: 5/min for IIIF full/full and texteBrut)
+// ---------------------------------------------------------------------------
+
+type GallicaRequestClass = "iiif_full" | "textebrut" | "metadata";
+
+const THROTTLE_MS: Record<GallicaRequestClass, number> = {
+  iiif_full: 15_000,
+  textebrut: 15_000,
+  metadata: 1_200,
+};
+
+const lastRequestAt: Record<GallicaRequestClass, number> = {
+  iiif_full: 0,
+  textebrut: 0,
+  metadata: 0,
+};
+
+/** Timestamp of the most recent Gallica request, regardless of class. */
+let lastAnyRequestAt = 0;
+
+/**
+ * Global hold: when Gallica sends a Retry-After (on 522/429), all subsequent
+ * requests of any class must wait until this timestamp. This prevents firing
+ * the next endpoint immediately after a Retry-After delay on a different one,
+ * which is what triggers cascading 522 → 429 storms.
+ */
+let globalHoldUntil = 0;
+
+export function setGallicaGlobalHold(untilMs: number): void {
+  if (untilMs > globalHoldUntil) {
+    globalHoldUntil = untilMs;
+  }
+}
+
+function classifyGallicaUrl(url: string): GallicaRequestClass {
+  if (url.includes(".texteBrut")) return "textebrut";
+  if (url.includes("/iiif/")) {
+    if (url.includes("/info.json") || url.includes("/manifest.json")) {
+      return "metadata";
+    }
+    if (
+      url.includes("/full/full/") ||
+      url.includes("/native.jpg") ||
+      url.includes("/native.png")
+    ) {
+      return "iiif_full";
+    }
+  }
+  return "metadata";
+}
+
+async function waitForGallicaThrottle(
+  url: string,
+  log: (msg: string) => void,
+): Promise<void> {
+  // 1. Global hold: any recent 522/429 Retry-After blocks all classes.
+  const holdWait = globalHoldUntil - Date.now();
+  if (holdWait > 0) {
+    log(
+      `throttle [global hold]: waiting ${(holdWait / 1000).toFixed(1)}s before request…`,
+    );
+    await sleep(holdWait);
+  }
+
+  // 2. Cross-class minimum: at least metadata gap since the last request of
+  //    ANY class. Prevents firing texteBrut immediately after an iiif_full.
+  const crossGap = THROTTLE_MS.metadata;
+  const crossElapsed = Date.now() - lastAnyRequestAt;
+  if (lastAnyRequestAt > 0 && crossElapsed < crossGap) {
+    await sleep(crossGap - crossElapsed);
+  }
+
+  // 3. Per-class minimum: e.g. 15s between consecutive texteBrut calls.
+  const cls = classifyGallicaUrl(url);
+  const minGap = THROTTLE_MS[cls];
+  const last = lastRequestAt[cls];
+  const elapsed = Date.now() - last;
+  if (last > 0 && elapsed < minGap) {
+    const wait = minGap - elapsed;
+    log(
+      `throttle [${cls}]: waiting ${(wait / 1000).toFixed(1)}s before request…`,
+    );
+    await sleep(wait);
+  }
+}
+
+function markGallicaRequest(url: string): void {
+  const now = Date.now();
+  lastRequestAt[classifyGallicaUrl(url)] = now;
+  lastAnyRequestAt = now;
+}
+
+function parseRetryAfterMs(res: Response): number | null {
+  const raw = res.headers.get("Retry-After")?.trim();
+  if (!raw) return null;
+  const seconds = parseInt(raw, 10);
+  if (Number.isFinite(seconds) && seconds > 0) return seconds * 1_000;
+  const when = Date.parse(raw);
+  if (Number.isFinite(when)) {
+    const ms = when - Date.now();
+    return ms > 0 ? ms : null;
+  }
+  return null;
 }
 
 function networkErrorDetail(err: unknown): string {
@@ -601,6 +784,9 @@ async function gallicaFetchResponse(
     let pendingDelayMs = 0;
 
     try {
+      await waitForGallicaThrottle(url, log);
+      markGallicaRequest(url);
+
       const res = await fetch(url, {
         headers: buildGallicaHeaders(url),
         signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
@@ -632,9 +818,31 @@ async function gallicaFetchResponse(
       }
 
       pendingDelayMs = retryDelayMs(attempt, res.status);
-      log(
-        `HTTP ${res.status} is retryable; waiting ${(pendingDelayMs / 1000).toFixed(1)}s before retry…`,
-      );
+      const retryAfterMs = parseRetryAfterMs(res);
+      if (retryAfterMs != null) {
+        pendingDelayMs = Math.max(pendingDelayMs, retryAfterMs);
+        // Broadcast: any concurrent/future request of any class must also
+        // wait at least this long before hitting Gallica again.
+        setGallicaGlobalHold(Date.now() + pendingDelayMs);
+        log(
+          `HTTP ${res.status} Retry-After: waiting ${(pendingDelayMs / 1000).toFixed(1)}s before retry…`,
+        );
+      } else if (
+        res.status === 522 ||
+        res.status === 524 ||
+        res.status === 525
+      ) {
+        // Cloudflare origin-down errors: set a global hold even without a
+        // Retry-After header so other endpoints don't pile on immediately.
+        setGallicaGlobalHold(Date.now() + pendingDelayMs);
+        log(
+          `HTTP ${res.status} is retryable; waiting ${(pendingDelayMs / 1000).toFixed(1)}s before retry…`,
+        );
+      } else {
+        log(
+          `HTTP ${res.status} is retryable; waiting ${(pendingDelayMs / 1000).toFixed(1)}s before retry…`,
+        );
+      }
     } catch (err) {
       if (err instanceof GallicaFetchError) throw err;
 
@@ -655,9 +863,20 @@ async function gallicaFetchResponse(
       }
 
       pendingDelayMs = retryDelayMs(attempt, undefined, code);
-      log(
-        `network error is retryable; waiting ${(pendingDelayMs / 1000).toFixed(1)}s before retry…`,
-      );
+
+      if (code === "ENOTFOUND" || code === "EAI_AGAIN") {
+        // Rather than a fixed sleep, poll dns.resolve4 (bypasses OS cache)
+        // so we retry as soon as DNS actually recovers instead of wasting
+        // the full backoff window when the outage is brief.
+        const hostname = new URL(url).hostname;
+        await waitForDnsResolution(hostname, log, pendingDelayMs);
+      } else {
+        log(
+          `network error is retryable; waiting ${(pendingDelayMs / 1000).toFixed(1)}s before retry…`,
+        );
+        await sleep(pendingDelayMs);
+      }
+      continue;
     }
 
     await sleep(pendingDelayMs);

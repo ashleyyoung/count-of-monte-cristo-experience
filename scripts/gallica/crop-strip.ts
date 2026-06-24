@@ -8,7 +8,7 @@
 
 import {
   fetchIIIFPage,
-  fetchIIIFDimensions,
+  fetchIIIFManifestDimensions,
   fetchAltoXml,
   parseAltoXml,
   deriveFeuilletonRegion,
@@ -31,6 +31,7 @@ import {
   runCliMain,
   sleep,
   ALTO_DELAY_MS,
+  IIIF_FULL_DELAY_MS,
   type GallicaStepOptions,
 } from "./_shared";
 import type { ImageItem } from "../../lib/types/content";
@@ -70,6 +71,31 @@ export async function runCropStrip(
     refresh: refreshGallicaCache,
   });
 
+  const r2Key = `gallica/${day}/feuilleton-strip.jpg`;
+
+  // Early exit before any Gallica requests if the strip is already present.
+  if (
+    skipExisting &&
+    doc.feuilleton_strip?.kind === "image" &&
+    doc.feuilleton_strip.media_asset_id
+  ) {
+    const alreadyInR2 = dryRun || (await r2ObjectExists(r2Key));
+    if (alreadyInR2) {
+      console.log(
+        `[crop-strip] Skipping ${day} (feuilleton strip already present)`,
+      );
+      return {
+        day,
+        ark,
+        region: "",
+        r2Key,
+        mediaAssetId: doc.feuilleton_strip.media_asset_id,
+        skipped: true,
+        dryRun,
+      };
+    }
+  }
+
   let cropRegion: PixelRegion;
 
   if (manualRegion) {
@@ -78,7 +104,14 @@ export async function runCropStrip(
     );
     cropRegion = manualRegion;
   } else {
-    const dims = await fetchIIIFDimensions(ark, FEUILLETON_PAGE);
+    const dimsByPage = await fetchIIIFManifestDimensions(ark);
+    const dims = dimsByPage.get(FEUILLETON_PAGE);
+    if (!dims) {
+      throw new Error(
+        `manifest.json missing dimensions for page ${FEUILLETON_PAGE} of ${ark}. ` +
+          "Pass --region=x,y,w,h to provide a manual region.",
+      );
+    }
 
     await sleep(ALTO_DELAY_MS);
     console.log(`[crop-strip] Fetching ALTO XML for page ${FEUILLETON_PAGE}…`);
@@ -106,33 +139,11 @@ export async function runCropStrip(
   }
 
   const regionStr = pixelRegion(cropRegion);
-  const r2Key = `gallica/${day}/feuilleton-strip.jpg`;
 
-  if (
-    skipExisting &&
-    doc.feuilleton_strip?.kind === "image" &&
-    doc.feuilleton_strip.media_asset_id
-  ) {
-    let alreadyInR2 = false;
-    if (!dryRun) {
-      alreadyInR2 = await r2ObjectExists(r2Key);
-    }
-    if (dryRun || alreadyInR2) {
-      console.log(
-        `[crop-strip] Skipping ${day} (feuilleton strip already present)`,
-      );
-      return {
-        day,
-        ark,
-        region: regionStr,
-        r2Key,
-        mediaAssetId: doc.feuilleton_strip.media_asset_id,
-        skipped: true,
-        dryRun,
-      };
-    }
-  }
-
+  console.log(
+    `[crop-strip] Waiting ${IIIF_FULL_DELAY_MS / 1000}s before feuilleton crop…`,
+  );
+  await sleep(IIIF_FULL_DELAY_MS);
   console.log(`[crop-strip] Fetching feuilleton crop for ${day}…`);
   const imageBuffer = await fetchIIIFPage(ark, FEUILLETON_PAGE, regionStr);
 

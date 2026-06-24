@@ -67,7 +67,12 @@ async function main() {
   }
 
   try {
-    const result = await fetchTexteBrutToR2({ date, ark, log });
+    const result = await fetchTexteBrutToR2({
+      date,
+      ark,
+      log,
+      skipIfCached: !process.argv.includes("--force"),
+    });
     console.log(
       JSON.stringify({
         date,

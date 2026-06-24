@@ -20,24 +20,108 @@
  *   npx tsx scripts/translate/translate-day.ts      --date=YYYY-MM-DD
  *
  * Usage:
- *   npx tsx scripts/ingest-day.ts --date=1844-08-29 --skip-existing
+ *   npx tsx scripts/ingest-day.ts --date=1844-08-29 [--skip-translation] [--force]
  *   npx tsx scripts/ingest-day.ts --help
  */
 
 import "dotenv/config";
-import { parseCliDate } from "./gallica/_shared";
+import { parseCliDate, runCliMain } from "./gallica/_shared";
 import { runResolveIssue } from "./gallica/resolve-issue";
 import { runPullScans } from "./gallica/pull-scans";
 import { runCropStrip } from "./gallica/crop-strip";
 import { fetchTexteBrutToR2 } from "../lib/translate/french-source";
 import { runDayTranslation } from "../lib/translate/pipeline";
+import { getByDate } from "../lib/installments";
 
-const SKIP_EXISTING = !process.argv.includes("--force");
+// ---------------------------------------------------------------------------
+// Exported runner (used by ingest-range.ts)
+// ---------------------------------------------------------------------------
 
-function parseCliModel(): string | undefined {
-  const arg = process.argv.find((a) => a.startsWith("--model="));
-  return arg ? arg.replace("--model=", "").trim() : undefined;
+export interface IngestDayOptions {
+  force?: boolean;
+  skipTranslation?: boolean;
+  model?: string;
 }
+
+export interface IngestDayResult {
+  ok: boolean;
+  skipped?: boolean;
+  message?: string;
+}
+
+export async function runIngestDay(
+  date: string,
+  options: IngestDayOptions = {},
+): Promise<IngestDayResult> {
+  const { force = false, skipTranslation = false, model } = options;
+  const skipExisting = !force;
+
+  if (!getByDate(date)) {
+    const message = `${date} is not in the Monte Cristo installment schedule`;
+    console.error(`[ingest-day] ${message} — skipping.`);
+    return { ok: true, skipped: true, message };
+  }
+
+  const total = skipTranslation ? 4 : 5;
+  const log = (msg: string) => console.error(`[ingest-day] ${date}: ${msg}`);
+
+  log(
+    `starting full ingest, ${total} steps` +
+      (skipTranslation ? " (translation skipped)" : ""),
+  );
+
+  const step = (n: number, name: string) =>
+    console.error(`\n[ingest-day] ${date}: (${n}/${total}) ${name}`);
+
+  // 1. resolve-issue
+  step(1, "resolve-issue");
+  const resolved = await runResolveIssue({ day: date, skipExisting });
+  log(`ARK ${resolved.ark} (${resolved.pageCount} page(s)).`);
+
+  // 2. pull-scans
+  step(2, "pull-scans");
+  await runPullScans({ day: date, skipExisting });
+
+  // 3. crop-strip
+  step(3, "crop-strip");
+  await runCropStrip({ day: date, skipExisting });
+
+  // 4. fetch-french-textebrut
+  step(4, "fetch-french-textebrut");
+  await fetchTexteBrutToR2({
+    date,
+    ark: resolved.ark,
+    log,
+    skipIfCached: skipExisting,
+  });
+
+  if (skipTranslation) {
+    log(
+      `done (translation skipped). To translate: npx tsx scripts/translate/translate-day.ts --date=${date}`,
+    );
+    return { ok: true };
+  }
+
+  // 5. translate-day
+  step(5, "translate-day");
+  const summary = await runDayTranslation(date, log, { model });
+  log(
+    `translate-day done: translated=${summary.translated} ` +
+      `created=${summary.created} skipped=${summary.skipped} failed=${summary.failed.length}`,
+  );
+
+  if (summary.failed.length > 0) {
+    return {
+      ok: false,
+      message: `${summary.failed.length} section(s) failed to translate`,
+    };
+  }
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// CLI
+// ---------------------------------------------------------------------------
 
 const HELP = `ingest-day — run the full ingest for one date, in order
 
@@ -47,16 +131,21 @@ Translation is saved to day_content incrementally inside the pipeline — no
 separate upload step required.
 
 Usage:
-  npx tsx scripts/ingest-day.ts --date=YYYY-MM-DD [--force] [--model=<anthropic-model-id>]
+  npx tsx scripts/ingest-day.ts --date=YYYY-MM-DD [--force] [--skip-translation] [--model=<id>]
 
-  --force   Re-download and overwrite scans/crops already in R2.
-            Default is to skip existing files.
-  --model   Override TRANSLATION_MODEL for the translate step (e.g. claude-sonnet-4-5).
+  --force              Re-download and overwrite scans/crops already in R2.
+                       Default is to skip existing files.
+  --skip-translation   Stop after fetching the French source; skip translate-day.
+                       Useful when you want to run translation separately or with a
+                       different model later.
+  --model              Override TRANSLATION_MODEL for the translate step
+                       (e.g. claude-opus-4-8).
 
 After it finishes, open http://localhost:3001/day/YYYY-MM-DD`;
 
-function step(n: number, total: number, name: string) {
-  console.error(`\n[ingest-day] (${n}/${total}) ${name}`);
+function parseCliModel(): string | undefined {
+  const arg = process.argv.find((a) => a.startsWith("--model="));
+  return arg ? arg.replace("--model=", "").trim() : undefined;
 }
 
 async function main() {
@@ -66,46 +155,18 @@ async function main() {
   }
 
   const date = parseCliDate();
-  const model = parseCliModel();
-  const total = 5;
-  console.error(`[ingest-day] ${date}: full ingest, ${total} steps`);
+  const result = await runIngestDay(date, {
+    force: process.argv.includes("--force"),
+    skipTranslation: process.argv.includes("--skip-translation"),
+    model: parseCliModel(),
+  });
 
-  // 1. resolve-issue
-  step(1, total, "resolve-issue");
-  const resolved = await runResolveIssue({ day: date });
-  console.error(
-    `[ingest-day] ARK ${resolved.ark} (${resolved.pageCount} page(s)).`,
-  );
-
-  // 2. pull-scans
-  step(2, total, "pull-scans");
-  await runPullScans({ day: date, skipExisting: SKIP_EXISTING });
-
-  // 3. crop-strip
-  step(3, total, "crop-strip");
-  await runCropStrip({ day: date, skipExisting: SKIP_EXISTING });
-
-  // 4. fetch-french-textebrut
-  step(4, total, "fetch-french-textebrut");
-  const log = (msg: string) => console.error(`[ingest-day] ${msg}`);
-  await fetchTexteBrutToR2({ date, ark: resolved.ark, log });
-
-  // 5. translate-day (saves to day_content incrementally; no separate upload step)
-  step(5, total, "translate-day");
-  const summary = await runDayTranslation(date, log, { model });
-  console.error(
-    `[ingest-day] translate-day: translated=${summary.translated} ` +
-      `created=${summary.created} skipped=${summary.skipped} failed=${summary.failed.length}`,
-  );
-
-  console.error(`\n[ingest-day] Done. Open http://localhost:3001/day/${date}`);
-  process.exit(summary.failed.length > 0 ? 1 : 0);
+  if (!result.skipped) {
+    console.error(
+      `\n[ingest-day] ${date}: done. Open http://localhost:3001/day/${date}`,
+    );
+  }
+  if (!result.ok) process.exit(1);
 }
 
-main().catch((err) => {
-  console.error(
-    "[ingest-day] Failed:",
-    err instanceof Error ? err.message : err,
-  );
-  process.exit(1);
-});
+runCliMain(import.meta.url, main, "ingest-day");

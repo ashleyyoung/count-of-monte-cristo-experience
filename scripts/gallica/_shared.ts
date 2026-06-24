@@ -327,11 +327,15 @@ export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/** Default delay between IIIF full/full downloads to respect Gallica rate limit (5/min). */
-export const IIIF_FULL_DELAY_MS = 13_000;
+/**
+ * Delay between IIIF full/full image downloads.
+ * BnF limit: 5 calls/min for /full/full/ or >1000px — 1 every 12s minimum.
+ * 15s gives a comfortable margin (~4/min).
+ */
+export const IIIF_FULL_DELAY_MS = 15_000;
 
-/** Default delay between texteBrut calls (5/min). */
-export const TEXTEBRUT_DELAY_MS = 13_000;
+/** Default delay between texteBrut calls (5/min). Matches IIIF full spacing. */
+export const TEXTEBRUT_DELAY_MS = 15_000;
 
 /** Polite delay between ALTO / Pagination calls (~1/s). */
 export const ALTO_DELAY_MS = 1_200;
