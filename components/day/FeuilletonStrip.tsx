@@ -1,11 +1,14 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import styled from "styled-components";
 import type { ResolvedImageItem } from "@/lib/content";
 import ScanViewer from "./ScanViewer";
 import { useAdminMode } from "@/components/admin/AdminModeProvider";
-import { visionTranscribe } from "@/app/actions/admin";
+import { visionTranscribe, setFeuilletonStripImage } from "@/app/actions/admin";
+import MediaUploadField from "@/components/admin/primitives/MediaUploadField";
+import { extractArk, iiifPageImageUrl } from "@/lib/gallica-links";
 
 interface Props {
   stripImage: ResolvedImageItem | null;
@@ -189,6 +192,21 @@ const VisionFeedback = styled.p`
   margin: 4px 0 0;
 `;
 
+const RecoveryLink = styled.a`
+  display: block;
+  text-align: center;
+  font-family: var(--font-labels-stack);
+  font-style: italic;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--ink-muted);
+  margin-top: 6px;
+
+  &:hover {
+    color: var(--gilt-deep);
+  }
+`;
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -205,6 +223,9 @@ export default function FeuilletonStrip({
   const { adminMode } = useAdminMode();
   const [isPending, startTransition] = useTransition();
   const [visionFeedback, setVisionFeedback] = useState<string | null>(null);
+  const [uploadFeedback, setUploadFeedback] = useState<string | null>(null);
+  const router = useRouter();
+  const ark = gallicaUrl ? extractArk(gallicaUrl) : null;
 
   const hasPages = originalPages.length > 0 || !!gallicaUrl;
   const viewerPages = stripImage
@@ -229,6 +250,21 @@ export default function FeuilletonStrip({
         );
       } catch (err) {
         setVisionFeedback(
+          `Error: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    });
+  }
+
+  function handleStripUploaded(result: { id: string; r2_key: string }) {
+    setUploadFeedback("Saving…");
+    startTransition(async () => {
+      try {
+        await setFeuilletonStripImage(installmentDate, result.id);
+        setUploadFeedback("Saved.");
+        router.refresh();
+      } catch (err) {
+        setUploadFeedback(
           `Error: ${err instanceof Error ? err.message : String(err)}`,
         );
       }
@@ -316,6 +352,19 @@ export default function FeuilletonStrip({
               Transcribe with vision ↻
             </VisionBtn>
             {visionFeedback && <VisionFeedback>{visionFeedback}</VisionFeedback>}
+            {ark && (
+              <>
+                <RecoveryLink
+                  href={iiifPageImageUrl(ark, 1)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  View page 1 on Gallica ↗
+                </RecoveryLink>
+                <MediaUploadField kind="scan" onUploaded={handleStripUploaded} />
+                {uploadFeedback && <VisionFeedback>{uploadFeedback}</VisionFeedback>}
+              </>
+            )}
           </>
         )}
       </Panel>

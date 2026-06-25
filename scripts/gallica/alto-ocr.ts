@@ -29,6 +29,7 @@
  * On failure: JSON error { error, day, page, stage, message } → exits 1
  */
 
+import "dotenv/config";
 import {
   resolveIssueArk,
   fetchIIIFDimensions,

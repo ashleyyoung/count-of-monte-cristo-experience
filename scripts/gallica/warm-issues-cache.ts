@@ -10,6 +10,7 @@
  *   npx tsx scripts/gallica/warm-issues-cache.ts --refresh-gallica-cache
  */
 
+import "dotenv/config";
 import { getAll } from "../../lib/installments";
 import { DEBATS_PERIODICAL_ARK, warmIssuesCache } from "../../lib/gallica";
 import { REFRESH_GALLICA_CACHE } from "./_shared";

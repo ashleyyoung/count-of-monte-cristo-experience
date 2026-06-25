@@ -113,9 +113,17 @@ npx tsx scripts/gallica/warm-issues-cache.ts
 npx tsx scripts/ingest-range.ts --from=1844-08-28 --to=1844-09-07
 ```
 
+Omit `--from`/`--to` entirely to sweep the whole schedule — this skips any date that already has a Gallica ALTO French-source file in R2, so it's safe to use as a "resume an overnight run" command: it only touches dates that haven't succeeded yet. `--force` disables that skip and reprocesses everything in range (with or without `--from`/`--to`):
+
+```bash
+npx tsx scripts/ingest-range.ts --max-consecutive-failures=30 --cooldown-on-error=300
+```
+
 Set `GALLICA_CONTACT=you@example.com` in `.env` so Gallica requests identify your project (BnF asks bots to include contact info; helps with Cloudflare).
 
-Pass `--delay=N` (seconds, default 60) to adjust the pause between dates. On throttle/DNS errors, `ingest-range` cools down (default 5 min, doubling up to 15 min) and retries failed dates once after a 10-minute pause. The script only processes dates in the serialization schedule; non-publication days like Sundays are silently skipped.
+Pass `--delay=N` (seconds, default 60) to adjust the pause between dates. On throttle/DNS errors, `ingest-range` cools down (default 5 min, doubling up to 30 min) and retries failed dates once after a 10-minute pause. The script only processes dates in the serialization schedule; non-publication days like Sundays are silently skipped. For an unattended overnight run, raise `--max-consecutive-failures` (default 5) well above its default — a sustained BnF-side quota/penalty window (distinct from a per-request rate-limit violation; see **Gallica outages** below) can otherwise trip the abort before the cooldown has a chance to ride it out.
+
+Before starting, `ingest-range` (and `ingest-day`) run a quick Gallica reachability check and warn (but proceed) if it fails — see **Gallica outages** below for details, `--skip-preflight` to disable, and `GALLICA_DNS_SERVERS` if you're seeing DNS errors.
 
 To pull scans and French source first, then translate in a separate pass:
 
@@ -128,7 +136,7 @@ done
 ```
 
 This runs, in order: `resolve-issue`, `pull-scans`, `crop-strip`,
-`fetch-french-textebrut`, `translate-day`. Scans and crops already in R2 are
+`fetch-french-source` (ALTO), `translate-day`. Scans and crops already in R2 are
 skipped by default; pass `--force` to overwrite them. Translation is saved to
 `day_content` incrementally as it runs — nothing to upload separately.
 Then open [http://localhost:3001/day/1844-08-29](http://localhost:3001/day/1844-08-29).
@@ -144,8 +152,8 @@ npx tsx scripts/gallica/pull-scans.ts   --date=$DATE --skip-existing
 npx tsx scripts/gallica/crop-strip.ts   --date=$DATE --skip-existing
 
 # B. French source text -> R2 (pick ONE)
-npx tsx scripts/translate/fetch-french-textebrut.ts   --date=$DATE   # default
-npx tsx scripts/translate/fetch-french-alto.ts        --date=$DATE   # if texteBrut is blocked
+npx tsx scripts/translate/fetch-french-alto.ts        --date=$DATE   # default for now (see below)
+npx tsx scripts/translate/fetch-french-textebrut.ts   --date=$DATE   # disabled by default — see below
 npx tsx scripts/translate/transcribe-french-vision.ts --date=$DATE   # last resort (needs pull-scans first)
 
 # C. Translate the French in R2 -> English, saved to day_content
@@ -158,14 +166,18 @@ there is no separate upload step.
 
 ### Which French script do I run?
 
+**texteBrut is skipped by default for now** — `ingest-day.ts`/`ingest-range.ts` and `translate-day.ts`'s auto-fetch both go straight to ALTO. texteBrut has been hitting BnF's own Altcha bot-challenge page (an unsolvable-by-script proof-of-work CAPTCHA, served as HTTP 200 — not a transient error) and, separately, long genuine Cloudflare/origin outages costing up to ~30 minutes of retries before failing. ALTO is a different Gallica backend path (`RequestDigitalElement`, not `.texteBrut`) that has been reliable throughout. `fetchTexteBrutToR2`/`fetch-french-textebrut.ts` still exist and work if you want to try texteBrut by hand for a specific date.
+
 | Situation                                 | Run                                                |
 | ----------------------------------------- | -------------------------------------------------- |
-| texteBrut succeeds (the common case)      | `fetch-french-textebrut.ts`                        |
-| texteBrut returns HTML / 403 (Cloudflare) | `fetch-french-alto.ts`                             |
-| ALTO empty and texteBrut blocked          | `pull-scans.ts` then `transcribe-french-vision.ts` |
+| Default                                   | `fetch-french-alto.ts`                             |
+| You want to try texteBrut anyway          | `fetch-french-textebrut.ts`                        |
+| ALTO empty too                            | `pull-scans.ts` then `transcribe-french-vision.ts` |
 
 Run exactly one French-source script. `translate-day` translates whatever
-French intermediate is in R2 (precedence: texteBrut → ALTO → vision), and
+French intermediate is in R2 (precedence: texteBrut → ALTO → vision — so a
+pre-existing valid texteBrut cache from before this change still wins if
+present), and
 fetches texteBrut once itself if none exists.
 
 `pull-scans.ts` and `crop-strip.ts` accept `--skip-existing` to skip individual pages or crops already in R2 (and recorded in `day_content`). `pull-scans` uploads each page to R2 and saves `doc.original_pages` immediately after every page, so you can safely stop and resume.
@@ -173,6 +185,8 @@ fetches texteBrut once itself if none exists.
 **Batch all dates (background-friendly):**
 
 `ingest-all` runs in a **single process** with shared year-level Issues XML cache (3 API calls for 1844–1846, not hundreds). Defaults: **60 s** between dates, **5 min** cooldown (doubling up to 15 min) after 403/DNS errors, retry pass after **10 min** for failed dates.
+
+`ingest-all`'s `--steps` is limited to `resolve`, `pull`, `crop` — there is no French-source-fetch or translation step in this script at all, on by default or otherwise. For French source (ALTO) plus an option to skip just the translate step, use `ingest-range.ts --skip-translation` instead (see **Batch a date range** above) — it runs the full pipeline (resolve → pull → crop → French source) and stops before translating.
 
 ```bash
 # One-time: cache Issues XML to disk (when Gallica is reachable)
@@ -197,9 +211,15 @@ npx tsx scripts/gallica/ingest-all.ts --stop-on-error
 
 Expect roughly 1 minute per issue for `pull` (13 s between IIIF page downloads). A full 139-date pull run is on the order of **3–4 hours** including inter-date delays.
 
-**Gallica outages:** The Issues API sits behind Cloudflare. HTTP `522` (origin timeout) or `503` are usually transient; the client retries automatically (up to 6 attempts). If it still fails, wait a few minutes and rerun with `--skip-existing`. HTTP `403` from Cloudflare means bot protection blocked the request; `ingest-all` will cooldown and retry failed dates once.
+**Gallica outages:** The Issues/Pagination APIs sit behind Cloudflare. HTTP `522` (origin timeout) or `503` are usually transient; the client retries automatically (up to 8 attempts, `GALLICA_MAX_ATTEMPTS`). If it still fails, wait a few minutes and rerun with `--skip-existing`. HTTP `403` from Cloudflare means bot protection blocked the request; `ingest-all`/`ingest-range` will cooldown and retry failed dates once. Note that BnF is currently mid-rollout of a new API manager, and third-party uptime monitors have shown gallica.bnf.fr having genuine connectivity issues independent of anything this pipeline does — during a known-bad window, prefer running several smaller date-range batches over one large multi-hour run, since a giant batch has more time to span both a healthy and an unhealthy period.
 
-**DNS / network errors:** A message like `DNS lookup failed for gallica.bnf.fr (ENOTFOUND)` or bare `fetch failed` means your machine could not reach Gallica at all (not an app bug). Check `dig gallica.bnf.fr`, toggle VPN, or try a different DNS resolver (e.g. 1.1.1.1), then retry.
+**Metadata rate limit:** BnF documents a hard 3-second minimum between any Pagination/Issues/ALTO/info.json query — faster than that is "the limit at which the BnF server considers queries malicious" and blocks the caller. This is separate from the well-known 5/min limit on IIIF full-image and texteBrut calls. The client throttles these metadata-class calls at 3.5s (`THROTTLE_MS.metadata` in `lib/gallica.ts`); don't lower it.
+
+**Preflight check:** Before a batch (`ingest-range.ts`) or a single date (`ingest-day.ts`), the client does one lightweight `HEAD` request to confirm Gallica is reachable at all. If it fails after a few retries, the script logs a warning and waits out a cooldown (5 min by default for `ingest-day`; `ingest-range` reuses its `--cooldown-on-error` value) before proceeding — a failed preflight doesn't reliably predict the whole run will fail, so it doesn't abort, but it does pause first rather than immediately hammering an origin that's already struggling. Pass `--skip-preflight` to skip this check (and the cooldown) entirely.
+
+**DNS / network errors:** A message like `DNS lookup failed for gallica.bnf.fr (ENOTFOUND)` or bare `fetch failed` means your machine could not reach Gallica at all (not an app bug). `GALLICA_DNS_SERVERS=1.1.1.1,8.8.8.8` in `.env` is available (opt-in, off by default) but **confirmed not to fix this**: on Node 22, the actual `fetch()` calls resolve hostnames via the OS-level resolver (`dns.lookup()`), which ignores `dns.setServers()` — only the internal post-`ENOTFOUND` recovery probe (which uses `dns.resolve4()`) is affected, not the request that matters. If you're seeing real ENOTFOUND errors, the fix has to happen at the OS/network level: change your Mac's DNS servers in System Settings → Network → (your connection) → Details → DNS to `1.1.1.1`/`8.8.8.8`, toggle VPN, or run `dig gallica.bnf.fr` to confirm resolution works outside Node before rerunning.
+
+**If Gallica is fully unreachable for an extended period:** there's no good automated fallback for page-scan images — they only exist on Gallica's live IIIF endpoint. As a last resort for looking up specific issues by hand (not for scripting/scraping): archive.org's general `bnfgallica` collection mirrors some Gallica holdings, though it's unconfirmed whether this title's 1844 issues specifically are covered; RetroNews (retronews.fr) is a paid BnF-affiliated press archive with the same content, usable as a manual lookup only — its terms don't permit automated access.
 
 Diagnostic only (no DB or R2 writes):
 
@@ -309,8 +329,8 @@ Then open [http://localhost:3001/day/1844-08-28](http://localhost:3001/day/1844-
 | `scripts/gallica/warm-issues-cache.ts`          | Once           | Pre-fetch Issues XML for 1844–1846                                                            |
 | `scripts/gallica/alto-ocr.ts`                   | Per date       | Diagnostic only                                                                               |
 | `scripts/ingest-day.ts`                         | Per date       | Wrapper: resolve → … → translate, one command                                                 |
-| `scripts/translate/fetch-french-textebrut.ts`   | Per date       | French source (default): Gallica texteBrut → R2                                               |
-| `scripts/translate/fetch-french-alto.ts`        | Per date       | French source: Gallica ALTO → R2 (when blocked)                                               |
+| `scripts/translate/fetch-french-alto.ts`        | Per date       | French source (default for now): Gallica ALTO → R2                                            |
+| `scripts/translate/fetch-french-textebrut.ts`   | Per date       | French source: Gallica texteBrut → R2 (disabled by default — see "Which French script")       |
 | `scripts/translate/transcribe-french-vision.ts` | Per date       | French source: Claude vision OCR → R2 (last resort)                                           |
 | `scripts/translate/translate-day.ts`            | Per date       | Translate French in R2 → English, saved to `day_content` immediately                          |
 | `scripts/translate/update-day-content.ts`       | Per date       | Re-sync `day_content` from `translation_versions` (use after importing existing translations) |

@@ -6,6 +6,7 @@
  * it in R2, Supabase media_assets, and doc.feuilleton_strip.
  */
 
+import "dotenv/config";
 import {
   fetchIIIFPage,
   fetchIIIFManifestDimensions,
@@ -14,6 +15,7 @@ import {
   deriveFeuilletonRegion,
   pixelRegion,
   type PixelRegion,
+  type AltoTextBlock,
 } from "../../lib/gallica";
 import { putR2Object, r2ObjectExists } from "../../lib/r2-server";
 import {
@@ -48,6 +50,13 @@ export interface CropStripResult {
   mediaAssetId: string;
   dryRun: boolean;
   skipped?: boolean;
+  /**
+   * Page-1 ALTO TextBlocks, when fetched during region derivation (i.e. not
+   * a --region= manual override or an early --skip-existing return). Lets
+   * fetch-french-source reuse this instead of re-fetching the same page from
+   * Gallica a few seconds later.
+   */
+  page1AltoBlocks?: AltoTextBlock[];
 }
 
 export interface CropStripOptions extends GallicaStepOptions {
@@ -97,6 +106,7 @@ export async function runCropStrip(
   }
 
   let cropRegion: PixelRegion;
+  let page1AltoBlocks: AltoTextBlock[] | undefined;
 
   if (manualRegion) {
     console.log(
@@ -133,6 +143,7 @@ export async function runCropStrip(
     }
 
     cropRegion = derived;
+    page1AltoBlocks = blocks;
     console.log(
       `[crop-strip] Derived feuilleton region from ALTO: ${pixelRegion(cropRegion)}`,
     );
@@ -190,6 +201,7 @@ export async function runCropStrip(
     r2Key,
     mediaAssetId,
     dryRun,
+    page1AltoBlocks,
   };
 }
 

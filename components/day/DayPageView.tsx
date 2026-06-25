@@ -20,6 +20,8 @@ import DebatsTab from "@/components/day/DebatsTab";
 import ArtTab from "@/components/day/ArtTab";
 import ScienceTab from "@/components/day/ScienceTab";
 import OriginalPaperTab from "@/components/day/OriginalPaperTab";
+import FrenchTextPasteField from "@/components/admin/primitives/FrenchTextPasteField";
+import { extractArk, texteBrutViewUrl, altoPageViewUrl } from "@/lib/gallica-links";
 import TranslatedPaperTab from "@/components/day/TranslatedPaperTab";
 import GalignaniTab from "@/components/day/GalignaniTab";
 
@@ -110,11 +112,67 @@ const AdminBtn = styled.button`
   }
 `;
 
+const AdminSelect = styled.select`
+  font-family: var(--font-labels-stack);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 5px 8px;
+  border: 1px solid var(--gilt-warm);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--ink-strong);
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+`;
+
 const AdminNote = styled.span`
   font-family: var(--font-labels-stack);
   font-size: 9px;
   letter-spacing: 0.06em;
   color: var(--ink-muted);
+`;
+
+const RecoveryBar = styled.div`
+  padding: 10px 36px;
+  background: rgba(201, 162, 75, 0.04);
+  border-bottom: 1px dashed var(--gilt-warm);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  @media (max-width: 600px) {
+    padding: 10px 20px;
+  }
+`;
+
+const RecoveryLabel = styled.span`
+  font-family: var(--font-labels-stack);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+`;
+
+const RecoveryLinkRow = styled.div`
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+`;
+
+const RecoveryLink = styled.a`
+  font-family: var(--font-labels-stack);
+  font-style: italic;
+  font-size: 10px;
+  color: var(--ink-muted);
+
+  &:hover {
+    color: var(--gilt-deep);
+  }
 `;
 
 // ---------------------------------------------------------------------------
@@ -206,8 +264,12 @@ export default function DayPageView({
   const router = useRouter();
   const searchParams = useSearchParams();
   const { adminMode } = useAdminMode();
+  const recoveryArk = data.doc.gallica_issue_url
+    ? extractArk(data.doc.gallica_issue_url)
+    : null;
   const [isTranslating, startTranslate] = useTransition();
   const [translateMsg, setTranslateMsg] = useState<string | null>(null);
+  const [engine, setEngine] = useState<"sonnet" | "opus" | "haiku">("sonnet");
   const [isCompleted, setIsCompleted] = useState(initialCompleted);
 
   const activeTab = parseTab(searchParams.get("tab"), initialTab);
@@ -220,7 +282,7 @@ export default function DayPageView({
     setTranslateMsg(null);
     startTranslate(async () => {
       try {
-        const res = await requestDayTranslation(installment.date);
+        const res = await requestDayTranslation(installment.date, engine);
         setTranslateMsg(
           res.accepted
             ? "Queued. It runs on your machine; refresh in a bit to see results."
@@ -233,7 +295,7 @@ export default function DayPageView({
         );
       }
     });
-  }, [installment.date, router]);
+  }, [installment.date, engine, router]);
 
   // Tab changes from TabRow update the URL; activeTab follows searchParams.
 
@@ -278,6 +340,16 @@ export default function DayPageView({
 
       {adminMode && localRunnerEnabled && (
         <AdminBar>
+          <AdminSelect
+            value={engine}
+            onChange={(e) => setEngine(e.target.value as "sonnet" | "opus" | "haiku")}
+            disabled={isTranslating}
+            aria-label="Translation engine"
+          >
+            <option value="sonnet">Sonnet</option>
+            <option value="opus">Opus</option>
+            <option value="haiku">Haiku</option>
+          </AdminSelect>
           <AdminBtn onClick={handleTranslateLocally} disabled={isTranslating}>
             {isTranslating ? "Queuing…" : "Re-translate day locally"}
           </AdminBtn>
@@ -292,6 +364,38 @@ export default function DayPageView({
             </AdminNote>
           )}
         </AdminBar>
+      )}
+
+      {adminMode && recoveryArk && (
+        <RecoveryBar>
+          <RecoveryLabel>
+            Manual recovery — paste French source text grabbed from Gallica in
+            your own browser
+          </RecoveryLabel>
+          <RecoveryLinkRow>
+            <RecoveryLink
+              href={texteBrutViewUrl(recoveryArk)}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              View texteBrut on Gallica ↗
+            </RecoveryLink>
+            {Array.from(
+              { length: data.doc.gallica_page_count ?? 4 },
+              (_, i) => i + 1,
+            ).map((page) => (
+              <RecoveryLink
+                key={page}
+                href={altoPageViewUrl(recoveryArk, page)}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                View ALTO page {page} ↗
+              </RecoveryLink>
+            ))}
+          </RecoveryLinkRow>
+          <FrenchTextPasteField date={data.installment_date} />
+        </RecoveryBar>
       )}
 
       <ThreeCol>

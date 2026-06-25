@@ -12,6 +12,7 @@
  *   npx tsx scripts/gallica/pull-scans.ts --date=1844-08-28 --dry-run
  */
 
+import "dotenv/config";
 import { fetchIIIFPage } from "../../lib/gallica";
 import { putR2Object, r2ObjectExists } from "../../lib/r2-server";
 import {

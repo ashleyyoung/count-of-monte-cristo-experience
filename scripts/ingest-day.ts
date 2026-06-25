@@ -4,20 +4,22 @@
  *
  * One-command ingest for a single date. Runs the happy path top to bottom:
  *
- *   1. resolve-issue           find the Gallica issue ARK for the date
- *   2. pull-scans              download page images → R2
- *   3. crop-strip              crop the feuilleton strip → R2
- *   4. fetch-french-textebrut  Gallica texteBrut French source → R2
- *   5. translate-day           translate French → English, save to day_content
+ *   1. resolve-issue        find the Gallica issue ARK for the date
+ *   2. pull-scans           download page images → R2
+ *   3. crop-strip           crop the feuilleton strip → R2
+ *   4. fetch-french-source  Gallica ALTO French source → R2
+ *   5. translate-day        translate French → English, save to day_content
  *
  * Translation is persisted to day_content incrementally (section by section)
  * inside the pipeline — there is no separate upload step.
  *
- * If the texteBrut step fails (Cloudflare block), fetch an alternative French
- * source by hand and re-run translate-day:
+ * Step 4 uses ALTO, not texteBrut: texteBrut has been hitting BnF's own
+ * Altcha bot-challenge page and long genuine Cloudflare outages this season,
+ * costing up to ~30min of retries before failing. fetch-french-textebrut.ts
+ * still works and can be run by hand if you want to retry it for a date:
  *
- *   npx tsx scripts/translate/fetch-french-alto.ts --date=YYYY-MM-DD
- *   npx tsx scripts/translate/translate-day.ts      --date=YYYY-MM-DD
+ *   npx tsx scripts/translate/fetch-french-textebrut.ts --date=YYYY-MM-DD
+ *   npx tsx scripts/translate/translate-day.ts          --date=YYYY-MM-DD
  *
  * Usage:
  *   npx tsx scripts/ingest-day.ts --date=1844-08-29 [--skip-translation] [--force]
@@ -25,11 +27,20 @@
  */
 
 import "dotenv/config";
-import { parseCliDate, runCliMain } from "./gallica/_shared";
+import {
+  parseCliDate,
+  runCliMain,
+  waitForGallicaHealthy,
+  DEFAULT_COOLDOWN_ON_ERROR_MS,
+  sleep,
+} from "./gallica/_shared";
 import { runResolveIssue } from "./gallica/resolve-issue";
 import { runPullScans } from "./gallica/pull-scans";
 import { runCropStrip } from "./gallica/crop-strip";
-import { fetchTexteBrutToR2 } from "../lib/translate/french-source";
+import {
+  fetchAltoToR2,
+  loadCachedFrench,
+} from "../lib/translate/french-source";
 import { runDayTranslation } from "../lib/translate/pipeline";
 import { getByDate } from "../lib/installments";
 
@@ -84,16 +95,27 @@ export async function runIngestDay(
 
   // 3. crop-strip
   step(3, "crop-strip");
-  await runCropStrip({ day: date, skipExisting });
+  const cropResult = await runCropStrip({ day: date, skipExisting });
 
-  // 4. fetch-french-textebrut
-  step(4, "fetch-french-textebrut");
-  await fetchTexteBrutToR2({
-    date,
-    ark: resolved.ark,
-    log,
-    skipIfCached: skipExisting,
-  });
+  // 4. fetch-french-source (ALTO). texteBrut is skipped here for now — it's
+  // been hitting BnF's own Altcha bot-challenge page (unsolvable by a
+  // non-browser client) and, separately, long genuine Cloudflare/origin
+  // outages, costing up to ~30min of retries before failing. ALTO has been
+  // reliable throughout. fetchTexteBrutToR2 still exists and works via
+  // scripts/translate/fetch-french-textebrut.ts if needed by hand.
+  step(4, "fetch-french-source");
+  const cachedFrench = skipExisting
+    ? await loadCachedFrench(date, resolved.ark, log)
+    : null;
+  if (!cachedFrench) {
+    await fetchAltoToR2({
+      date,
+      ark: resolved.ark,
+      pageCount: resolved.pageCount,
+      log,
+      page1Blocks: cropResult.page1AltoBlocks,
+    });
+  }
 
   if (skipTranslation) {
     log(
@@ -125,7 +147,7 @@ export async function runIngestDay(
 
 const HELP = `ingest-day — run the full ingest for one date, in order
 
-Steps: resolve-issue → pull-scans → crop-strip → fetch-french-textebrut → translate-day
+Steps: resolve-issue → pull-scans → crop-strip → fetch-french-source (ALTO) → translate-day
 
 Translation is saved to day_content incrementally inside the pipeline — no
 separate upload step required.
@@ -140,6 +162,7 @@ Usage:
                        different model later.
   --model              Override TRANSLATION_MODEL for the translate step
                        (e.g. claude-opus-4-8).
+  --skip-preflight     Skip the Gallica reachability check before starting.
 
 After it finishes, open http://localhost:3001/day/YYYY-MM-DD`;
 
@@ -155,6 +178,19 @@ async function main() {
   }
 
   const date = parseCliDate();
+
+  if (!process.argv.includes("--skip-preflight")) {
+    const healthy = await waitForGallicaHealthy((msg) =>
+      console.error(`[ingest-day] ${msg}`),
+    );
+    if (!healthy) {
+      console.error(
+        `[ingest-day] Gallica preflight failed after retries — cooling down ${DEFAULT_COOLDOWN_ON_ERROR_MS / 1000}s before starting (avoids hammering an already-struggling origin).`,
+      );
+      await sleep(DEFAULT_COOLDOWN_ON_ERROR_MS);
+    }
+  }
+
   const result = await runIngestDay(date, {
     force: process.argv.includes("--force"),
     skipTranslation: process.argv.includes("--skip-translation"),

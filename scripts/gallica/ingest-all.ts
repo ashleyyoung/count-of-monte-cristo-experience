@@ -11,6 +11,7 @@
  *   npx tsx scripts/gallica/ingest-all.ts --from=1844-08-28 --to=1844-10-19
  */
 
+import "dotenv/config";
 import { isGallicaThrottleError } from "../../lib/gallica";
 import { runResolveIssue } from "./resolve-issue";
 import { runPullScans } from "./pull-scans";

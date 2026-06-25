@@ -30,7 +30,11 @@ import {
   DEBATS_PERIODICAL_ARK,
 } from "../gallica";
 import { putR2Text, isR2Configured } from "../r2-server";
-import { fetchTexteBrutToR2, loadCachedFrench } from "./french-source";
+import {
+  fetchAltoToR2,
+  loadCachedFrench,
+  effectivePageCount,
+} from "./french-source";
 import { parseDayDoc, type DayDoc, type TextItem } from "../types/content";
 
 // ---------------------------------------------------------------------------
@@ -476,13 +480,24 @@ export async function runDayTranslation(
 
   // ------------------------------------------------------------------
   // 2. French source: reuse the R2 intermediate if present, else fetch
-  //    Gallica texteBrut once. Other sources (ALTO, vision) are produced by
-  //    their own scripts beforehand and picked up here from the cache.
+  //    Gallica ALTO. texteBrut is skipped here for now — it's been hitting
+  //    BnF's own Altcha bot-challenge page (unsolvable by a non-browser
+  //    client) and, separately, long genuine Cloudflare/origin outages,
+  //    costing up to ~30min of retries before failing. ALTO has been
+  //    reliable throughout. fetchTexteBrutToR2 still exists and works via
+  //    scripts/translate/fetch-french-textebrut.ts if needed by hand.
   // ------------------------------------------------------------------
   const { ark, gallicaUrl } = await resolveSourceIssue(date, doc, log);
 
   const cached = forceFetch ? null : await loadCachedFrench(date, ark, log);
-  const frenchSource = cached ?? (await fetchTexteBrutToR2({ date, ark, log }));
+  const frenchSource =
+    cached ??
+    (await fetchAltoToR2({
+      date,
+      ark,
+      pageCount: effectivePageCount(doc),
+      log,
+    }));
 
   const {
     frenchText,

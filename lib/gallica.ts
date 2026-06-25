@@ -12,15 +12,30 @@
  *  - Fetch wrappers (HTTP only — no R2/DB writes, those live in scripts/gallica/*)
  *
  * Rate limits enforced by callers (scripts/gallica/*):
- *  - IIIF full/full or >1000px: 5 req/min  → ≥12 s between page downloads
- *  - texteBrut: 5 req/min                  → ≥12 s between calls
- *  - ALTO / Pagination: no published limit; callers add polite delays (≥1 s)
+ *  - IIIF full/full or >1000px: 5 req/min   → ≥12 s between page downloads
+ *  - texteBrut: 5 req/min                   → ≥12 s between calls
+ *  - ALTO / Pagination / Issues / info.json (the "metadata" class): BnF
+ *    documents a 3 s minimum interval between queries — faster than that is
+ *    "the limit at which the BnF server considers queries to be malicious"
+ *    and blocks the caller. Enforced via THROTTLE_MS.metadata below; do not
+ *    lower it without re-checking that documented limit.
  */
 
 import dns from "node:dns/promises";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { XMLParser } from "fast-xml-parser";
+
+// Opt-in DNS resolver override. Off by default — only takes effect if
+// GALLICA_DNS_SERVERS is set (e.g. "1.1.1.1,8.8.8.8"), for cases where the
+// local/ISP-configured resolver is the actual source of ENOTFOUND flakiness
+// rather than Gallica itself. Affects dns.resolve4() used by the DNS-recovery
+// probe below; whether it also affects the global fetch() path depends on
+// the Node version's undici DNS behavior and should be spot-checked.
+const gallicaDnsServers = process.env.GALLICA_DNS_SERVERS?.trim();
+if (gallicaDnsServers) {
+  dns.setServers(gallicaDnsServers.split(",").map((s) => s.trim()));
+}
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -493,6 +508,24 @@ export class GallicaFetchError extends Error {
 /** Cloudflare / origin errors that often clear on retry. */
 const RETRYABLE_STATUS = new Set([403, 429, 502, 503, 504, 522, 524, 525]);
 
+/** Short, human-readable meaning for status codes seen in Gallica logs. */
+const HTTP_STATUS_MEANINGS: Record<number, string> = {
+  200: "OK — request succeeded",
+  403: "Cloudflare bot protection blocked the request",
+  429: "rate limited — too many requests too fast",
+  502: "bad gateway — Cloudflare got an invalid response from BnF's origin",
+  503: "service unavailable — BnF's origin is overloaded or down for maintenance",
+  504: "gateway timeout — Cloudflare's request to BnF's origin took too long",
+  522: "connection timed out — Cloudflare could not reach BnF's origin server at all",
+  524: "a timeout occurred — Cloudflare reached the origin but it didn't respond in time",
+  525: "SSL handshake failed between Cloudflare and BnF's origin",
+};
+
+export function describeHttpStatus(status: number): string {
+  const meaning = HTTP_STATUS_MEANINGS[status];
+  return meaning ? ` (${meaning})` : "";
+}
+
 /**
  * Default identifying User-Agent. BnF asks bots to identify themselves with a
  * contact. Override via GALLICA_USER_AGENT, or supply just a contact (email or
@@ -513,7 +546,7 @@ function gallicaUserAgent(): string {
  * document viewer (Cloudflare treats "viewer → resource" navigations as more
  * human), an identifying User-Agent, and browser-like Accept hints.
  */
-function buildGallicaHeaders(url: string): Record<string, string> {
+export function buildGallicaHeaders(url: string): Record<string, string> {
   const headers: Record<string, string> = {
     "User-Agent": gallicaUserAgent(),
     Accept:
@@ -635,7 +668,9 @@ type GallicaRequestClass = "iiif_full" | "textebrut" | "metadata";
 const THROTTLE_MS: Record<GallicaRequestClass, number> = {
   iiif_full: 15_000,
   textebrut: 15_000,
-  metadata: 1_200,
+  // BnF's documented minimum is 3s; pad to 3.5s so clock-skew/measurement
+  // overhead doesn't put us right back at the "malicious" boundary.
+  metadata: 3_500,
 };
 
 const lastRequestAt: Record<GallicaRequestClass, number> = {
@@ -693,6 +728,8 @@ async function waitForGallicaThrottle(
 
   // 2. Cross-class minimum: at least metadata gap since the last request of
   //    ANY class. Prevents firing texteBrut immediately after an iiif_full.
+  //    Inherits the metadata-class floor (3.5s), so any class transition also
+  //    respects BnF's site-wide minimum, not just same-class repeats.
   const crossGap = THROTTLE_MS.metadata;
   const crossElapsed = Date.now() - lastAnyRequestAt;
   if (lastAnyRequestAt > 0 && crossElapsed < crossGap) {
@@ -700,12 +737,13 @@ async function waitForGallicaThrottle(
   }
 
   // 3. Per-class minimum: e.g. 15s between consecutive texteBrut calls.
+  //    Small jitter avoids lockstep if ever invoked concurrently.
   const cls = classifyGallicaUrl(url);
   const minGap = THROTTLE_MS[cls];
   const last = lastRequestAt[cls];
   const elapsed = Date.now() - last;
   if (last > 0 && elapsed < minGap) {
-    const wait = minGap - elapsed;
+    const wait = minGap - elapsed + Math.floor(Math.random() * 300);
     log(
       `throttle [${cls}]: waiting ${(wait / 1000).toFixed(1)}s before request…`,
     );
@@ -797,7 +835,7 @@ async function gallicaFetchResponse(
         const contentType = res.headers.get("content-type") ?? "unknown";
         const contentLength = res.headers.get("content-length");
         log(
-          `attempt ${attemptNum} OK in ${attemptMs}ms: HTTP ${res.status}; ` +
+          `attempt ${attemptNum} OK in ${attemptMs}ms: HTTP ${res.status}${describeHttpStatus(res.status)}; ` +
             `content-type=${contentType}` +
             (contentLength ? `; content-length=${contentLength}` : ""),
         );
@@ -810,7 +848,7 @@ async function gallicaFetchResponse(
         `HTTP ${res.status} from ${url}`,
       );
       log(
-        `attempt ${attemptNum} failed in ${attemptMs}ms: HTTP ${res.status} from ${url}`,
+        `attempt ${attemptNum} failed in ${attemptMs}ms: HTTP ${res.status}${describeHttpStatus(res.status)} from ${url}`,
       );
 
       if (!RETRYABLE_STATUS.has(res.status) || attempt === maxAttempts - 1) {
@@ -825,7 +863,7 @@ async function gallicaFetchResponse(
         // wait at least this long before hitting Gallica again.
         setGallicaGlobalHold(Date.now() + pendingDelayMs);
         log(
-          `HTTP ${res.status} Retry-After: waiting ${(pendingDelayMs / 1000).toFixed(1)}s before retry…`,
+          `HTTP ${res.status}${describeHttpStatus(res.status)} Retry-After: waiting ${(pendingDelayMs / 1000).toFixed(1)}s before retry…`,
         );
       } else if (
         res.status === 522 ||
@@ -836,11 +874,11 @@ async function gallicaFetchResponse(
         // Retry-After header so other endpoints don't pile on immediately.
         setGallicaGlobalHold(Date.now() + pendingDelayMs);
         log(
-          `HTTP ${res.status} is retryable; waiting ${(pendingDelayMs / 1000).toFixed(1)}s before retry…`,
+          `HTTP ${res.status}${describeHttpStatus(res.status)} is retryable; waiting ${(pendingDelayMs / 1000).toFixed(1)}s before retry…`,
         );
       } else {
         log(
-          `HTTP ${res.status} is retryable; waiting ${(pendingDelayMs / 1000).toFixed(1)}s before retry…`,
+          `HTTP ${res.status}${describeHttpStatus(res.status)} is retryable; waiting ${(pendingDelayMs / 1000).toFixed(1)}s before retry…`,
         );
       }
     } catch (err) {

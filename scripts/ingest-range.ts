@@ -15,6 +15,8 @@
 
 import "dotenv/config";
 import { isGallicaThrottleError } from "../lib/gallica";
+import { r2ObjectExists } from "../lib/r2-server";
+import { altoR2Key } from "../lib/translate/french-source";
 import {
   parseCliFromDate,
   parseCliToDate,
@@ -24,6 +26,7 @@ import {
   parseCliMaxConsecutiveFailures,
   DEFAULT_RETRY_PASS_PAUSE_MS,
   sleep,
+  waitForGallicaHealthy,
 } from "./gallica/_shared";
 import { runIngestDay, type IngestDayOptions } from "./ingest-day";
 
@@ -34,6 +37,7 @@ import { runIngestDay, type IngestDayOptions } from "./ingest-day";
 const FORCE = process.argv.includes("--force");
 const SKIP_TRANSLATION = process.argv.includes("--skip-translation");
 const STOP_ON_ERROR = process.argv.includes("--stop-on-error");
+const SKIP_PREFLIGHT = process.argv.includes("--skip-preflight");
 
 function parseCliModel(): string | undefined {
   const arg = process.argv.find((a) => a.startsWith("--model="));
@@ -54,14 +58,19 @@ Only dates in the Monte Cristo serialization schedule are processed; gaps
 (e.g. Sundays) are silently skipped. Gallica requests are spaced by --delay
 seconds between dates (default 60) to respect rate limits.
 
-Steps per date: resolve-issue → pull-scans → crop-strip → fetch-french-textebrut → [translate-day]
+Steps per date: resolve-issue → pull-scans → crop-strip → fetch-french-source (ALTO) → [translate-day]
 
 Usage:
-  npx tsx scripts/ingest-range.ts --from=YYYY-MM-DD --to=YYYY-MM-DD [options]
+  npx tsx scripts/ingest-range.ts [--from=YYYY-MM-DD --to=YYYY-MM-DD] [options]
 
-Required:
-  --from=YYYY-MM-DD    First date (inclusive).
-  --to=YYYY-MM-DD      Last date (inclusive).
+With no --from/--to, sweeps the entire schedule and skips any date that
+already has a Gallica ALTO French-source file in R2 — i.e. resumes an
+overnight run, only touching dates that haven't succeeded yet. --force
+disables this skip (and reprocesses everything in range).
+
+Optional:
+  --from=YYYY-MM-DD    First date (inclusive). Omit for the start of the schedule.
+  --to=YYYY-MM-DD      Last date (inclusive). Omit for the end of the schedule.
 
 Options:
   --skip-translation   Fetch scans and French source only; skip translate-day.
@@ -73,6 +82,7 @@ Options:
   --cooldown-on-error=<seconds>  Cooldown after throttle/DNS errors (default: 300).
   --max-consecutive-failures=N   Abort after N consecutive failures (default: 5).
   --stop-on-error      Stop the batch on the first failed date.
+  --skip-preflight     Skip the Gallica reachability check before starting.
 
 After each date completes, a failure summary is printed. Failed dates are
 retried once after a 10-minute pause. Exit code is 1 if any date still failed.`;
@@ -96,23 +106,39 @@ async function main() {
   const fromDate = parseCliFromDate();
   const toDate = parseCliToDate();
 
-  if (!fromDate || !toDate) {
-    console.error(
-      "[ingest-range] --from and --to are required. Run with --help for usage.",
-    );
-    process.exit(1);
-  }
-
   const delaySeconds = parseCliDelay();
   const delayBetweenDatesMs = delaySeconds * 1_000;
   const baseCooldownMs = parseCliCooldownOnError();
   const maxConsecutiveFailures = parseCliMaxConsecutiveFailures();
   const model = parseCliModel();
 
-  const installments = filterInstallments(fromDate, toDate);
+  const requested = filterInstallments(fromDate, toDate);
+  if (requested.length === 0) {
+    console.error(
+      `[ingest-range] No installments in schedule between ${fromDate ?? "(start)"} and ${toDate ?? "(end)"}.`,
+    );
+    return;
+  }
+
+  // No --from/--to: sweep the whole schedule, skipping dates that already
+  // have an ALTO French-source file in R2 (the marker the automated pipeline
+  // writes once a date has succeeded). --force disables this skip.
+  let installments = requested;
+  let skippedExisting = 0;
+  if (!fromDate && !toDate && !FORCE) {
+    const remaining: typeof requested = [];
+    for (const inst of requested) {
+      if (await r2ObjectExists(altoR2Key(inst.date))) {
+        skippedExisting++;
+      } else {
+        remaining.push(inst);
+      }
+    }
+    installments = remaining;
+  }
   if (installments.length === 0) {
     console.error(
-      `[ingest-range] No installments in schedule between ${fromDate} and ${toDate}.`,
+      `[ingest-range] All ${requested.length} installment(s) already have ALTO in R2 — nothing to do.`,
     );
     return;
   }
@@ -124,7 +150,13 @@ async function main() {
   };
 
   console.error(
-    `[ingest-range] ${installments.length} date(s) from ${fromDate} to ${toDate}` +
+    `[ingest-range] ${installments.length} date(s)` +
+      (fromDate || toDate
+        ? ` from ${fromDate ?? "(start)"} to ${toDate ?? "(end)"}`
+        : ` of ${requested.length} in schedule` +
+          (skippedExisting > 0
+            ? ` (${skippedExisting} skipped — already have ALTO)`
+            : "")) +
       (SKIP_TRANSLATION ? " (translation skipped)" : "") +
       (FORCE ? " (--force)" : "") +
       `; ${delaySeconds}s between dates; cooldown on error: ${baseCooldownMs / 1000}s.`,
@@ -132,6 +164,18 @@ async function main() {
   console.error(
     `[ingest-range] Dates: ${installments.map((i) => i.date).join(", ")}`,
   );
+
+  if (!SKIP_PREFLIGHT) {
+    const healthy = await waitForGallicaHealthy((msg) =>
+      console.error(`[ingest-range] ${msg}`),
+    );
+    if (!healthy) {
+      console.error(
+        `[ingest-range] Gallica preflight failed after retries — cooling down ${baseCooldownMs / 1000}s before starting (avoids hammering an already-struggling origin).`,
+      );
+      await sleep(baseCooldownMs);
+    }
+  }
 
   const failures: DateFailure[] = [];
   const pendingRetry: string[] = [];
@@ -186,7 +230,10 @@ async function main() {
             `[ingest-range] Gallica throttle/DNS error — cooling down ${currentCooldownMs / 1000}s…`,
           );
           await sleep(currentCooldownMs);
-          currentCooldownMs = Math.min(currentCooldownMs * 2, 900_000);
+          // 30min cap (not 15) — an overnight run should ride out a longer
+          // BnF-side quota/penalty window rather than burning through
+          // --max-consecutive-failures on a block that would've lifted by morning.
+          currentCooldownMs = Math.min(currentCooldownMs * 2, 1_800_000);
         }
       }
 

@@ -35,6 +35,8 @@ import {
   type MediaAssetSearchResult,
 } from "@/lib/types/media";
 import type { DayContentSection } from "@/lib/types/day-content-section";
+import { texteBrutR2Key, altoR2Key } from "@/lib/translate/french-source";
+import type { ImageItem } from "@/lib/types/content";
 
 // ---------------------------------------------------------------------------
 // Day content item actions
@@ -644,8 +646,17 @@ function isLocalTranslationRunnerEnabled(): boolean {
   );
 }
 
+export type TranslationEngine = "sonnet" | "opus" | "haiku";
+
+const CLAUDE_MODEL_BY_ENGINE: Record<TranslationEngine, string> = {
+  sonnet: "claude-sonnet-4-5",
+  opus: "claude-opus-4-8",
+  haiku: "claude-haiku-4-5",
+};
+
 export async function requestDayTranslation(
   date: string,
+  engine: TranslationEngine = "sonnet",
 ): Promise<{ accepted: boolean; runId?: string; reason?: string }> {
   await assertAdmin();
 
@@ -658,6 +669,10 @@ export async function requestDayTranslation(
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     throw new Error(`Invalid date: ${date}. Expected YYYY-MM-DD.`);
+  }
+
+  if (engine !== "sonnet" && engine !== "opus" && engine !== "haiku") {
+    throw new Error(`Invalid engine: ${engine}. Expected sonnet, opus, or haiku.`);
   }
 
   const db = createAdminClient();
@@ -714,6 +729,7 @@ export async function requestDayTranslation(
       "scripts/translate/translate-day.ts",
       `--date=${date}`,
       `--run-id=${runId}`,
+      `--model=${CLAUDE_MODEL_BY_ENGINE[engine]}`,
     ],
     {
       cwd: process.cwd(),
@@ -848,4 +864,80 @@ export async function visionTranscribe(
     char_count: result.french_text.length,
     model: VISION_MODEL,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Manual Gallica recovery (admin-mode escape hatch for outages)
+// ---------------------------------------------------------------------------
+
+/**
+ * Wire a manually-uploaded image (already in R2 + media_assets via
+ * uploadMediaToR2) into doc.original_pages at pageIndex. Replaces an
+ * existing page or appends the next one; refuses to leave a gap.
+ */
+export async function setOriginalPageImage(
+  date: string,
+  pageIndex: number,
+  mediaAssetId: string,
+  caption?: string,
+): Promise<{ ok: true }> {
+  await assertAdmin();
+  const doc = await loadDoc(date);
+  if (pageIndex > doc.original_pages.length) {
+    throw new Error(
+      `Cannot set page ${pageIndex + 1}: only ${doc.original_pages.length} page(s) exist for ${date}. Add earlier pages first.`,
+    );
+  }
+  const item: ImageItem = {
+    kind: "image",
+    media_asset_id: mediaAssetId,
+    caption: caption ?? "",
+  };
+  const original_pages = [...doc.original_pages];
+  original_pages[pageIndex] = item;
+  await saveDoc(date, { ...doc, original_pages });
+  revalidatePath(`/day/${date}`);
+  return { ok: true };
+}
+
+/** Wire a manually-uploaded image into doc.feuilleton_strip. */
+export async function setFeuilletonStripImage(
+  date: string,
+  mediaAssetId: string,
+  caption?: string,
+): Promise<{ ok: true }> {
+  await assertAdmin();
+  const doc = await loadDoc(date);
+  const item: ImageItem = {
+    kind: "image",
+    media_asset_id: mediaAssetId,
+    caption: caption ?? "",
+  };
+  await saveDoc(date, { ...doc, feuilleton_strip: item });
+  revalidatePath(`/day/${date}`);
+  return { ok: true };
+}
+
+/**
+ * Write manually-pasted French source text (copied from Gallica's texteBrut
+ * or ALTO endpoint in the admin's own browser, where bot-checks don't apply)
+ * to the matching R2 key. No doc mutation — loadCachedFrench reads these
+ * keys directly, so translate-day picks this up automatically next run.
+ */
+export async function uploadFrenchSourceText(
+  date: string,
+  tier: "textebrut" | "alto",
+  text: string,
+): Promise<{ r2_key: string; char_count: number }> {
+  await assertAdmin();
+  const trimmed = text.trim();
+  if (trimmed.length < 50) {
+    throw new Error(
+      `Pasted text is too short (${trimmed.length} chars) — paste the full page content.`,
+    );
+  }
+  const r2Key = tier === "textebrut" ? texteBrutR2Key(date) : altoR2Key(date);
+  await putR2Text(r2Key, trimmed);
+  revalidatePath(`/day/${date}`);
+  return { r2_key: r2Key, char_count: trimmed.length };
 }

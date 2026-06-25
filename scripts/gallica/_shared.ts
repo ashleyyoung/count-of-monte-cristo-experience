@@ -13,6 +13,8 @@ import {
   resolveIssueArk,
   parseArkFromGallicaUrl,
   gallicaPermalink,
+  buildGallicaHeaders,
+  describeHttpStatus,
   DEBATS_PERIODICAL_ARK,
   DEBATS_DEFAULT_PAGE_COUNT,
   type GallicaCacheOptions,
@@ -337,8 +339,87 @@ export const IIIF_FULL_DELAY_MS = 15_000;
 /** Default delay between texteBrut calls (5/min). Matches IIIF full spacing. */
 export const TEXTEBRUT_DELAY_MS = 15_000;
 
-/** Polite delay between ALTO / Pagination calls (~1/s). */
-export const ALTO_DELAY_MS = 1_200;
+/**
+ * Delay between ALTO / Pagination calls. BnF documents a 3s minimum between
+ * queries outside the IIIF-image/texteBrut classes; 3.5s pads that margin.
+ * Matches THROTTLE_MS.metadata in lib/gallica.ts, which independently
+ * enforces the same floor — this is a second, redundant-but-harmless layer.
+ */
+export const ALTO_DELAY_MS = 3_500;
+
+// ---------------------------------------------------------------------------
+// Gallica reachability preflight
+// ---------------------------------------------------------------------------
+
+export interface GallicaHealthResult {
+  ok: boolean;
+  status?: number;
+  message: string;
+}
+
+/**
+ * Lightweight Gallica reachability probe. Does NOT use gallicaFetchResponse's
+ * full retry ladder or per-class throttling — this answers "is Gallica up
+ * right now", not "get this resource no matter what".
+ */
+export async function checkGallicaHealth(
+  timeoutMs = 10_000,
+): Promise<GallicaHealthResult> {
+  try {
+    const url = "https://gallica.bnf.fr/";
+    const res = await fetch(url, {
+      method: "HEAD",
+      // Same identifying headers as the production fetch path — a bare HEAD
+      // with no User-Agent/Referer gets bot-blocked (403) by Cloudflare even
+      // when the actual API endpoints are healthy, which would make this
+      // probe falsely report Gallica as down.
+      headers: buildGallicaHeaders(url),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    // Some origins reject HEAD outright; a 405 still proves reachability.
+    if (res.ok || res.status === 405) {
+      return {
+        ok: true,
+        status: res.status,
+        message: `reachable (HTTP ${res.status}${describeHttpStatus(res.status)})`,
+      };
+    }
+    return {
+      ok: false,
+      status: res.status,
+      message: `HTTP ${res.status}${describeHttpStatus(res.status)}`,
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      message: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+/**
+ * Poll checkGallicaHealth before starting a batch. Never throws — caller
+ * decides whether to proceed, since a failed preflight doesn't reliably
+ * predict a whole multi-hour batch will fail (Gallica's outages are often
+ * transient), and the batch's own retry/cooldown logic already absorbs that.
+ */
+export async function waitForGallicaHealthy(
+  log: (msg: string) => void,
+  { attempts = 3, intervalMs = 30_000 } = {},
+): Promise<boolean> {
+  for (let i = 0; i < attempts; i++) {
+    const result = await checkGallicaHealth();
+    if (result.ok) {
+      log(`[preflight] Gallica reachable: ${result.message}`);
+      return true;
+    }
+    log(
+      `[preflight] Gallica unreachable (attempt ${i + 1}/${attempts}): ${result.message}`,
+    );
+    if (i < attempts - 1) await sleep(intervalMs);
+  }
+  return false;
+}
 
 // ---------------------------------------------------------------------------
 // Issue resolution from day_content (avoids redundant Gallica API calls)

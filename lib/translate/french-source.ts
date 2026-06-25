@@ -237,13 +237,19 @@ export interface AltoOptions {
   ark: string;
   pageCount: number;
   log: (msg: string) => void;
+  /**
+   * Page-1 TextBlocks already fetched elsewhere (crop-strip derives the
+   * feuilleton region from this same page moments earlier in ingest-day's
+   * pipeline). When provided, skips the redundant network fetch for page 1.
+   */
+  page1Blocks?: AltoTextBlock[];
 }
 
 /** Fetch + stitch Gallica ALTO OCR for every page, write to R2. Throws if empty. */
 export async function fetchAltoToR2(
   options: AltoOptions,
 ): Promise<FrenchSourceResult> {
-  const { date, ark, pageCount, log } = options;
+  const { date, ark, pageCount, log, page1Blocks } = options;
 
   log(
     `[french-source] Fetching ALTO OCR (${pageCount} page(s)) — BnF structured OCR, separate endpoint from texteBrut…`,
@@ -255,9 +261,15 @@ export async function fetchAltoToR2(
       log(`[french-source] ALTO: waiting ${ALTO_PAGE_DELAY_MS / 1000}s…`);
       await new Promise((r) => setTimeout(r, ALTO_PAGE_DELAY_MS));
     }
-    log(`[french-source] ALTO: fetching page ${page}/${pageCount}…`);
-    const xml = await fetchAltoXml(ark, page);
-    const blocks = parseAltoXml(xml);
+    let blocks: AltoTextBlock[];
+    if (page === 1 && page1Blocks) {
+      log(`[french-source] ALTO page 1: reusing blocks from crop-strip (no refetch).`);
+      blocks = page1Blocks;
+    } else {
+      log(`[french-source] ALTO: fetching page ${page}/${pageCount}…`);
+      const xml = await fetchAltoXml(ark, page);
+      blocks = parseAltoXml(xml);
+    }
     if (blocks.length === 0) {
       log(`[french-source] ALTO page ${page}: no TextBlocks — skipping page.`);
       continue;
