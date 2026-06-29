@@ -36,6 +36,7 @@ import { runIngestDay, type IngestDayOptions } from "./ingest-day";
 
 const FORCE = process.argv.includes("--force");
 const SKIP_TRANSLATION = process.argv.includes("--skip-translation");
+const SKIP_CROP_STRIP = process.argv.includes("--skip-crop-strip");
 const STOP_ON_ERROR = process.argv.includes("--stop-on-error");
 const SKIP_PREFLIGHT = process.argv.includes("--skip-preflight");
 
@@ -75,6 +76,8 @@ Optional:
 Options:
   --skip-translation   Fetch scans and French source only; skip translate-day.
                        Run translate-day.ts separately for each date afterwards.
+  --skip-crop-strip    Skip the crop-strip step for all dates. Use when auto-derivation
+                       fails for some issues; run crop-strip.ts manually for those dates.
   --force              Re-download and overwrite scans/crops already in R2.
                        Default is to skip existing files.
   --model=<id>         Override TRANSLATION_MODEL for the translate step.
@@ -146,6 +149,7 @@ async function main() {
   const options: IngestDayOptions = {
     force: FORCE,
     skipTranslation: SKIP_TRANSLATION,
+    skipCropStrip: SKIP_CROP_STRIP,
     model,
   };
 
@@ -194,11 +198,13 @@ async function main() {
       );
 
       let err: unknown;
+      let allCached = false;
       try {
         const result = await runIngestDay(date, options);
         if (result.ok) {
           consecutiveFailures = 0;
           currentCooldownMs = baseCooldownMs;
+          allCached = !!result.allCached;
           if (!result.skipped) completed++;
           console.error(
             `[ingest-range] ${date}: ✓ done (${completed}/${installments.length})`,
@@ -239,10 +245,16 @@ async function main() {
 
       const hasMore = i < batch.length - 1;
       if (hasMore && delayBetweenDatesMs > 0) {
-        console.error(
-          `[ingest-range] Waiting ${delaySeconds}s before next date…`,
-        );
-        await sleep(delayBetweenDatesMs);
+        if (allCached) {
+          console.error(
+            `[ingest-range] ${date}: all steps were cache hits — skipping inter-date delay.`,
+          );
+        } else {
+          console.error(
+            `[ingest-range] Waiting ${delaySeconds}s before next date…`,
+          );
+          await sleep(delayBetweenDatesMs);
+        }
       }
     }
   };
@@ -312,6 +324,7 @@ function printSummary(
           (f) =>
             `  npx tsx scripts/ingest-day.ts --date=${f.date}` +
             (SKIP_TRANSLATION ? " --skip-translation" : "") +
+            (SKIP_CROP_STRIP ? " --skip-crop-strip" : "") +
             (FORCE ? " --force" : "") +
             (parseCliModel() ? ` --model=${parseCliModel()}` : ""),
         )

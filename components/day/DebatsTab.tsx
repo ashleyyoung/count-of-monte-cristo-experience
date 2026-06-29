@@ -4,6 +4,9 @@ import type { DayPageData } from "@/lib/content";
 import type { ContributorInfo } from "./ContributorByline";
 import { TabSection, TabSectionTitle, EmptyState } from "./TabPrimitives";
 import AdminItemList from "@/components/admin/AdminItemList";
+import MissingIssueNote from "./MissingIssueNote";
+import { isMissingGallicaIssue } from "@/lib/missing-issues";
+import { useAdminMode } from "@/components/admin/AdminModeProvider";
 import type { DayContentSection } from "@/lib/types/day-content-section";
 
 interface Props {
@@ -22,14 +25,29 @@ export default function DebatsTab({ data, contributors }: Props) {
   const { debats } = data.resolved;
   const { debats: rawDebats } = data.doc;
   const { installment_date } = data;
+  const { adminMode } = useAdminMode();
+  const missing = isMissingGallicaIssue(installment_date);
 
   const hasAny = SECTIONS.some(({ key }) => debats[key].length > 0);
+
+  // The issue Gallica never digitised: nothing can be sourced. Show only the
+  // explanatory note to readers; admins still get the editable sections in case
+  // content is recovered from another archive.
+  if (missing && !hasAny && !adminMode) {
+    return (
+      <TabSection>
+        <MissingIssueNote />
+      </TabSection>
+    );
+  }
 
   // In admin mode, show all sections even when empty so content can be added.
   // AdminItemList shows "empty message" + Add button when raw list is empty.
   return (
     <TabSection>
-      {!hasAny && (
+      {missing && <MissingIssueNote />}
+
+      {!missing && !hasAny && (
         <EmptyState>
           Débats coverage for this installment is being prepared. The original
           issue is available{" "}

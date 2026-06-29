@@ -4,6 +4,7 @@ import styled from "styled-components";
 import Link from "next/link";
 import type { Installment } from "@/lib/installments";
 import ProgressCheck from "@/components/timeline/ProgressCheck";
+import DayDatePicker from "@/components/day/DayDatePicker";
 
 interface Props {
   installment: Installment;
@@ -29,6 +30,9 @@ const Bar = styled.header`
 
   @media (max-width: 700px) {
     grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "left right"
+      "center center";
     padding: 12px 20px;
   }
 `;
@@ -37,6 +41,11 @@ const Left = styled.div`
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
+
+  @media (max-width: 700px) {
+    grid-area: left;
+  }
 `;
 
 const InstallmentLabel = styled.span`
@@ -45,6 +54,9 @@ const InstallmentLabel = styled.span`
   font-size: 15px;
   color: var(--gilt-deep);
   letter-spacing: 0.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 `;
 
 const ChapterSubtitle = styled.span`
@@ -53,21 +65,18 @@ const ChapterSubtitle = styled.span`
   font-size: 13px;
   color: var(--ink-muted);
   line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 `;
 
 const Center = styled.div`
   text-align: center;
 
   @media (max-width: 700px) {
-    display: none;
+    grid-area: center;
+    padding-top: 2px;
   }
-`;
-
-const DateLabel = styled.span`
-  font-family: var(--font-display-stack);
-  font-style: italic;
-  font-size: 16px;
-  color: var(--ink-secondary);
 `;
 
 const Right = styled.div`
@@ -75,6 +84,10 @@ const Right = styled.div`
   align-items: center;
   justify-content: flex-end;
   gap: 10px;
+
+  @media (max-width: 700px) {
+    grid-area: right;
+  }
 `;
 
 const NavBtn = styled(Link)<{ $disabled?: boolean }>`
@@ -115,20 +128,6 @@ const Breadcrumb = styled.div`
 `;
 
 // ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-const MONTHS = [
-  "January","February","March","April","May","June",
-  "July","August","September","October","November","December",
-];
-
-function formatDate(iso: string) {
-  const [y, m, d] = iso.split("-").map(Number);
-  return `${MONTHS[m - 1]} ${d}, ${y}`;
-}
-
-// ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
@@ -140,8 +139,6 @@ export default function DayTopBar({
   isSignedIn,
   onToggleComplete,
 }: Props) {
-  const formatted = formatDate(installment.date);
-
   return (
     <Bar>
       <Left>
@@ -159,7 +156,7 @@ export default function DayTopBar({
       </Left>
 
       <Center>
-        <DateLabel>{formatted}</DateLabel>
+        <DayDatePicker activeDate={installment.date} />
       </Center>
 
       <Right>

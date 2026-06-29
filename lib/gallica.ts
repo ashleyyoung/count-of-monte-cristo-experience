@@ -44,6 +44,13 @@ if (gallicaDnsServers) {
 /** Periodical ARK for *Journal des Débats politiques et littéraires* on Gallica. */
 export const DEBATS_PERIODICAL_ARK = "cb39294634r";
 
+/**
+ * Periodical ARK for *Galignani's Messenger* on Gallica — the English-language
+ * Paris daily that digested the French press for the expatriate readership.
+ * Ingested independently of the Débats (see scripts/gallica/pull-galignani.ts).
+ */
+export const GALIGNANI_PERIODICAL_ARK = "cb32779538j";
+
 const GALLICA_BASE = "https://gallica.bnf.fr";
 
 // ---------------------------------------------------------------------------
@@ -315,7 +322,29 @@ export function parsePaginationXml(xml: string): number | null {
  *
  * @param xml - Raw ALTO XML string
  */
+/** A parsed ALTO page: its TextBlocks plus PrintSpace dimensions. */
+export interface AltoPage {
+  blocks: AltoTextBlock[];
+  /** PrintSpace width in ALTO coordinate units (≈ native page pixels). */
+  width: number;
+  /** PrintSpace height in ALTO coordinate units (≈ native page pixels). */
+  height: number;
+}
+
+const EMPTY_ALTO_PAGE: AltoPage = { blocks: [], width: 0, height: 0 };
+
+/** Backwards-compatible: parse ALTO and return only the TextBlocks. */
 export function parseAltoXml(xml: string): AltoTextBlock[] {
+  return parseAltoPage(xml).blocks;
+}
+
+/**
+ * Parse Gallica's ALTO XML for a single page and return all TextBlock
+ * bounding boxes + text content, along with the PrintSpace dimensions.
+ * The dimensions let callers express block regions as page percentages
+ * (scale-independent IIIF regions).
+ */
+export function parseAltoPage(xml: string): AltoPage {
   const parser = new XMLParser({
     ignoreAttributes: false,
     attributeNamePrefix: "@_",
@@ -326,16 +355,16 @@ export function parseAltoXml(xml: string): AltoTextBlock[] {
   try {
     parsed = parser.parse(xml) as Record<string, unknown>;
   } catch {
-    return [];
+    return EMPTY_ALTO_PAGE;
   }
 
   // Navigate to the Layout > Page > PrintSpace level
   const alto = (parsed.alto ?? parsed.Alto) as
     | Record<string, unknown>
     | undefined;
-  if (!alto) return [];
+  if (!alto) return EMPTY_ALTO_PAGE;
   const layout = alto.Layout as Record<string, unknown> | undefined;
-  if (!layout) return [];
+  if (!layout) return EMPTY_ALTO_PAGE;
 
   // Page may be a single object or an array; always normalise to array
   const rawPage = layout.Page;
@@ -344,12 +373,20 @@ export function parseAltoXml(xml: string): AltoTextBlock[] {
     : rawPage != null
       ? [rawPage]
       : [];
-  if (pages.length === 0) return [];
+  if (pages.length === 0) return EMPTY_ALTO_PAGE;
 
-  // Take the first page (scripts call parseAltoXml per page, not per document)
+  // Take the first page (scripts call parseAltoPage per page, not per document)
   const page = pages[0] as Record<string, unknown>;
   const printSpace = page.PrintSpace as Record<string, unknown> | undefined;
-  if (!printSpace) return [];
+  if (!printSpace) return EMPTY_ALTO_PAGE;
+
+  // PrintSpace carries the page dimensions; fall back to the Page element.
+  const pageWidth = Number(
+    printSpace["@_WIDTH"] ?? page["@_WIDTH"] ?? 0,
+  );
+  const pageHeight = Number(
+    printSpace["@_HEIGHT"] ?? page["@_HEIGHT"] ?? 0,
+  );
 
   const rawBlocks = printSpace.TextBlock;
   const blocks: unknown[] = Array.isArray(rawBlocks)
@@ -398,7 +435,16 @@ export function parseAltoXml(xml: string): AltoTextBlock[] {
     }
   }
 
-  return result;
+  const width =
+    pageWidth > 0
+      ? pageWidth
+      : result.reduce((m, b) => Math.max(m, b.x + b.w), 0);
+  const height =
+    pageHeight > 0
+      ? pageHeight
+      : result.reduce((m, b) => Math.max(m, b.y + b.h), 0);
+
+  return { blocks: result, width, height };
 }
 
 // ---------------------------------------------------------------------------
@@ -956,9 +1002,22 @@ export interface GallicaCacheOptions {
   refresh?: boolean;
 }
 
-/** Disk path for cached Issues XML for a given year. */
-export function issuesCachePath(year: number): string {
-  return path.join(process.cwd(), "content", "gallica", `issues-${year}.xml`);
+/**
+ * Disk path for cached Issues XML for a periodical + year.
+ *
+ * The Débats keeps its legacy un-prefixed filename (issues-{year}.xml) so the
+ * existing on-disk cache stays valid; every other periodical (e.g. Galignani's)
+ * is namespaced by ARK to avoid clobbering it.
+ */
+export function issuesCachePath(periodicalArk: string, year: number): string {
+  const prefix =
+    periodicalArk === DEBATS_PERIODICAL_ARK ? "" : `${periodicalArk}-`;
+  return path.join(
+    process.cwd(),
+    "content",
+    "gallica",
+    `issues-${prefix}${year}.xml`,
+  );
 }
 
 function issuesCacheKey(periodicalArk: string, year: number): string {
@@ -982,7 +1041,10 @@ export async function fetchYearIssuesXml(
 
   if (!options?.refresh) {
     try {
-      const diskXml = await fs.readFile(issuesCachePath(year), "utf-8");
+      const diskXml = await fs.readFile(
+        issuesCachePath(periodicalArk, year),
+        "utf-8",
+      );
       if (diskXml.trim()) {
         issuesMemoryCache.set(cacheKey, diskXml);
         return diskXml;
@@ -994,8 +1056,10 @@ export async function fetchYearIssuesXml(
 
   const xml = await gallicaFetch(issuesServiceUrl(periodicalArk, year));
   issuesMemoryCache.set(cacheKey, xml);
-  await fs.mkdir(path.dirname(issuesCachePath(year)), { recursive: true });
-  await fs.writeFile(issuesCachePath(year), xml, "utf-8");
+  await fs.mkdir(path.dirname(issuesCachePath(periodicalArk, year)), {
+    recursive: true,
+  });
+  await fs.writeFile(issuesCachePath(periodicalArk, year), xml, "utf-8");
   return xml;
 }
 
@@ -1008,7 +1072,7 @@ export async function warmIssuesCache(
   const results: Array<{ year: number; path: string }> = [];
   for (const year of years) {
     await fetchYearIssuesXml(periodicalArk, year, options);
-    results.push({ year, path: issuesCachePath(year) });
+    results.push({ year, path: issuesCachePath(periodicalArk, year) });
   }
   return results;
 }
@@ -1102,6 +1166,283 @@ export async function fetchAltoXml(
   page: number,
 ): Promise<string> {
   return gallicaFetch(altoUrl(issueArk, page));
+}
+
+/**
+ * A contiguous reading-order section of a page (one column-run within a
+ * horizontal band), with the bounding box of its blocks expressed as
+ * page-percentage coordinates (0–100) so it can be turned into a
+ * scale-independent IIIF `pct:` region for hover/highlight UIs.
+ */
+export interface AltoSection {
+  /** Blocks composing this section, in reading order (top-to-bottom). */
+  blocks: AltoTextBlock[];
+  /** Joined text of the section's blocks. */
+  text: string;
+  /** Bounding box as percentages of the page dimensions (0–100). */
+  region: PixelRegion;
+}
+
+const median = (xs: number[]): number => {
+  if (xs.length === 0) return 0;
+  const s = [...xs].sort((a, b) => a - b);
+  return s[s.length >> 1];
+};
+
+/**
+ * Cluster blocks into newspaper columns by their left edge (HPOS), returning
+ * column center x-positions left-to-right.
+ *
+ * Adjacent Débats columns abut or slightly overlap in x (a block's right edge
+ * can exceed the next column's left edge), so blank-gap detection on the
+ * x-projection fails. Left edges, however, cluster tightly per column — body
+ * text and indented headers all start near the column's left margin — with a
+ * large jump (≈ one column width) to the next column. We split the sorted left
+ * edges wherever the jump exceeds half the median block width (≈ half a column).
+ */
+function columnCenters(blocks: AltoTextBlock[], medW: number): number[] {
+  const lefts = blocks.map((b) => b.x).sort((a, b) => a - b);
+  const tol = Math.max(medW * 0.5, 1);
+  const clusters: number[][] = [];
+  for (const x of lefts) {
+    const last = clusters[clusters.length - 1];
+    if (last && x - last[last.length - 1] <= tol) last.push(x);
+    else clusters.push([x]);
+  }
+  return clusters.map((c) => c.reduce((s, v) => s + v, 0) / c.length);
+}
+
+/** Index of the column center nearest to a block's left edge. */
+function nearestColumn(x: number, centers: number[]): number {
+  let best = 0;
+  let bestD = Infinity;
+  for (let i = 0; i < centers.length; i++) {
+    const d = Math.abs(x - centers[i]);
+    if (d < bestD) {
+      bestD = d;
+      best = i;
+    }
+  }
+  return best;
+}
+
+/** All blank gaps in the union of 1-D intervals, as {pos, size}, ascending. */
+function blankGaps(
+  intervals: Array<{ lo: number; hi: number }>,
+): Array<{ pos: number; size: number }> {
+  if (intervals.length < 2) return [];
+  const sorted = [...intervals].sort((a, b) => a.lo - b.lo);
+  const gaps: Array<{ pos: number; size: number }> = [];
+  let maxHi = sorted[0].hi;
+  for (let i = 1; i < sorted.length; i++) {
+    const { lo, hi } = sorted[i];
+    if (lo > maxHi) gaps.push({ pos: (maxHi + lo) / 2, size: lo - maxHi });
+    if (hi > maxHi) maxHi = hi;
+  }
+  return gaps;
+}
+
+/**
+ * Find the y of the rule separating the news columns from the bottom
+ * feuilleton strip: the largest full-width blank horizontal gap in the lower
+ * part of the page. Returns null when there is no clear strip (single band).
+ */
+function feuilletonSplitY(
+  blocks: AltoTextBlock[],
+  effHeight: number,
+): number | null {
+  const candidates = blankGaps(
+    blocks.map((b) => ({ lo: b.y, hi: b.y + b.h })),
+  ).filter(
+    (g) => g.pos > effHeight * 0.4 && g.size >= effHeight * 0.008,
+  );
+  if (candidates.length === 0) return null;
+  return candidates.reduce((a, b) => (b.size > a.size ? b : a)).pos;
+}
+
+/**
+ * Reconstruct newspaper reading order from ALTO block geometry, returning
+ * ordered sections (one column-run per band×column cell).
+ *
+ * Gallica's `alto_prod` profile carries NO reading-order metadata (no IDNEXT,
+ * ReadingOrder, ComposedBlock, or structure tags) — only block bounding boxes
+ * — so order is derived from coordinates:
+ *
+ *  1. Bands: a single full-width blank strip in the lower page splits the news
+ *     columns (top) from the feuilleton strip (bottom), so the feuilleton reads
+ *     contiguously instead of being interleaved into each column's tail.
+ *  2. Columns: blocks are clustered into columns by left edge (robust to the
+ *     abutting/overlapping column boxes that defeat blank-gutter detection).
+ *  3. Reading order: each band top-to-bottom, each column within it
+ *     left-to-right, each column's blocks top-to-bottom.
+ *
+ * Language-agnostic — works for any multi-column Gallica periodical.
+ */
+export function segmentAltoBlocks(
+  blocks: AltoTextBlock[],
+  pageWidth?: number,
+  pageHeight?: number,
+): AltoTextBlock[][] {
+  if (blocks.length <= 1) return blocks.length ? [blocks] : [];
+
+  const medW = median(blocks.map((b) => b.w));
+  const effHeight = Math.max(
+    pageHeight ?? 0,
+    ...blocks.map((b) => b.y + b.h),
+  );
+  const centers = columnCenters(blocks, medW);
+
+  // Bands: news (top) then feuilleton (bottom), split at the rule if present.
+  const splitY = feuilletonSplitY(blocks, effHeight);
+  const bands: AltoTextBlock[][] =
+    splitY == null
+      ? [blocks]
+      : [
+          blocks.filter((b) => b.y + b.h / 2 < splitY),
+          blocks.filter((b) => b.y + b.h / 2 >= splitY),
+        ].filter((band) => band.length > 0);
+
+  const sections: AltoTextBlock[][] = [];
+  for (const band of bands) {
+    const byColumn: AltoTextBlock[][] = centers.map(() => []);
+    for (const b of band) byColumn[nearestColumn(b.x, centers)].push(b);
+    for (const col of byColumn) {
+      if (col.length === 0) continue;
+      sections.push([...col].sort((a, b) => a.y - b.y || a.x - b.x));
+    }
+  }
+  return sections;
+}
+
+/**
+ * Build reading-order sections with page-percentage regions. `pageWidth` and
+ * `pageHeight` come from {@link parseAltoPage}; when absent, the page extent is
+ * inferred from the blocks (regions still resolve to sensible percentages).
+ */
+export function buildAltoSections(
+  blocks: AltoTextBlock[],
+  pageWidth?: number,
+  pageHeight?: number,
+): AltoSection[] {
+  const width = Math.max(
+    1,
+    pageWidth ?? 0,
+    ...blocks.map((b) => b.x + b.w),
+  );
+  const height = Math.max(
+    1,
+    pageHeight ?? 0,
+    ...blocks.map((b) => b.y + b.h),
+  );
+
+  return segmentAltoBlocks(blocks, width, height).map((group) => {
+    const minX = Math.min(...group.map((b) => b.x));
+    const minY = Math.min(...group.map((b) => b.y));
+    const maxX = Math.max(...group.map((b) => b.x + b.w));
+    const maxY = Math.max(...group.map((b) => b.y + b.h));
+    return {
+      blocks: group,
+      text: group
+        .map((b) => b.text.trim())
+        .filter(Boolean)
+        .join("\n"),
+      region: {
+        x: (minX / width) * 100,
+        y: (minY / height) * 100,
+        w: ((maxX - minX) / width) * 100,
+        h: ((maxY - minY) / height) * 100,
+      },
+    };
+  });
+}
+
+/**
+ * Stitch ALTO TextBlocks into plain text in reading order, reconstructing
+ * newspaper column order from block geometry (see {@link segmentAltoBlocks}).
+ * Language-agnostic — works for any Gallica periodical.
+ */
+export function stitchAltoBlocks(
+  blocks: AltoTextBlock[],
+  pageWidth?: number,
+  pageHeight?: number,
+): string {
+  return segmentAltoBlocks(blocks, pageWidth, pageHeight)
+    .map((section) =>
+      section
+        .map((b) => b.text.trim())
+        .filter(Boolean)
+        .join("\n"),
+    )
+    .filter(Boolean)
+    .join("\n");
+}
+
+/** Default pause between per-page ALTO fetches (metadata class is also throttled in fetch). */
+const DEFAULT_ALTO_PAGE_DELAY_MS = 1_200;
+
+export interface IssueAltoPage {
+  /** 1-based page number. */
+  page: number;
+  /** Stitched plain text for the page ("" when the page has no TextBlocks). */
+  text: string;
+  /** Number of ALTO TextBlocks found on the page. */
+  blockCount: number;
+}
+
+/**
+ * Fetch Gallica ALTO OCR for every page of an issue and return per-page stitched
+ * plain text. This is the bot-safe text route: ALTO is served by a different
+ * endpoint (RequestDigitalElement) than texteBrut, which Cloudflare often blocks.
+ *
+ * Pages with no TextBlocks are returned with text:"" rather than dropped, so the
+ * caller can decide how to handle gaps. Callers add any "--- Page N ---" framing.
+ */
+export async function fetchIssueAltoText(
+  ark: string,
+  pageCount: number,
+  options?: {
+    log?: (msg: string) => void;
+    pageDelayMs?: number;
+    /** Pre-fetched page-1 blocks (e.g. from crop-strip) to skip one network call. */
+    page1Blocks?: AltoTextBlock[];
+  },
+): Promise<IssueAltoPage[]> {
+  const log = options?.log ?? (() => {});
+  const pageDelayMs = options?.pageDelayMs ?? DEFAULT_ALTO_PAGE_DELAY_MS;
+  const pages: IssueAltoPage[] = [];
+
+  for (let page = 1; page <= pageCount; page++) {
+    if (page > 1 && pageDelayMs > 0) {
+      await sleep(pageDelayMs);
+    }
+
+    let blocks: AltoTextBlock[];
+    let pageWidth = 0;
+    let pageHeight = 0;
+    if (page === 1 && options?.page1Blocks) {
+      log(`ALTO page 1: reusing pre-fetched blocks (no refetch).`);
+      blocks = options.page1Blocks;
+    } else {
+      log(`ALTO: fetching page ${page}/${pageCount}…`);
+      const xml = await fetchAltoXml(ark, page);
+      const parsed = parseAltoPage(xml);
+      blocks = parsed.blocks;
+      pageWidth = parsed.width;
+      pageHeight = parsed.height;
+    }
+
+    if (blocks.length === 0) {
+      log(`ALTO page ${page}: no TextBlocks.`);
+      pages.push({ page, text: "", blockCount: 0 });
+      continue;
+    }
+
+    const text = stitchAltoBlocks(blocks, pageWidth, pageHeight);
+    log(`ALTO page ${page}: ${blocks.length} blocks, ${text.length} chars.`);
+    pages.push({ page, text, blockCount: blocks.length });
+  }
+
+  return pages;
 }
 
 /**

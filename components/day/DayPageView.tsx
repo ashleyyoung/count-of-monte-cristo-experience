@@ -59,19 +59,25 @@ const Page = styled.div`
   background: var(--paper-base);
 `;
 
+/**
+ * Two grid columns: the feuilleton scan strip, and the reading column
+ * (which lays out the chapter content + "Paris that day" sidebar
+ * internally — see ReadingColumn's ColumnGrid). Below 800px the scan strip
+ * hides itself (scans are also reachable via the Original Paper tab), so
+ * this collapses to a single column holding just the reading column.
+ */
 const ThreeCol = styled.div`
   display: grid;
-  grid-template-columns: 300px 1fr 318px;
+  grid-template-columns: 300px 1fr;
   flex: 1;
   min-height: 680px;
 
   @media (max-width: 1100px) {
-    grid-template-columns: 240px 1fr 260px;
+    grid-template-columns: 240px 1fr;
   }
 
   @media (max-width: 800px) {
     grid-template-columns: 1fr;
-    grid-template-rows: auto 1fr auto;
   }
 `;
 
@@ -222,16 +228,16 @@ function getTabContent(
   tab: TabId,
   data: DayPageData,
   contributors: Map<string, ContributorInfo>,
-  chapters: Installment["chapters"],
+  installment: Installment,
   activeChapterNum: string | null,
 ) {
   switch (tab) {
-    case "overview":   return <OverviewTab data={data} contributors={contributors} />;
+    case "overview":   return <OverviewTab data={data} contributors={contributors} installment={installment} />;
     case "chapter":    return (
       <ChapterTab
         data={data}
         contributors={contributors}
-        chapters={chapters}
+        chapters={installment.chapters}
         activeChapterNum={activeChapterNum}
       />
     );
@@ -241,7 +247,7 @@ function getTabContent(
     case "original":    return <OriginalPaperTab data={data} />;
     case "translated":  return <TranslatedPaperTab data={data} contributors={contributors} />;
     case "galignani":   return <GalignaniTab data={data} contributors={contributors} />;
-    default:           return <OverviewTab data={data} contributors={contributors} />;
+    default:           return <OverviewTab data={data} contributors={contributors} installment={installment} />;
   }
 }
 
@@ -278,7 +284,7 @@ export default function DayPageView({
     searchParams.get("chapter"),
   );
 
-  const handleTranslateLocally = useCallback(() => {
+  const handleTranslate = useCallback(() => {
     setTranslateMsg(null);
     startTranslate(async () => {
       try {
@@ -316,7 +322,7 @@ export default function DayPageView({
     activeTab,
     data,
     contributors,
-    installment.chapters,
+    installment,
     activeChapterNum,
   );
 
@@ -350,8 +356,8 @@ export default function DayPageView({
             <option value="opus">Opus</option>
             <option value="haiku">Haiku</option>
           </AdminSelect>
-          <AdminBtn onClick={handleTranslateLocally} disabled={isTranslating}>
-            {isTranslating ? "Queuing…" : "Re-translate day locally"}
+          <AdminBtn onClick={handleTranslate} disabled={isTranslating}>
+            {isTranslating ? "Queuing…" : "Translate"}
           </AdminBtn>
           {translateMsg ? (
             <AdminNote>{translateMsg}</AdminNote>
@@ -416,20 +422,21 @@ export default function DayPageView({
           tabContent={tabContent}
           installmentDate={installment.date}
           translatedPageCount={data.resolved.translated_pages?.length ?? 0}
-        />
-
-        <ParisSidebar
-          date={installment.date}
-          musicItems={data.resolved.debats.music}
-          theatreItems={data.resolved.debats.theater}
-          politicsDebatsItems={data.resolved.debats.literature}
-          politicsGalignaniItems={data.resolved.galignani}
-          annonceItems={[]}
-          contributors={contributors}
-          rawMusicItems={data.doc.debats.music}
-          rawTheatreItems={data.doc.debats.theater}
-          rawLiteratureItems={data.doc.debats.literature}
-          rawGalignaniItems={data.doc.galignani}
+          sidebar={
+            <ParisSidebar
+              date={installment.date}
+              musicItems={data.resolved.debats.music}
+              theatreItems={data.resolved.debats.theater}
+              politicsDebatsItems={data.resolved.debats.literature}
+              politicsGalignaniItems={data.resolved.galignani}
+              annonceItems={[]}
+              contributors={contributors}
+              rawMusicItems={data.doc.debats.music}
+              rawTheatreItems={data.doc.debats.theater}
+              rawLiteratureItems={data.doc.debats.literature}
+              rawGalignaniItems={data.doc.galignani}
+            />
+          }
         />
       </ThreeCol>
     </Page>

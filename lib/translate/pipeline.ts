@@ -3,7 +3,11 @@
  *
  * Core translation pipeline logic. Used by:
  *  - scripts/translate/translate-day.ts (local async runner)
- *  - app/actions/admin.ts translateDay() server action
+ *  - scripts/translate/translate-all.ts (batch runner)
+ *  - app/actions/admin.ts translateDay() / requestDayTranslation spawn
+ *
+ * RunDayTranslationOptions are built via lib/translate/run-options.ts so every
+ * entry point shares the same defaults (page translation + anchor segmentation).
  *
  * Does NOT import from lib/supabase/server.ts (which imports next/headers) so
  * it is safe in both script and server-action contexts. Creates its own
@@ -17,10 +21,12 @@
 import { createClient } from "@supabase/supabase-js";
 import {
   translateAndSegmentByPage,
+  segmentEnglishByPage,
   translatePaperPages,
   resolveTranslationModel,
   type SegmentedTranslation,
   type SectionTranslation,
+  type PageTranslationResult,
 } from "../llm/translate";
 import {
   resolveIssueArk,
@@ -29,12 +35,13 @@ import {
   parseArkFromGallicaUrl,
   DEBATS_PERIODICAL_ARK,
 } from "../gallica";
-import { putR2Text, isR2Configured } from "../r2-server";
+import { putR2Text, getR2Text, isR2Configured } from "../r2-server";
 import {
   fetchAltoToR2,
   loadCachedFrench,
   effectivePageCount,
 } from "./french-source";
+import { splitFrenchPages } from "./french-pages";
 import { parseDayDoc, type DayDoc, type TextItem } from "../types/content";
 
 // ---------------------------------------------------------------------------
@@ -90,15 +97,25 @@ export interface TranslationRunSummary {
 export interface RunDayTranslationOptions {
   /** Re-fetch Gallica texteBrut even when an R2 intermediate already exists. */
   forceFetch?: boolean;
-  /** Override TRANSLATION_MODEL for this run (e.g. claude-sonnet-4-5). */
+  /** Override TRANSLATION_MODEL for this run (e.g. claude-sonnet-4-6). */
   model?: string;
+  /**
+   * Skip French pages that already have EN translations (doc.translated_pages or
+   * R2 anchor cache). Default false; translate-all enables unless --force.
+   */
+  skipExistingPages?: boolean;
+  /**
+   * Use Anthropic Message Batches API (50% token discount). Default from env
+   * TRANSLATION_USE_BATCH (on unless set to 0).
+   */
+  useMessageBatch?: boolean;
 }
 
 // ---------------------------------------------------------------------------
 // Supabase (service role; no next/headers import)
 // ---------------------------------------------------------------------------
 
-function makeClient() {
+export function makeClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) {
@@ -154,7 +171,7 @@ function getSectionItems(doc: DayDoc, section: SectionKey): TextItem[] {
   }
 }
 
-function setSectionTextItems(
+export function setSectionTextItems(
   doc: DayDoc,
   section: SectionKey,
   items: TextItem[],
@@ -263,7 +280,7 @@ function pickSection(
 // ---------------------------------------------------------------------------
 
 /** Snapshot the current live TextItem into translation_versions (before overwriting). */
-async function snapshotToVersions(
+export async function snapshotToVersions(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: ReturnType<typeof makeClient>,
   date: string,
@@ -307,7 +324,7 @@ async function snapshotToVersions(
 }
 
 /** Insert a new machine_claude translation_versions row (single-writer). */
-async function insertVersionRow(
+export async function insertVersionRow(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: ReturnType<typeof makeClient>,
   row: {
@@ -345,7 +362,7 @@ async function insertVersionRow(
   return data.id as string;
 }
 
-async function persistDayDoc(
+export async function persistDayDoc(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: ReturnType<typeof makeClient>,
   date: string,
@@ -397,6 +414,87 @@ function arkFromDoc(doc: DayDoc): { ark: string; gallicaUrl: string } | null {
   return null;
 }
 
+/** Page numbers with live EN translations in doc.translated_pages. */
+export function getTranslatedPaperPageNumbers(doc: DayDoc): Set<number> {
+  const nums = new Set<number>();
+  for (const item of doc.translated_pages ?? []) {
+    if (item.kind !== "text" || !item.slot_key) continue;
+    const m = item.slot_key.match(/^paper-page-(\d+)$/);
+    if (m && item.text_r2_key) nums.add(parseInt(m[1], 10));
+  }
+  return nums;
+}
+
+function textItemHasTranslation(item: TextItem): boolean {
+  return Boolean(
+    item.text_r2_key &&
+    (item.translation_origin === "machine_claude" ||
+      item.translation_origin === "existing_published" ||
+      item.translation_origin === "staff_translation"),
+  );
+}
+
+/** True when this issue already has a full machine translation in doc. */
+export function docIsFullyTranslated(doc: DayDoc): boolean {
+  let sawMachineClaude = false;
+  for (const section of ALL_SECTIONS) {
+    const items = getSectionItems(doc, section);
+    if (
+      items.some(
+        (i) => i.translation_origin === "machine_claude" && i.text_r2_key,
+      )
+    ) {
+      sawMachineClaude = true;
+    }
+    if (items.length > 0 && !items.some(textItemHasTranslation)) {
+      return false;
+    }
+  }
+  if (!sawMachineClaude) {
+    return false;
+  }
+
+  const pageCount = effectivePageCount(doc);
+  const translated = getTranslatedPaperPageNumbers(doc);
+  for (let p = 1; p <= pageCount; p++) {
+    if (!translated.has(p)) return false;
+  }
+  return true;
+}
+
+async function loadEnglishPagesForSegmentation(
+  doc: DayDoc,
+  frenchText: string,
+  newlyTranslated: Map<number, string>,
+): Promise<PageTranslationResult[]> {
+  const pageNumbers = splitFrenchPages(frenchText).map((c) => c.pageNumber);
+  const existingBySlot = new Map(
+    (doc.translated_pages ?? [])
+      .filter((i): i is TextItem => i.kind === "text" && Boolean(i.slot_key))
+      .map((i) => [i.slot_key as string, i]),
+  );
+
+  const pages: PageTranslationResult[] = [];
+  for (const pageNumber of pageNumbers) {
+    const fresh = newlyTranslated.get(pageNumber);
+    if (fresh !== undefined) {
+      pages.push({ pageNumber, text: fresh });
+      continue;
+    }
+
+    const item = existingBySlot.get(`paper-page-${pageNumber}`);
+    if (!item?.text_r2_key) {
+      throw new Error(`Missing English translation for page ${pageNumber}`);
+    }
+    const text = await getR2Text(item.text_r2_key);
+    if (!text?.trim()) {
+      throw new Error(`Empty English translation for page ${pageNumber}`);
+    }
+    pages.push({ pageNumber, text });
+  }
+  return pages;
+}
+
 async function resolveSourceIssue(
   date: string,
   doc: DayDoc,
@@ -434,8 +532,8 @@ async function resolveSourceIssue(
  * Incremental writes (safe to stop mid-run; completed steps are persisted):
  *  1. Load FR OCR from R2 when present (skip Gallica texteBrut unless forceFetch).
  *  2. Resolve issue ARK from day_content when possible (skip Issues API).
- *  3. Translate full paper page by page → day_content.translated_pages (saved first).
- *  4. Translate + segment each French page → merge sections → day_content per tab.
+ *  3. Translate full paper page by page → day_content.translated_pages (Pass A).
+ *  4. Segment English pages with anchors → merge sections → day_content per tab (Pass B).
  *  5. Per section: EN text to R2 → translation_versions row → day_content.doc
  *     (live machine_claude updates only; challengers skip day_content).
  *
@@ -475,8 +573,24 @@ export async function runDayTranslation(
   doc = parseDayDoc((rawRow as any)?.doc ?? {});
 
   const forceFetch = options.forceFetch === true;
+  const skipExistingPages = options.skipExistingPages === true;
+  const useMessageBatch = options.useMessageBatch;
   const model = resolveTranslationModel(options.model);
   log(`[pipeline] Translation model: ${model}`);
+  if (useMessageBatch === false) {
+    log(`[pipeline] Message Batches API disabled — streaming calls (full price).`);
+  } else if (useMessageBatch === true) {
+    log(`[pipeline] Message Batches API enabled — 50% token discount.`);
+  }
+
+  const skipPageNumbers = skipExistingPages
+    ? getTranslatedPaperPageNumbers(doc)
+    : undefined;
+  if (skipExistingPages && skipPageNumbers && skipPageNumbers.size > 0) {
+    log(
+      `[pipeline] Will skip ${skipPageNumbers.size} already-translated page(s) in pass 1.`,
+    );
+  }
 
   // ------------------------------------------------------------------
   // 2. French source: reuse the R2 intermediate if present, else fetch
@@ -529,94 +643,130 @@ export async function runDayTranslation(
   const runStamp = new Date().toISOString().replace(/[:.]/g, "-");
 
   // ------------------------------------------------------------------
-  // 5. Full-paper page-by-page translation (run first — persist paid output)
+  // 5. Full-paper page-by-page translation (Pass A — clean English prose)
   // ------------------------------------------------------------------
+  const newlyTranslated = new Map<number, string>();
+  let englishPages: PageTranslationResult[] | null = null;
+
   log(`[pipeline] Translating full paper page by page…`);
   try {
-    const { pages, totalUsage } = await translatePaperPages(frenchText, date, {
-      log,
-      model,
-    });
+    const existingPages = new Map<string, TextItem>(
+      (doc.translated_pages ?? [])
+        .filter(
+          (i): i is TextItem => i.kind === "text" && Boolean(i.slot_key),
+        )
+        .map((i) => [i.slot_key as string, i]),
+    );
+
+      const { pages, totalUsage } = await translatePaperPages(
+        frenchText,
+        date,
+        {
+          log,
+          model,
+          skipPageNumbers,
+          useMessageBatch,
+        },
+      );
+    for (const page of pages) {
+      newlyTranslated.set(page.pageNumber, page.text);
+    }
     summary.cost_usd_total += totalUsage.cost_usd;
     log(
-      `[pipeline] Page translations complete: ${pages.length} pages in ` +
+      `[pipeline] Page translations complete: ${pages.length} new page(s) in ` +
         `${(totalUsage.duration_ms / 1000).toFixed(1)}s. ` +
         `Cost: $${totalUsage.cost_usd.toFixed(4)} (${totalUsage.tokens_in}in / ${totalUsage.tokens_out}out).`,
     );
 
-    // Attribute the run cost evenly across the pages translated.
-    const perPageCost =
-      pages.length > 0 ? totalUsage.cost_usd / pages.length : 0;
+    if (pages.length === 0 && skipExistingPages) {
+      log(`[pipeline] All pages already translated — pass 1 unchanged.`);
+    } else if (pages.length > 0) {
+      const perPageCost =
+        pages.length > 0 ? totalUsage.cost_usd / pages.length : 0;
 
-    // Index existing page items by slot_key so re-runs version in place.
-    const existingPages = new Map<string, TextItem>(
-      (doc.translated_pages ?? [])
-        .filter((i): i is TextItem => i.kind === "text" && Boolean(i.slot_key))
-        .map((i) => [i.slot_key as string, i]),
-    );
+      const newByNumber = new Map(pages.map((p) => [p.pageNumber, p.text]));
+      const pageNumbers = splitFrenchPages(frenchText).map(
+        (c) => c.pageNumber,
+      );
 
-    const pageItems: TextItem[] = [];
-    for (const { pageNumber, text } of pages) {
-      const slotKey = `paper-page-${pageNumber}`;
-      const pageKey = `${date}/en/${slotKey}/${runStamp}.txt`;
-      await putR2Text(pageKey, text);
-      log(`[pipeline] Page ${pageNumber}: EN text written to R2: ${pageKey}`);
+      const pageItems: TextItem[] = [];
+      for (const pageNumber of pageNumbers) {
+        const slotKey = `paper-page-${pageNumber}`;
+        const newText = newByNumber.get(pageNumber);
 
-      // Snapshot a legacy live page item (no version id) before overwriting so
-      // prior paid runs enter history. Items the pipeline produced already carry
-      // translation_version_id, so their prior state is already a version row.
-      const existingItem = existingPages.get(slotKey);
-      if (existingItem && !existingItem.translation_version_id) {
+        if (newText === undefined) {
+          const existingItem = existingPages.get(slotKey);
+          if (existingItem) {
+            pageItems.push(existingItem);
+          }
+          continue;
+        }
+
+        const pageKey = `${date}/en/${slotKey}/${runStamp}.txt`;
+        await putR2Text(pageKey, newText);
         log(
-          `[pipeline] ${slotKey}: snapshotting legacy page item before overwrite.`,
+          `[pipeline] Page ${pageNumber}: EN text written to R2: ${pageKey}`,
         );
-        await snapshotToVersions(
-          supabase,
-          date,
-          "translated_pages",
-          existingItem,
-          log,
-        );
+
+        const existingItem = existingPages.get(slotKey);
+        if (existingItem && !existingItem.translation_version_id) {
+          log(
+            `[pipeline] ${slotKey}: snapshotting legacy page item before overwrite.`,
+          );
+          await snapshotToVersions(
+            supabase,
+            date,
+            "translated_pages",
+            existingItem,
+            log,
+          );
+        }
+
+        const versionId = await insertVersionRow(supabase, {
+          installment_date: date,
+          section: "translated_pages",
+          slot_key: slotKey,
+          text_r2_key: pageKey,
+          source: "Journal des Débats",
+          original_date: date,
+          gallica_url: gallicaUrl,
+          license: "Public Domain",
+          attribution: `Machine translation by ${totalUsage.model}`,
+          model_used: totalUsage.model,
+          source_text_url: sourceTextUrl,
+          fr_intermediate_r2_key: frIntermediateKeyUsed,
+          cost_usd: perPageCost,
+          low_confidence: frenchSourceLowConfidence,
+          admin_notes: null,
+        });
+
+        pageItems.push({
+          kind: "text",
+          text_r2_key: pageKey,
+          source: "Journal des Débats",
+          original_date: date,
+          gallica_url: gallicaUrl,
+          license: "Public Domain",
+          attribution: `Machine translation by ${totalUsage.model}`,
+          slot_key: slotKey,
+          translation_origin: "machine_claude",
+          translation_model: totalUsage.model,
+          source_text_url: sourceTextUrl,
+          fr_intermediate_r2_key: frIntermediateKeyUsed,
+          low_confidence: frenchSourceLowConfidence || undefined,
+          translation_version_id: versionId,
+        });
       }
 
-      const versionId = await insertVersionRow(supabase, {
-        installment_date: date,
-        section: "translated_pages",
-        slot_key: slotKey,
-        text_r2_key: pageKey,
-        source: "Journal des Débats",
-        original_date: date,
-        gallica_url: gallicaUrl,
-        license: "Public Domain",
-        attribution: `Machine translation by ${totalUsage.model}`,
-        model_used: totalUsage.model,
-        source_text_url: sourceTextUrl,
-        fr_intermediate_r2_key: frIntermediateKeyUsed,
-        cost_usd: perPageCost,
-        low_confidence: frenchSourceLowConfidence,
-        admin_notes: null,
-      });
-
-      pageItems.push({
-        kind: "text",
-        text_r2_key: pageKey,
-        source: "Journal des Débats",
-        original_date: date,
-        gallica_url: gallicaUrl,
-        license: "Public Domain",
-        attribution: `Machine translation by ${totalUsage.model}`,
-        slot_key: slotKey,
-        translation_origin: "machine_claude",
-        translation_model: totalUsage.model,
-        source_text_url: sourceTextUrl,
-        fr_intermediate_r2_key: frIntermediateKeyUsed,
-        low_confidence: frenchSourceLowConfidence || undefined,
-        translation_version_id: versionId,
-      });
+      doc = { ...doc, translated_pages: pageItems };
+      await persistDayDoc(supabase, date, doc, log);
     }
 
-    doc = { ...doc, translated_pages: pageItems };
-    await persistDayDoc(supabase, date, doc, log);
+    englishPages = await loadEnglishPagesForSegmentation(
+      doc,
+      frenchText,
+      newlyTranslated,
+    );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     log(`[pipeline] ERROR during page-by-page translation: ${message}`);
@@ -626,10 +776,19 @@ export async function runDayTranslation(
       stage: "translate",
       error: message,
     });
+    try {
+      englishPages = await loadEnglishPagesForSegmentation(
+        doc,
+        frenchText,
+        newlyTranslated,
+      );
+    } catch {
+      englishPages = null;
+    }
   }
 
   // ------------------------------------------------------------------
-  // 6. Translate + segment by page (Overview, Débats tabs, etc.)
+  // 6. Segment English into tabs (Pass B — anchor-based, cheap)
   // ------------------------------------------------------------------
   let segmented: SegmentedTranslation | null = null;
   let segmentUsage: {
@@ -641,22 +800,47 @@ export async function runDayTranslation(
   } | null = null;
 
   try {
-    log(
-      `[pipeline] Sending to Claude for per-page translation + segmentation…`,
-    );
-    const segmentResult = await translateAndSegmentByPage(frenchText, date, {
-      log,
-      model,
-    });
-    segmented = segmentResult.result;
-    segmentUsage = segmentResult.usage;
-    summary.cost_usd_total += segmentResult.usage.cost_usd;
-    log(
-      `[pipeline] Segmentation complete: ${segmentResult.pageCount} page(s) in ` +
-        `${(segmentResult.usage.duration_ms / 1000).toFixed(1)}s. ` +
-        `Cost: $${segmentResult.usage.cost_usd.toFixed(4)} ` +
-        `(${segmentResult.usage.tokens_in}in / ${segmentResult.usage.tokens_out}out).`,
-    );
+    if (englishPages) {
+      log(`[pipeline] Segmenting translated English pages into sections…`);
+      const segmentResult = await segmentEnglishByPage(englishPages, date, {
+        log,
+        model,
+        frenchText,
+        useSegmentCache: skipExistingPages,
+        writeSegmentCache: true,
+        useMessageBatch,
+      });
+      segmented = segmentResult.result;
+      segmentUsage = segmentResult.usage;
+      summary.cost_usd_total += segmentResult.usage.cost_usd;
+      log(
+        `[pipeline] Segmentation complete: ${segmentResult.pageCount} page(s) in ` +
+          `${(segmentResult.usage.duration_ms / 1000).toFixed(1)}s. ` +
+          `Cost: $${segmentResult.usage.cost_usd.toFixed(4)} ` +
+          `(${segmentResult.usage.tokens_in}in / ${segmentResult.usage.tokens_out}out).`,
+      );
+    } else {
+      log(
+        `[pipeline] No English pages available; falling back to French translate+segment…`,
+      );
+      const segmentResult = await translateAndSegmentByPage(frenchText, date, {
+        log,
+        model,
+        useSegmentCache: skipExistingPages,
+        writeSegmentCache: true,
+        skipPageNumbers,
+        useMessageBatch: false,
+      });
+      segmented = segmentResult.result;
+      segmentUsage = segmentResult.usage;
+      summary.cost_usd_total += segmentResult.usage.cost_usd;
+      log(
+        `[pipeline] Fallback segmentation complete: ${segmentResult.pageCount} page(s) in ` +
+          `${(segmentResult.usage.duration_ms / 1000).toFixed(1)}s. ` +
+          `Cost: $${segmentResult.usage.cost_usd.toFixed(4)} ` +
+          `(${segmentResult.usage.tokens_in}in / ${segmentResult.usage.tokens_out}out).`,
+      );
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     log(`[pipeline] ERROR during segmentation: ${message}`);

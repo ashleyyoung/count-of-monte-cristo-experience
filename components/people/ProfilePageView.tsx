@@ -7,13 +7,18 @@
  * header, and 7-tab ProfileTabs component.
  */
 
-import React, { Suspense } from "react";
+import React, { Suspense, useRef, useState } from "react";
 import styled from "styled-components";
+import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { PersonPageData } from "@/lib/people";
 import type { PortraitAsset } from "./PortraitGallery";
 import type { GraphPerson, GraphRelationship } from "@/lib/graph-layout";
 import ProfileTabs from "./ProfileTabs";
+import BeatBadge from "./BeatBadge";
+import { useAdminMode } from "@/components/admin/AdminModeProvider";
+import { uploadMediaToR2, setPersonImage } from "@/app/actions/admin";
 
 interface ProfilePageViewProps {
   person: PersonPageData;
@@ -31,6 +36,31 @@ const Page = styled.div`
   padding: 0 32px 64px;
 
   @media (max-width: 700px) { padding: 0 16px 40px; }
+`;
+
+const BackgroundBanner = styled.div<{ $url: string }>`
+  position: relative;
+  height: 260px;
+  margin: 0 -32px 0;
+  background-image:
+    linear-gradient(180deg, rgba(30,20,10,0.15) 0%, var(--paper-base) 96%),
+    url(${(p) => p.$url});
+  background-size: cover;
+  background-position: center 30%;
+
+  @media (max-width: 700px) { height: 180px; margin: 0 -16px 0; }
+`;
+
+const BannerAttribution = styled.span`
+  position: absolute;
+  right: 12px;
+  bottom: 10px;
+  font-family: ui-monospace, monospace;
+  font-size: 0.66rem;
+  color: var(--ink-secondary);
+  background: var(--paper-feature);
+  padding: 3px 7px;
+  opacity: 0.92;
 `;
 
 const TopBar = styled.div`
@@ -71,6 +101,19 @@ const Header = styled.header`
   @media (max-width: 600px) { flex-direction: column; gap: 1rem; }
 `;
 
+const PortraitFrame = styled.div`
+  position: relative;
+  flex-shrink: 0;
+  width: fit-content;
+`;
+
+const PortraitBeatBadge = styled(BeatBadge)`
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 1;
+`;
+
 const PortraitThumb = styled.img`
   width: 120px;
   height: 152px;
@@ -92,6 +135,45 @@ const PortraitPlaceholder = styled.div`
   flex-shrink: 0;
   color: var(--ink-muted);
   font-size: 2rem;
+`;
+
+const PortraitEdit = styled.button`
+  position: relative;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  flex-shrink: 0;
+  display: block;
+
+  &:hover .portrait-overlay,
+  &:focus-visible .portrait-overlay {
+    opacity: 1;
+  }
+`;
+
+const PortraitOverlay = styled.span`
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 0 8px;
+  background: rgba(15, 8, 0, 0.55);
+  color: var(--paper-base);
+  font-family: var(--font-labels-stack);
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  line-height: 1.4;
+  opacity: 0;
+  transition: opacity 0.12s;
+  pointer-events: none;
+`;
+
+const HiddenFileInput = styled.input`
+  display: none;
 `;
 
 const HeaderText = styled.div`
@@ -124,18 +206,73 @@ const MetaBadge = styled.span`
   padding: 0.15rem 0.5rem;
 `;
 
-const ContributorBadge = styled(MetaBadge)`
-  border-color: var(--gilt-warm);
-  color: var(--gilt-deep);
-  background: rgba(201,162,75,0.08);
-`;
-
 const Dates = styled.p`
   margin: 0;
   font-family: var(--font-labels-stack);
   font-size: 0.8rem;
   color: var(--ink-muted);
 `;
+
+const PortraitView = styled.button`
+  display: block;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: zoom-in;
+  flex-shrink: 0;
+`;
+
+// Lightbox — mirrors PortraitGallery's lightbox so the caption matches what
+// the same image shows on the Portraits tab.
+const Backdrop = styled(motion.div)`
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 8, 0, 0.82);
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: zoom-out;
+`;
+
+const LightboxImg = styled.img`
+  max-width: 90vw;
+  max-height: 90vh;
+  object-fit: contain;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+`;
+
+const LightboxCaption = styled.div`
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(15,8,0,0.75);
+  color: var(--paper-base);
+  padding: 0.4rem 0.8rem;
+  font-size: 0.75rem;
+  font-family: var(--font-labels-stack);
+  text-align: center;
+  max-width: 80vw;
+`;
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Read a File to a base64 string (no data: prefix) via browser FileReader. */
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      const comma = result.indexOf(",");
+      resolve(comma >= 0 ? result.slice(comma + 1) : result);
+    };
+    reader.onerror = () => reject(reader.error ?? new Error("File read failed"));
+    reader.readAsDataURL(file);
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Component
@@ -146,6 +283,28 @@ export default function ProfilePageView({
   portraitAssets,
   egoGraph,
 }: ProfilePageViewProps) {
+  const router = useRouter();
+  const { adminMode } = useAdminMode();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [showPortraitLightbox, setShowPortraitLightbox] = useState(false);
+
+  async function handlePortraitFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const base64 = await fileToBase64(file);
+      const { id } = await uploadMediaToR2(file.name, base64, file.type, "portrait");
+      await setPersonImage(person.id, person.slug, "portrait", id);
+      router.refresh();
+    } catch (err) {
+      alert(`Portrait upload failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
   // Build lookup maps for relationship rendering
   const neighborSlugs: Record<string, string> = {};
   const neighborNames: Record<string, string> = {};
@@ -157,33 +316,76 @@ export default function ProfilePageView({
   }
 
   // Portrait for header (first asset or from person data)
+  const headerPortraitAsset = portraitAssets.find((a) => a.kind === "portrait");
   const headerPortraitUrl =
-    portraitAssets.find((a) => a.kind === "portrait")?.r2_url ??
-    portraitAssets.find((a) => a.kind === "portrait")?.source_url ??
+    headerPortraitAsset?.r2_url ??
+    headerPortraitAsset?.source_url ??
     person.portrait_url;
+  const headerPortraitTitle = headerPortraitAsset?.title ?? null;
+  const headerPortraitAttribution =
+    headerPortraitAsset?.attribution ?? person.portrait_attribution ?? null;
+
+  const portraitContent = adminMode ? (
+    <PortraitEdit
+      type="button"
+      onClick={() => fileInputRef.current?.click()}
+      aria-label="Upload portrait image"
+      disabled={uploading}
+    >
+      {headerPortraitUrl ? (
+        <PortraitThumb src={headerPortraitUrl} alt={`Portrait of ${person.name}`} />
+      ) : (
+        <PortraitPlaceholder aria-hidden="true">☽</PortraitPlaceholder>
+      )}
+      <PortraitOverlay className="portrait-overlay">
+        {uploading ? "Uploading…" : "⬆ Change portrait"}
+      </PortraitOverlay>
+      <HiddenFileInput
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handlePortraitFile}
+        disabled={uploading}
+      />
+    </PortraitEdit>
+  ) : headerPortraitUrl ? (
+    <PortraitView
+      type="button"
+      onClick={() => setShowPortraitLightbox(true)}
+      aria-label={`View larger portrait of ${person.name}`}
+    >
+      <PortraitThumb
+        src={headerPortraitUrl}
+        alt={`Portrait of ${person.name}`}
+      />
+    </PortraitView>
+  ) : (
+    <PortraitPlaceholder aria-hidden="true">☽</PortraitPlaceholder>
+  );
 
   return (
     <Page>
+      {person.background_url && (
+        <BackgroundBanner $url={person.background_url}>
+          {person.background_attribution && (
+            <BannerAttribution>{person.background_attribution}</BannerAttribution>
+          )}
+        </BackgroundBanner>
+      )}
       <TopBar>
-        <BackLink href="/timeline">← Timeline</BackLink>
+        <BackLink href="/debats?tab=people">← People & Lives</BackLink>
         <DebatsLink href="/debats">Journal des Débats →</DebatsLink>
       </TopBar>
 
       <Header>
-        {headerPortraitUrl ? (
-          <PortraitThumb
-            src={headerPortraitUrl}
-            alt={`Portrait of ${person.name}`}
-          />
-        ) : (
-          <PortraitPlaceholder aria-hidden="true">☽</PortraitPlaceholder>
-        )}
+        <PortraitFrame>
+          {portraitContent}
+          {person.beat && <PortraitBeatBadge beat={person.beat} />}
+        </PortraitFrame>
 
         <HeaderText>
           <Name>{person.name}</Name>
           <Meta>
-            {person.is_contributor && <ContributorBadge>✦ Débats Contributor</ContributorBadge>}
-            {person.beat && <MetaBadge>{person.beat}</MetaBadge>}
             <MetaBadge>{person.category}</MetaBadge>
           </Meta>
           <Dates>
@@ -201,6 +403,31 @@ export default function ProfilePageView({
           neighborNames={neighborNames}
         />
       </Suspense>
+
+      <AnimatePresence>
+        {showPortraitLightbox && headerPortraitUrl && (
+          <Backdrop
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowPortraitLightbox(false)}
+            role="dialog"
+            aria-label="Portrait lightbox"
+            aria-modal="true"
+          >
+            <LightboxImg
+              src={headerPortraitUrl}
+              alt={headerPortraitTitle ?? `Portrait of ${person.name}`}
+            />
+            {(headerPortraitAttribution || headerPortraitTitle) && (
+              <LightboxCaption>
+                {headerPortraitTitle && <strong>{headerPortraitTitle}</strong>}
+                {headerPortraitAttribution && ` · ${headerPortraitAttribution}`}
+              </LightboxCaption>
+            )}
+          </Backdrop>
+        )}
+      </AnimatePresence>
     </Page>
   );
 }

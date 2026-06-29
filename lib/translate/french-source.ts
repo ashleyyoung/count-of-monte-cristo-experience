@@ -17,8 +17,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   fetchTexteBrut,
-  fetchAltoXml,
-  parseAltoXml,
+  fetchIssueAltoText,
   texteBrutUrl,
   DEBATS_DEFAULT_PAGE_COUNT,
   type AltoTextBlock,
@@ -93,14 +92,6 @@ export function effectivePageCount(doc: DayDoc, resolved?: number): number {
     if (n != null && n > 0) return n;
   }
   return DEBATS_DEFAULT_PAGE_COUNT;
-}
-
-function altoBlocksToPlainText(blocks: AltoTextBlock[]): string {
-  return [...blocks]
-    .sort((a, b) => a.y - b.y || a.x - b.x)
-    .map((b) => b.text.trim())
-    .filter(Boolean)
-    .join("\n");
 }
 
 function looksLikeHtml(text: string): boolean {
@@ -254,32 +245,16 @@ export async function fetchAltoToR2(
   log(
     `[french-source] Fetching ALTO OCR (${pageCount} page(s)) — BnF structured OCR, separate endpoint from texteBrut…`,
   );
-  const pageTexts: string[] = [];
 
-  for (let page = 1; page <= pageCount; page++) {
-    if (page > 1) {
-      log(`[french-source] ALTO: waiting ${ALTO_PAGE_DELAY_MS / 1000}s…`);
-      await new Promise((r) => setTimeout(r, ALTO_PAGE_DELAY_MS));
-    }
-    let blocks: AltoTextBlock[];
-    if (page === 1 && page1Blocks) {
-      log(`[french-source] ALTO page 1: reusing blocks from crop-strip (no refetch).`);
-      blocks = page1Blocks;
-    } else {
-      log(`[french-source] ALTO: fetching page ${page}/${pageCount}…`);
-      const xml = await fetchAltoXml(ark, page);
-      blocks = parseAltoXml(xml);
-    }
-    if (blocks.length === 0) {
-      log(`[french-source] ALTO page ${page}: no TextBlocks — skipping page.`);
-      continue;
-    }
-    const pageText = altoBlocksToPlainText(blocks);
-    pageTexts.push(`--- Page ${page} ---\n${pageText}`);
-    log(
-      `[french-source] ALTO page ${page}: ${blocks.length} blocks, ${pageText.length} chars.`,
-    );
-  }
+  const altoPages = await fetchIssueAltoText(ark, pageCount, {
+    log: (msg) => log(`[french-source] ${msg}`),
+    pageDelayMs: ALTO_PAGE_DELAY_MS,
+    page1Blocks,
+  });
+
+  const pageTexts = altoPages
+    .filter((p) => p.text.trim().length > 0)
+    .map((p) => `--- Page ${p.page} ---\n${p.text}`);
 
   const combined = pageTexts.join("\n\n");
   if (combined.trim().length < MIN_CHARS) {

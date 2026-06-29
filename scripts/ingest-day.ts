@@ -42,6 +42,7 @@ import {
   loadCachedFrench,
 } from "../lib/translate/french-source";
 import { runDayTranslation } from "../lib/translate/pipeline";
+import { buildTranslationRunOptions } from "../lib/translate/run-options";
 import { getByDate } from "../lib/installments";
 
 // ---------------------------------------------------------------------------
@@ -51,6 +52,7 @@ import { getByDate } from "../lib/installments";
 export interface IngestDayOptions {
   force?: boolean;
   skipTranslation?: boolean;
+  skipCropStrip?: boolean;
   model?: string;
 }
 
@@ -58,13 +60,20 @@ export interface IngestDayResult {
   ok: boolean;
   skipped?: boolean;
   message?: string;
+  /** True when all sub-steps were cache hits and no Gallica content was downloaded. */
+  allCached?: boolean;
 }
 
 export async function runIngestDay(
   date: string,
   options: IngestDayOptions = {},
 ): Promise<IngestDayResult> {
-  const { force = false, skipTranslation = false, model } = options;
+  const {
+    force = false,
+    skipTranslation = false,
+    skipCropStrip = false,
+    model,
+  } = options;
   const skipExisting = !force;
 
   if (!getByDate(date)) {
@@ -73,29 +82,47 @@ export async function runIngestDay(
     return { ok: true, skipped: true, message };
   }
 
-  const total = skipTranslation ? 4 : 5;
+  const totalSteps = (skipCropStrip ? 3 : 4) + (skipTranslation ? 0 : 1);
   const log = (msg: string) => console.error(`[ingest-day] ${date}: ${msg}`);
 
+  const skippedLabels = [
+    skipCropStrip && "crop-strip",
+    skipTranslation && "translation",
+  ].filter(Boolean);
   log(
-    `starting full ingest, ${total} steps` +
-      (skipTranslation ? " (translation skipped)" : ""),
+    `starting full ingest, ${totalSteps} steps` +
+      (skippedLabels.length ? ` (${skippedLabels.join(", ")} skipped)` : ""),
   );
 
-  const step = (n: number, name: string) =>
-    console.error(`\n[ingest-day] ${date}: (${n}/${total}) ${name}`);
+  let stepNum = 0;
+  const step = (name: string) =>
+    console.error(
+      `\n[ingest-day] ${date}: (${++stepNum}/${totalSteps}) ${name}`,
+    );
 
   // 1. resolve-issue
-  step(1, "resolve-issue");
+  step("resolve-issue");
   const resolved = await runResolveIssue({ day: date, skipExisting });
   log(`ARK ${resolved.ark} (${resolved.pageCount} page(s)).`);
 
   // 2. pull-scans
-  step(2, "pull-scans");
-  await runPullScans({ day: date, skipExisting });
+  step("pull-scans");
+  const scansResult = await runPullScans({ day: date, skipExisting });
+  const allScansSkipped = scansResult.pages.every((p) => p.skipped);
 
-  // 3. crop-strip
-  step(3, "crop-strip");
-  const cropResult = await runCropStrip({ day: date, skipExisting });
+  // 3. crop-strip (optional)
+  let cropSkipped = false;
+  let page1AltoBlocks = undefined;
+  if (skipCropStrip) {
+    log(
+      `crop-strip skipped (--skip-crop-strip). Run separately: npx tsx scripts/gallica/crop-strip.ts --date=${date}`,
+    );
+  } else {
+    step("crop-strip");
+    const cropResult = await runCropStrip({ day: date, skipExisting });
+    cropSkipped = !!cropResult.skipped;
+    page1AltoBlocks = cropResult.page1AltoBlocks;
+  }
 
   // 4. fetch-french-source (ALTO). texteBrut is skipped here for now — it's
   // been hitting BnF's own Altcha bot-challenge page (unsolvable by a
@@ -103,7 +130,7 @@ export async function runIngestDay(
   // outages, costing up to ~30min of retries before failing. ALTO has been
   // reliable throughout. fetchTexteBrutToR2 still exists and works via
   // scripts/translate/fetch-french-textebrut.ts if needed by hand.
-  step(4, "fetch-french-source");
+  step("fetch-french-source");
   const cachedFrench = skipExisting
     ? await loadCachedFrench(date, resolved.ark, log)
     : null;
@@ -113,20 +140,27 @@ export async function runIngestDay(
       ark: resolved.ark,
       pageCount: resolved.pageCount,
       log,
-      page1Blocks: cropResult.page1AltoBlocks,
+      page1Blocks: page1AltoBlocks,
     });
   }
+
+  const allCached =
+    allScansSkipped && (skipCropStrip || cropSkipped) && !!cachedFrench;
 
   if (skipTranslation) {
     log(
       `done (translation skipped). To translate: npx tsx scripts/translate/translate-day.ts --date=${date}`,
     );
-    return { ok: true };
+    return { ok: true, allCached };
   }
 
   // 5. translate-day
   step(5, "translate-day");
-  const summary = await runDayTranslation(date, log, { model });
+  const summary = await runDayTranslation(
+    date,
+    log,
+    buildTranslationRunOptions({ model }),
+  );
   log(
     `translate-day done: translated=${summary.translated} ` +
       `created=${summary.created} skipped=${summary.skipped} failed=${summary.failed.length}`,
@@ -153,13 +187,15 @@ Translation is saved to day_content incrementally inside the pipeline — no
 separate upload step required.
 
 Usage:
-  npx tsx scripts/ingest-day.ts --date=YYYY-MM-DD [--force] [--skip-translation] [--model=<id>]
+  npx tsx scripts/ingest-day.ts --date=YYYY-MM-DD [--force] [--skip-translation] [--skip-crop-strip] [--model=<id>]
 
   --force              Re-download and overwrite scans/crops already in R2.
                        Default is to skip existing files.
   --skip-translation   Stop after fetching the French source; skip translate-day.
                        Useful when you want to run translation separately or with a
                        different model later.
+  --skip-crop-strip    Skip the crop-strip step. Use when auto-derivation fails and
+                       you need to pass --region manually via crop-strip.ts later.
   --model              Override TRANSLATION_MODEL for the translate step
                        (e.g. claude-opus-4-8).
   --skip-preflight     Skip the Gallica reachability check before starting.
@@ -194,6 +230,7 @@ async function main() {
   const result = await runIngestDay(date, {
     force: process.argv.includes("--force"),
     skipTranslation: process.argv.includes("--skip-translation"),
+    skipCropStrip: process.argv.includes("--skip-crop-strip"),
     model: parseCliModel(),
   });
 

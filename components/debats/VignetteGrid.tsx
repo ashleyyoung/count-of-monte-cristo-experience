@@ -3,17 +3,16 @@
 /**
  * components/debats/VignetteGrid.tsx
  *
- * Framed portrait cards for all people (contributors + famous connections).
- * - Each card links to /people/[slug] or opens a detail popover for non-profiled figures.
- * - Contributors carry a gold star badge (is_contributor).
- * - Filter toggle: "contributors only" vs "everyone".
+ * Framed portrait cards for Débats contributors.
+ * Each card links to /people/[slug].
  * - Framer Motion hover lift.
  */
 
-import React, { useState } from "react";
+import React from "react";
 import styled from "styled-components";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
+import BeatBadge from "@/components/people/BeatBadge";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -39,28 +38,6 @@ interface VignetteGridProps {
 // Styled
 // ---------------------------------------------------------------------------
 
-const Controls = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-`;
-
-const FilterBtn = styled.button<{ $active: boolean }>`
-  font-family: var(--font-labels-stack);
-  font-size: 0.68rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  padding: 0.35rem 0.9rem;
-  border: 1px solid ${({ $active }) => ($active ? "var(--gilt-warm)" : "var(--rule-mid)")};
-  background: ${({ $active }) => ($active ? "rgba(201,162,75,0.1)" : "transparent")};
-  color: ${({ $active }) => ($active ? "var(--gilt-deep)" : "var(--ink-muted)")};
-  cursor: pointer;
-  transition: all 0.12s;
-
-  &:hover { border-color: var(--gilt-warm); color: var(--gilt-deep); }
-`;
-
 const Grid = styled.div`
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
@@ -69,11 +46,16 @@ const Grid = styled.div`
 
 const CardLink = styled(Link)`
   text-decoration: none;
-  display: block;
+  display: flex;
+  height: 100%;
 `;
 
 const Frame = styled(motion.div)`
   position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
   background: var(--paper-card);
   border: 1px solid var(--rule-light);
   box-shadow: 0 1px 6px rgba(0,0,0,0.08);
@@ -81,9 +63,17 @@ const Frame = styled(motion.div)`
 `;
 
 const ImgBox = styled.div`
+  position: relative;
   aspect-ratio: 3 / 4;
   overflow: hidden;
   background: var(--paper-deep);
+`;
+
+const PortraitBeatBadge = styled(BeatBadge)`
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 1;
 `;
 
 const PortraitImg = styled.img`
@@ -103,9 +93,17 @@ const PlaceholderImg = styled.div`
   color: var(--rule-strong);
 `;
 
+// Tall enough for a three-line name (e.g. Alfred-Auguste Cuvillier-Fleury) plus dates.
+const CARD_FOOTER_HEIGHT = "4rem";
+
 const CardFooter = styled.div`
+  flex-shrink: 0;
+  height: ${CARD_FOOTER_HEIGHT};
   padding: 0.5rem 0.6rem;
   border-top: 1px solid var(--rule-light);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
 `;
 
 const CardName = styled.p`
@@ -125,39 +123,6 @@ const CardMeta = styled.p`
   color: var(--ink-muted);
 `;
 
-const StarBadge = styled.span`
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  background: var(--gilt-warm);
-  color: var(--paper-base);
-  font-size: 0.65rem;
-  padding: 0.1rem 0.35rem;
-  border-radius: 2px;
-  font-family: var(--font-labels-stack);
-  letter-spacing: 0.04em;
-`;
-
-const KindPlacard = styled.div`
-  position: absolute;
-  bottom: 44px;
-  left: 0;
-  right: 0;
-  text-align: center;
-  pointer-events: none;
-`;
-
-const KindSpan = styled.span`
-  display: inline-block;
-  background: rgba(15,8,0,0.55);
-  color: var(--paper-base);
-  font-family: var(--font-labels-stack);
-  font-size: 0.55rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  padding: 0.1rem 0.4rem;
-`;
-
 const frameVariants = {
   rest: { y: 0, boxShadow: "0 1px 6px rgba(0,0,0,0.08)" },
   hover: { y: -4, boxShadow: "0 6px 24px rgba(0,0,0,0.15)" },
@@ -168,26 +133,11 @@ const frameVariants = {
 // ---------------------------------------------------------------------------
 
 export default function VignetteGrid({ people }: VignetteGridProps) {
-  const [contributorsOnly, setContributorsOnly] = useState(false);
-
-  const visible = contributorsOnly
-    ? people.filter((p) => p.is_contributor)
-    : people;
-
   return (
     <div>
-      <Controls>
-        <FilterBtn $active={!contributorsOnly} onClick={() => setContributorsOnly(false)}>
-          Everyone ({people.length})
-        </FilterBtn>
-        <FilterBtn $active={contributorsOnly} onClick={() => setContributorsOnly(true)}>
-          ✦ Débats contributors ({people.filter((p) => p.is_contributor).length})
-        </FilterBtn>
-      </Controls>
-
       <Grid>
         <AnimatePresence initial={false}>
-          {visible.map((person) => (
+          {people.map((person) => (
             <CardLink key={person.id} href={`/people/${person.slug}`} aria-label={person.name}>
               <Frame
                 layout
@@ -206,15 +156,8 @@ export default function VignetteGrid({ people }: VignetteGridProps) {
                   ) : (
                     <PlaceholderImg aria-hidden="true">☽</PlaceholderImg>
                   )}
+                  {person.beat && <PortraitBeatBadge beat={person.beat} />}
                 </ImgBox>
-
-                {person.is_contributor && <StarBadge>✦ Débats</StarBadge>}
-
-                {person.beat && (
-                  <KindPlacard>
-                    <KindSpan>{person.beat}</KindSpan>
-                  </KindPlacard>
-                )}
 
                 <CardFooter>
                   <CardName>{person.name}</CardName>

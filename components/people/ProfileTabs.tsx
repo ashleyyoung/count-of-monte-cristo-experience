@@ -70,6 +70,18 @@ const TabBar = styled.nav`
   overflow-x: auto;
   scrollbar-width: none;
   &::-webkit-scrollbar { display: none; }
+
+  /* On mobile the tabs wrap into a 2-column grid instead of scrolling
+     horizontally. The 1px gap over a rule-light background draws the cell
+     separators. */
+  @media (max-width: 800px) {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--rule-light);
+    border: 1px solid var(--rule-light);
+    overflow-x: visible;
+  }
 `;
 
 const TabBtn = styled.button<{ $active: boolean }>`
@@ -88,6 +100,19 @@ const TabBtn = styled.button<{ $active: boolean }>`
   transition: color 0.12s, border-color 0.12s;
 
   &:hover { color: var(--ink-secondary); }
+
+  @media (max-width: 800px) {
+    background: var(--paper-base);
+    text-align: center;
+    white-space: normal;
+    margin-bottom: 0;
+    padding: 0.6rem 0.5rem;
+
+    /* An odd final tab spans both columns so the grid never has an empty cell. */
+    &:last-child:nth-child(odd) {
+      grid-column: 1 / -1;
+    }
+  }
 `;
 
 const TabContent = styled.div`
@@ -103,6 +128,20 @@ const Prose = styled.div`
   max-width: 72ch;
 
   p { margin: 0 0 1rem; }
+  h1 {
+    font-family: var(--font-display-stack);
+    font-size: 1.5rem;
+    font-weight: 400;
+    margin: 0 0 1rem;
+    line-height: 1.2;
+  }
+  h2 {
+    font-family: var(--font-display-stack);
+    font-size: 1.25rem;
+    font-weight: 400;
+    margin: 1.5rem 0 0.5rem;
+    line-height: 1.25;
+  }
   h3 { font-family: var(--font-display-stack); font-size: 1.1rem; margin: 1.5rem 0 0.5rem; }
   blockquote {
     margin: 1rem 0 1rem 1.5rem;
@@ -172,6 +211,11 @@ const RelEdgeItem = styled.li`
   display: grid;
   grid-template-columns: 10rem 1fr;
   gap: 0.75rem;
+
+  @media (max-width: 480px) {
+    grid-template-columns: 1fr;
+    gap: 0.35rem;
+  }
 `;
 
 const RelName = styled.a`
@@ -227,6 +271,7 @@ export default function ProfileTabs({
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
+  const { adminMode } = useAdminMode();
 
   const activeTab: TabId = (searchParams.get("tab") as TabId) ?? "life";
 
@@ -239,15 +284,30 @@ export default function ProfileTabs({
     [router, pathname, searchParams],
   );
 
+  const visibleTabs = TABS.filter((t) => {
+    if (t.id === "connections") return adminMode;
+    // Hide "In Their Own Words" for visitors when there's nothing to show —
+    // admins still see it so they can write the first excerpt.
+    if (t.id === "words") return adminMode || !!person.autobio_md;
+    return true;
+  });
+
+  const effectiveTab: TabId =
+    activeTab === "connections" && !adminMode
+      ? "life"
+      : activeTab === "words" && !adminMode && !person.autobio_md
+        ? "life"
+        : activeTab;
+
   return (
     <Shell>
       <TabBar role="tablist" aria-label="Profile sections">
-        {TABS.map((t) => (
+        {visibleTabs.map((t) => (
           <TabBtn
             key={t.id}
             role="tab"
-            aria-selected={activeTab === t.id}
-            $active={activeTab === t.id}
+            aria-selected={effectiveTab === t.id}
+            $active={effectiveTab === t.id}
             onClick={() => setTab(t.id)}
           >
             {t.label}
@@ -256,25 +316,25 @@ export default function ProfileTabs({
       </TabBar>
 
       <TabContent role="tabpanel">
-        {activeTab === "life" && (
+        {effectiveTab === "life" && (
           <LifeTab person={person} />
         )}
-        {activeTab === "words" && (
+        {effectiveTab === "words" && (
           <WordsTab person={person} />
         )}
-        {activeTab === "portraits" && (
+        {effectiveTab === "portraits" && (
           <PortraitsTab assets={portraitAssets} name={person.name} />
         )}
-        {activeTab === "achievements" && (
+        {effectiveTab === "achievements" && (
           <AchievementsTab person={person} />
         )}
-        {activeTab === "debats" && (
+        {effectiveTab === "debats" && (
           <DebatsTab person={person} />
         )}
-        {activeTab === "connections" && (
+        {effectiveTab === "connections" && adminMode && (
           <ConnectionsTab person={person} egoGraph={egoGraph} neighborSlugs={neighborSlugs} neighborNames={neighborNames} />
         )}
-        {activeTab === "family" && (
+        {effectiveTab === "family" && (
           <FamilyTab person={person} neighborSlugs={neighborSlugs} neighborNames={neighborNames} />
         )}
       </TabContent>
@@ -822,8 +882,9 @@ function FamilyTab({
 //   [^1]: Title | Attribution | license=Public Domain | url=https://... | translator=...
 //
 // Fields after the title are key=value pairs separated by " | ".
-// The "url" field maps to source_text_url; "translator" maps to translator.
-// Any field not recognised is ignored gracefully.
+// The "url" field maps to reference_url (rendered as a generic "View source"
+// link); "source_text_url" maps to the French-original link; "translator" maps
+// to translator. Any field not recognised is ignored gracefully.
 // ---------------------------------------------------------------------------
 
 /**
@@ -847,7 +908,8 @@ function parseFootnotes(md: string): Map<number, CiteSource> {
       const key = kv[1];
       const val = kv[2];
       if (key === "license") source.license = val;
-      else if (key === "url") source.source_text_url = val;
+      else if (key === "url") source.reference_url = val;
+      else if (key === "source_text_url") source.source_text_url = val;
       else if (key === "translator") source.translator = val;
       else if (key === "translation_source_url") source.translation_source_url = val;
     }
@@ -873,6 +935,10 @@ function MarkdownRender({ md }: { md: string }) {
     const line = lines[i];
     if (line.startsWith("### ")) {
       elements.push(<h3 key={i}>{inlineRender(line.slice(4), footnotes)}</h3>);
+    } else if (line.startsWith("## ")) {
+      elements.push(<h2 key={i}>{inlineRender(line.slice(3), footnotes)}</h2>);
+    } else if (line.startsWith("# ")) {
+      elements.push(<h1 key={i}>{inlineRender(line.slice(2), footnotes)}</h1>);
     } else if (line.startsWith("> ")) {
       elements.push(<blockquote key={i}>{inlineRender(line.slice(2), footnotes)}</blockquote>);
     } else if (line.trim() === "") {

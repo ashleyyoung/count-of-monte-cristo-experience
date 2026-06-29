@@ -43,6 +43,8 @@
   --font-supporting-stack: var(--font-supporting),  "Cormorant Garamond", serif;
   --font-caption-stack:    var(--font-caption),     "IM Fell DW Pica",    serif;
   --font-script-stack:     var(--font-script),      "Pinyon Script",      cursive;
+  --font-tooltip-title-stack: var(--font-display-stack);
+  --font-tooltip-body-stack:  var(--font-body-stack);
 }
 
 /* --------------------------------------------------------------------------

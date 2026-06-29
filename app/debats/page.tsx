@@ -93,8 +93,10 @@ export default async function DebatsPage() {
     lifeEventsByPerson[ev.person_id]!.push(ev);
   }
 
-  // Build view-specific people arrays
-  const vignettePeople: VignettePerson[] = peopleList.map((p) => ({
+  // Build view-specific people arrays (contributors only — profile pages are for Débats writers)
+  const contributors = peopleList.filter((p) => p.is_contributor);
+
+  const vignettePeople: VignettePerson[] = contributors.map((p) => ({
     id: p.id,
     slug: p.slug,
     name: p.name,
@@ -106,7 +108,7 @@ export default async function DebatsPage() {
     portrait_url: portraitAssets[p.id] ?? null,
   }));
 
-  const timelinePeople: TimelinePerson[] = peopleList
+  const timelinePeople: TimelinePerson[] = contributors
     .filter((p) => p.birth != null)
     .map((p) => ({
       id: p.id,

@@ -158,7 +158,10 @@ npx tsx scripts/translate/transcribe-french-vision.ts --date=$DATE   # last reso
 
 # C. Translate the French in R2 -> English, saved to day_content
 npx tsx scripts/translate/translate-day.ts --date=$DATE
-# Default model is claude-sonnet-4-5. For higher quality: --model=claude-opus-4-8
+# Default model is claude-sonnet-4-6. For higher quality: --model=claude-opus-4-8
+
+# D. Summarize translated pages -> Highlights on Overview tab (optional)
+npx tsx scripts/summarize/summarize-day.ts --date=$DATE
 ```
 
 Translation is saved to `day_content` incrementally as each section completes —
@@ -168,11 +171,11 @@ there is no separate upload step.
 
 **texteBrut is skipped by default for now** — `ingest-day.ts`/`ingest-range.ts` and `translate-day.ts`'s auto-fetch both go straight to ALTO. texteBrut has been hitting BnF's own Altcha bot-challenge page (an unsolvable-by-script proof-of-work CAPTCHA, served as HTTP 200 — not a transient error) and, separately, long genuine Cloudflare/origin outages costing up to ~30 minutes of retries before failing. ALTO is a different Gallica backend path (`RequestDigitalElement`, not `.texteBrut`) that has been reliable throughout. `fetchTexteBrutToR2`/`fetch-french-textebrut.ts` still exist and work if you want to try texteBrut by hand for a specific date.
 
-| Situation                                 | Run                                                |
-| ----------------------------------------- | -------------------------------------------------- |
-| Default                                   | `fetch-french-alto.ts`                             |
-| You want to try texteBrut anyway          | `fetch-french-textebrut.ts`                        |
-| ALTO empty too                            | `pull-scans.ts` then `transcribe-french-vision.ts` |
+| Situation                        | Run                                                |
+| -------------------------------- | -------------------------------------------------- |
+| Default                          | `fetch-french-alto.ts`                             |
+| You want to try texteBrut anyway | `fetch-french-textebrut.ts`                        |
+| ALTO empty too                   | `pull-scans.ts` then `transcribe-french-vision.ts` |
 
 Run exactly one French-source script. `translate-day` translates whatever
 French intermediate is in R2 (precedence: texteBrut → ALTO → vision — so a
@@ -270,6 +273,41 @@ The Berlioz URL index is mostly empty until you add entries. Gutenberg chapters 
 
 ---
 
+## Phase 6 — Summarize (Highlights on Overview tab)
+
+After `translate-day` has written `doc.translated_pages`, run the summarize job to produce an immersive **Highlights** briefing in `doc.overview` (shown on the Overview tab). It reads the live English page translations from R2; it does not call Gallica.
+
+**Prerequisite:** `doc.translated_pages` must be non-empty for the date. Run `translate-day` first.
+
+### Single day
+
+```bash
+npx tsx scripts/summarize/summarize-day.ts --date=1844-08-28
+# Default model: TRANSLATION_MODEL env or claude-sonnet-4-6
+npx tsx scripts/summarize/summarize-day.ts --date=1844-08-28 --model=claude-haiku-4-5
+```
+
+### Full backfill (139 installments, ~$14 at Sonnet pricing)
+
+```bash
+for DATE in $(node -e "const s=require('./content/schedule.json'); console.log(s.installments.map(i=>i.date).join(' '))"); do
+  npx tsx scripts/summarize/summarize-day.ts --date=$DATE
+done
+```
+
+### Output
+
+- One `TextItem` in `doc.overview` with `slot_key=overview-1`
+- English prose on R2 at `{date}/en/overview-1/{timestamp}.txt`
+- Version history in `translation_versions` (`section='overview'`)
+- Prior overview rows from the translate pipeline's segmentation pass remain in history
+
+### Admin action
+
+`app/actions/admin.ts` exports `summarizeDay(date, { model? })` for synchronous admin use (same pipeline as the CLI).
+
+---
+
 ## Suggested first smoke test
 
 Run these in order to validate the full stack on one day:
@@ -292,13 +330,14 @@ Then open [http://localhost:3001/day/1844-08-28](http://localhost:3001/day/1844-
 
 ## What each phase gives you
 
-| Phase | What appears on the site                                  |
-| ----- | --------------------------------------------------------- |
-| 1     | Timeline and empty day pages                              |
-| 2     | People profiles, Débats hub graph                         |
-| 3     | Chapter tab (Gutenberg English)                           |
-| 4     | Original paper scans, feuilleton strip image              |
-| 5     | Débats sections, overview, science, etc. (Claude English) |
+| Phase | What appears on the site                                         |
+| ----- | ---------------------------------------------------------------- |
+| 1     | Timeline and empty day pages                                     |
+| 2     | People profiles, Débats hub graph                                |
+| 3     | Chapter tab (Gutenberg English)                                  |
+| 4     | Original paper scans, feuilleton strip image                     |
+| 5     | Débats sections, overview, science, etc. (Claude English)        |
+| 6     | Overview **Highlights** briefing (curated from translated pages) |
 
 ---
 
@@ -333,5 +372,6 @@ Then open [http://localhost:3001/day/1844-08-28](http://localhost:3001/day/1844-
 | `scripts/translate/fetch-french-textebrut.ts`   | Per date       | French source: Gallica texteBrut → R2 (disabled by default — see "Which French script")       |
 | `scripts/translate/transcribe-french-vision.ts` | Per date       | French source: Claude vision OCR → R2 (last resort)                                           |
 | `scripts/translate/translate-day.ts`            | Per date       | Translate French in R2 → English, saved to `day_content` immediately                          |
+| `scripts/summarize/summarize-day.ts`            | Per date       | Summarize `translated_pages` → `doc.overview` (Highlights); run after translate-day           |
 | `scripts/translate/update-day-content.ts`       | Per date       | Re-sync `day_content` from `translation_versions` (use after importing existing translations) |
 | `scripts/translate/import-existing.ts`          | Per date       | `--source=berlioz\|gutenberg\|all`                                                            |

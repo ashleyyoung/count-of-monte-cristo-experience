@@ -55,7 +55,7 @@ The model is **fully configurable via env vars; nothing is hardcoded.** Swapping
 
 | Role                                   | Model (env)                                          | Notes                                                                                                              |
 | -------------------------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| Translation (current default)          | `claude-sonnet-4-5` (`TRANSLATION_MODEL`)            | Strong quality at lower cost for bulk day runs ($3/$15); override with `--model` or env for Opus/Fable experiments |
+| Translation (current default)          | `claude-sonnet-4-6` (`TRANSLATION_MODEL`)            | Strong quality at lower cost for bulk day runs ($3/$15); override with `--model` or env for Opus/Fable experiments |
 | Translation (higher quality)           | `claude-opus-4-8` (`--model` or `TRANSLATION_MODEL`) | Heavier voice work or difficult sections; ~$5/$25                                                                  |
 | Translation (preferred when available) | `claude-fable-5` (`TRANSLATION_MODEL`)               | Tops EQ-Bench Creative Writing; flip the env var when it is unblocked, no code change                              |
 | Translation (any)                      | any Anthropic model id (`TRANSLATION_MODEL`)         | Same client path; `model_used` recorded per version for comparison                                                 |
@@ -72,9 +72,9 @@ System prompt is tuned for 1844-46 Débats voice: preserve register (Berlioz wit
 ```
 ANTHROPIC_API_KEY=
 TRANSLATION_PROVIDER=anthropic
-TRANSLATION_MODEL=claude-sonnet-4-5
+TRANSLATION_MODEL=claude-sonnet-4-6
 # Optional; vision OCR model. Falls back to TRANSLATION_MODEL when unset.
-TRANSLATION_VISION_MODEL=claude-sonnet-4-5
+TRANSLATION_VISION_MODEL=claude-sonnet-4-6
 ```
 
 ---

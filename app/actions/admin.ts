@@ -385,6 +385,32 @@ export async function upsertPerson(
   return { id: row.id };
 }
 
+/**
+ * Link an already-uploaded media asset as a person's portrait or background.
+ * Pair with uploadMediaToR2(kind="portrait"|"background") on the client.
+ */
+export async function setPersonImage(
+  personId: string,
+  slug: string,
+  field: "portrait" | "background",
+  mediaAssetId: string,
+): Promise<{ ok: true }> {
+  await assertAdmin();
+  if (!mediaAssetId) throw new Error("mediaAssetId is required.");
+  const column =
+    field === "portrait"
+      ? "portrait_media_asset_id"
+      : "background_media_asset_id";
+  const db = createAdminClient();
+  const { error } = await db
+    .from("people")
+    .update({ [column]: mediaAssetId })
+    .eq("id", personId);
+  if (error) throw new Error(`Failed to set ${field}: ${error.message}`);
+  revalidatePath(`/people/${slug}`);
+  return { ok: true };
+}
+
 // ---------------------------------------------------------------------------
 // Life events
 // ---------------------------------------------------------------------------
@@ -628,9 +654,8 @@ export async function triggerGraphRecompute(): Promise<{ variants: number }> {
 //
 // Enqueues a per-day translation and spawns the local CLI runner
 // (scripts/translate/translate-day.ts) detached, so the heavy Claude work runs
-// on the admin's own machine without a serverless timeout. The button that
-// calls this is labelled "Re-translate day locally" and is shown only when this
-// runner is enabled. Fire-and-forget: the admin refreshes to see results.
+// on the admin's own machine without a serverless timeout. Fire-and-forget:
+// the admin refreshes to see results.
 // ---------------------------------------------------------------------------
 
 /**
@@ -649,7 +674,7 @@ function isLocalTranslationRunnerEnabled(): boolean {
 export type TranslationEngine = "sonnet" | "opus" | "haiku";
 
 const CLAUDE_MODEL_BY_ENGINE: Record<TranslationEngine, string> = {
-  sonnet: "claude-sonnet-4-5",
+  sonnet: "claude-sonnet-4-6",
   opus: "claude-opus-4-8",
   haiku: "claude-haiku-4-5",
 };
@@ -672,7 +697,9 @@ export async function requestDayTranslation(
   }
 
   if (engine !== "sonnet" && engine !== "opus" && engine !== "haiku") {
-    throw new Error(`Invalid engine: ${engine}. Expected sonnet, opus, or haiku.`);
+    throw new Error(
+      `Invalid engine: ${engine}. Expected sonnet, opus, or haiku.`,
+    );
   }
 
   const db = createAdminClient();
@@ -768,15 +795,47 @@ export async function requestDayTranslation(
  */
 export async function translateDay(
   date: string,
+  options?: { model?: string },
 ): Promise<import("@/lib/translate/pipeline").TranslationRunSummary> {
   await assertAdmin();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     throw new Error(`Invalid date: ${date}. Expected YYYY-MM-DD.`);
   }
   const { runDayTranslation } = await import("@/lib/translate/pipeline");
-  const summary = await runDayTranslation(date, (msg) => {
-    console.log(`[translateDay] ${msg}`);
-  });
+  const { buildTranslationRunOptions } =
+    await import("@/lib/translate/run-options");
+  const summary = await runDayTranslation(
+    date,
+    (msg) => {
+      console.log(`[translateDay] ${msg}`);
+    },
+    buildTranslationRunOptions({
+      model: options?.model,
+    }),
+  );
+  revalidatePath(`/day/${date}`);
+  return summary;
+}
+
+/**
+ * Summarize live translated_pages into doc.overview (Highlights), admin-only.
+ */
+export async function summarizeDay(
+  date: string,
+  options?: { model?: string },
+): Promise<import("@/lib/summarize/pipeline").SummarizeRunSummary> {
+  await assertAdmin();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    throw new Error(`Invalid date: ${date}. Expected YYYY-MM-DD.`);
+  }
+  const { runDaySummarization } = await import("@/lib/summarize/pipeline");
+  const summary = await runDaySummarization(
+    date,
+    (msg) => {
+      console.log(`[summarizeDay] ${msg}`);
+    },
+    { model: options?.model },
+  );
   revalidatePath(`/day/${date}`);
   return summary;
 }

@@ -131,8 +131,8 @@ export default async function DayPage({ params, searchParams }: PageProps) {
   const activeTab = parseTab(tabParam);
 
   // Local translation runner: enabled only when something can run on this
-  // machine (dev) or when explicitly flagged. The "Re-translate day locally"
-  // button is shown only when this is true.
+  // machine (dev) or when explicitly flagged. The Translate button is shown
+  // only when this is true.
   const localRunnerEnabled =
     process.env.NODE_ENV === "development" ||
     process.env.LOCAL_TRANSLATION_RUNNER === "1";

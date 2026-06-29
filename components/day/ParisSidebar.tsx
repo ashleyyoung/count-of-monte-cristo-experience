@@ -37,6 +37,7 @@ const Sidebar = styled.aside`
   flex-direction: column;
   gap: 14px;
   overflow: auto;
+  min-width: 0;
 `;
 
 const SectionHeading = styled.h3`

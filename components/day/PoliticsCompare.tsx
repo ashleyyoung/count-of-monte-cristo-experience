@@ -12,6 +12,10 @@ const Grid = styled.div`
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
+
+  @media (max-width: 480px) {
+    grid-template-columns: 1fr;
+  }
 `;
 
 const Col = styled.div<{ $source: "debats" | "galignani" }>`

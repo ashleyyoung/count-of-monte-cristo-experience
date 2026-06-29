@@ -8,7 +8,7 @@
  * exists yet, it fetches Gallica texteBrut once as the default.
  *
  * This is the one code path invoked by BOTH a terminal command and the admin
- * UI's "Re-translate day locally" button (via the requestDayTranslation server
+ * UI's "Translate" button (via the requestDayTranslation server
  * action, which spawns this script detached). It owns the run lifecycle
  * (queued -> running -> done/failed) and delegates to lib/translate/pipeline.ts.
  *
@@ -16,7 +16,7 @@
  *   npx tsx scripts/translate/translate-day.ts --date=1844-08-28
  *   npx tsx scripts/translate/translate-day.ts --date=1844-08-28 --run-id=<uuid>
  *   npx tsx scripts/translate/translate-day.ts --date=1844-08-28 --force-fetch
- *   npx tsx scripts/translate/translate-day.ts --date=1844-08-28 --model=claude-sonnet-4-5
+ *   npx tsx scripts/translate/translate-day.ts --date=1844-08-28 --model=claude-sonnet-4-6
  *   npx tsx scripts/translate/translate-day.ts --help
  *
  * To use ALTO or vision instead of texteBrut, run that fetch script first:
@@ -38,6 +38,7 @@ import {
   runDayTranslation,
   type TranslationRunSummary,
 } from "../../lib/translate/pipeline";
+import { buildTranslationRunOptions } from "../../lib/translate/run-options";
 
 export type { TranslationRunSummary };
 
@@ -48,10 +49,16 @@ Reads:  the French intermediate in R2 (texteBrut → ALTO → vision precedence)
 Writes: translation_versions rows + day_content.doc for the date.
 
 Usage:
-  npx tsx scripts/translate/translate-day.ts --date=YYYY-MM-DD [--force-fetch] [--model=<anthropic-model-id>] [--run-id=<uuid>]
+  npx tsx scripts/translate/translate-day.ts --date=YYYY-MM-DD [options]
 
-  --model   Override TRANSLATION_MODEL for this run (default: env or claude-sonnet-4-5).
-            Use claude-opus-4-8 for higher-quality one-off runs.`;
+Options:
+  --model=<id>     Override TRANSLATION_MODEL (default: claude-sonnet-4-6)
+  --run-id=<uuid>  translation_runs lifecycle (admin local runner)
+  --force-fetch    Re-fetch Gallica French source
+  --force          Redo everything even when already translated (new version rows)
+  --sync           Use streaming API instead of Message Batches (full price, faster feedback)
+
+Default: translate pages then segment into tabs via Message Batches API (50% off).`;
 
 // ---------------------------------------------------------------------------
 // Env + client
@@ -94,6 +101,8 @@ function parseCliModel(): string | undefined {
 }
 
 const FORCE_FETCH = process.argv.includes("--force-fetch");
+const FORCE = process.argv.includes("--force");
+const SYNC = process.argv.includes("--sync");
 
 // ---------------------------------------------------------------------------
 // translation_runs lifecycle helpers
@@ -183,10 +192,16 @@ async function main() {
   if (runId) await markRunning(supabase, runId);
 
   try {
-    const summary = await runDayTranslation(date, log, {
-      forceFetch: FORCE_FETCH,
-      model,
-    });
+    const summary = await runDayTranslation(
+      date,
+      log,
+      buildTranslationRunOptions({
+        forceFetch: FORCE_FETCH,
+        force: FORCE,
+        model,
+        useMessageBatch: SYNC ? false : undefined,
+      }),
+    );
     if (runId) await markDone(supabase, runId, summary);
     log(
       `Done. translated=${summary.translated} challengers=${summary.challengers} ` +

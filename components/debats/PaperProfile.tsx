@@ -106,12 +106,14 @@ const SourceA = styled.a`
 const MastheadPlaceholder = styled.div`
   width: 100%;
   max-width: 560px;
-  height: 80px;
+  min-height: 80px;
   border: 1px solid var(--rule-light);
   background: var(--paper-deep);
   display: flex;
   align-items: center;
   justify-content: center;
+  text-align: center;
+  padding: 1.25rem 1.5rem;
   font-family: var(--font-masthead-stack);
   font-size: 1.4rem;
   color: var(--ink-primary);

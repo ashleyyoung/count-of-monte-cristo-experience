@@ -33,6 +33,11 @@ const Panel = styled(motion.div)`
   padding: 24px 28px;
   border-radius: 2px;
   overflow: hidden;
+
+  @media (max-width: 600px) {
+    margin: 18px 20px 0;
+    padding: 18px 16px;
+  }
 `;
 
 const PanelHeader = styled.div`

@@ -29,6 +29,10 @@ const Wrapper = styled.div`
 
 const PageHeader = styled.div`
   padding: 26px 36px 20px;
+
+  @media (max-width: 600px) {
+    padding: 20px 20px 16px;
+  }
 `;
 
 const PageTitle = styled.h1`
@@ -55,6 +59,10 @@ const SelectorWrapper = styled.div`
 const Ribbon = styled.div`
   margin-top: 24px;
   padding: 0 36px;
+
+  @media (max-width: 600px) {
+    padding: 0 20px;
+  }
 `;
 
 const GiltLine = styled.div`

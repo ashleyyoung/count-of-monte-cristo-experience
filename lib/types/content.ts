@@ -115,6 +115,13 @@ export const ImageItemSchema = z.object({
   /** Display caption shown below the image. */
   caption: z.string(),
   contributor_id: z.string().uuid().optional(),
+  /**
+   * Stable per-item identity key (mirrors TextItem.slot_key), e.g.
+   * "galignani-scan-page-1". Lets re-running an ingest replace its own items
+   * idempotently without clobbering hand-curated images in the same section.
+   * Assigned by ingest scripts; absent on manually added images.
+   */
+  slot_key: z.string().min(1).optional(),
 });
 
 /** An audio asset — period music recordings. */

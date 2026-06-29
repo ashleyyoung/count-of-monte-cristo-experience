@@ -34,6 +34,20 @@ const Panel = styled.aside`
   top: 0;
   max-height: 100vh;
   overflow-y: auto;
+  /* Grid items default to min-width: auto, sized to their content's
+     min-content. Without this, a wide descendant (e.g. a large scan image)
+     can force this column wider than the viewport on mobile. */
+  min-width: 0;
+
+  /* The scans are also reachable via the "Original paper" tab (which has
+     its own responsive grid), so on mobile we hide this panel entirely
+     rather than fight the 3-col grid for space. Below 800px the grid
+     collapses to a single column anyway (see DayPageView's ThreeCol
+     breakpoint) — sticky + 100vh here would otherwise pin this panel over
+     the full viewport and block the reading column underneath. */
+  @media (max-width: 800px) {
+    display: none;
+  }
 `;
 
 const StripLabel = styled.div`

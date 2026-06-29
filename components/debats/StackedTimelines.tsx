@@ -78,27 +78,6 @@ const Container = styled.div`
   gap: 0;
 `;
 
-const Controls = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  margin-bottom: 1.25rem;
-`;
-
-const FilterBtn = styled.button<{ $active: boolean }>`
-  font-family: var(--font-labels-stack);
-  font-size: 0.68rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  padding: 0.35rem 0.9rem;
-  border: 1px solid ${({ $active }) => ($active ? "var(--gilt-warm)" : "var(--rule-mid)")};
-  background: ${({ $active }) => ($active ? "rgba(201,162,75,0.1)" : "transparent")};
-  color: ${({ $active }) => ($active ? "var(--gilt-deep)" : "var(--ink-muted)")};
-  cursor: pointer;
-  transition: all 0.12s;
-  &:hover { border-color: var(--gilt-warm); color: var(--gilt-deep); }
-`;
-
 const AxisContainer = styled.div`
   position: relative;
   margin-bottom: 2rem;
@@ -214,7 +193,9 @@ const EventDot = styled.button<{ $left: string }>`
   position: absolute;
   top: 50%;
   left: ${({ $left }) => $left};
+  display: block;
   transform: translate(-50%, -50%);
+  transform-origin: center center;
   width: 6px;
   height: 6px;
   border-radius: 50%;
@@ -333,17 +314,15 @@ function SortableTrack({ person, visible, extent, reduced, onToggle }: SortableT
 
 export default function StackedTimelines({ people }: StackedTimelinesProps) {
   const reduced = useReducedMotion();
-  const [contributorsOnly, setContributorsOnly] = useState(false);
   const [order, setOrder] = useState<string[]>(() => people.map((p) => p.id));
   const [hidden, setHidden] = useState<Set<string>>(() => new Set());
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
   const filtered = useMemo(() => {
-    const pool = contributorsOnly ? people.filter((p) => p.is_contributor) : people;
-    const poolMap = new Map(pool.map((p) => [p.id, p]));
+    const poolMap = new Map(people.map((p) => [p.id, p]));
     return order.filter((id) => poolMap.has(id)).map((id) => poolMap.get(id)!);
-  }, [people, order, contributorsOnly]);
+  }, [people, order]);
 
   const visiblePeople = filtered.filter((p) => !hidden.has(p.id));
   const extent = useMemo(() => computeExtent(visiblePeople.length > 0 ? visiblePeople : filtered), [visiblePeople, filtered]);
@@ -400,15 +379,6 @@ export default function StackedTimelines({ people }: StackedTimelinesProps) {
 
   return (
     <Container>
-      <Controls>
-        <FilterBtn $active={!contributorsOnly} onClick={() => setContributorsOnly(false)}>
-          Everyone ({people.length})
-        </FilterBtn>
-        <FilterBtn $active={contributorsOnly} onClick={() => setContributorsOnly(true)}>
-          ✦ Contributors only ({people.filter((p) => p.is_contributor).length})
-        </FilterBtn>
-      </Controls>
-
       {!reduced && (
         <p style={{ fontSize: "0.68rem", fontFamily: "var(--font-labels-stack)", color: "var(--ink-muted)", marginBottom: "1rem" }}>
           Drag ⠿ handles to reorder tracks. Toggle checkboxes to show/hide.

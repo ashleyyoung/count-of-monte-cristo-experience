@@ -38,14 +38,17 @@ const Wrapper = styled.div`
 
 const AxisRow = styled.div`
   position: relative;
-  height: 2px;
-  background: var(--rule-mid);
+  height: 16px;
   margin: 0 24px;
 `;
 
 const AxisLine = styled.div`
   position: absolute;
-  inset: 0;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 2px;
+  transform: translateY(-50%);
   background: linear-gradient(
     to right,
     var(--rule-light),
@@ -57,7 +60,7 @@ const AxisLine = styled.div`
 
 const AnchorLabel = styled.span<{ $side: "left" | "right" }>`
   position: absolute;
-  top: 8px;
+  top: calc(50% + 10px);
   ${({ $side }) => $side}: 0;
   font-family: var(--font-labels-stack);
   font-size: 0.7rem;
@@ -83,9 +86,11 @@ const EventDotWrap = styled.div<{ $pct: number }>`
   left: ${({ $pct }) => $pct}%;
   transform: translate(-50%, -50%);
   z-index: 2;
+  line-height: 0;
 `;
 
-const DotButton = styled.button`
+const DotButton = styled(motion.button)`
+  display: block;
   width: 10px;
   height: 10px;
   border-radius: 50%;
@@ -93,10 +98,8 @@ const DotButton = styled.button`
   background: var(--gilt-warm);
   cursor: pointer;
   padding: 0;
-  transition: transform 0.12s, background 0.12s;
 
   &:hover, &:focus-visible {
-    transform: scale(1.5);
     background: var(--gilt-deep);
     outline: none;
   }
@@ -112,7 +115,7 @@ const Tooltip = styled.div<{ $above: boolean }>`
   border-radius: 1px 3px 2px 1px / 2px 1px 3px 1px;
   padding: 0.5rem 0.75rem;
   min-width: 180px;
-  max-width: 260px;
+  max-width: min(260px, calc(100vw - 32px));
   box-shadow:
     0 2px 12px rgba(29, 20, 10, 0.14),
     inset 0 0 0 1px rgba(185, 165, 120, 0.2);
@@ -122,9 +125,9 @@ const Tooltip = styled.div<{ $above: boolean }>`
 
 const TooltipTitle = styled.p`
   margin: 0 0 0.2rem;
-  font-family: var(--font-script-stack);
-  font-size: 1rem;
-  line-height: 1.3;
+  font-family: var(--font-tooltip-title-stack);
+  font-size: 0.95rem;
+  line-height: 1.35;
   color: var(--ink-primary);
 `;
 
@@ -137,10 +140,10 @@ const TooltipDate = styled.p`
 
 const TooltipDesc = styled.p`
   margin: 0 0 0.25rem;
-  font-family: var(--font-script-stack);
-  font-size: 0.88rem;
+  font-family: var(--font-tooltip-body-stack);
+  font-size: 0.82rem;
   color: var(--ink-secondary);
-  line-height: 1.35;
+  line-height: 1.45;
 `;
 
 const SourceLink = styled.a`
@@ -160,8 +163,8 @@ const SourceLink = styled.a`
 
 const SerializationBand = styled.div<{ $left: number; $width: number }>`
   position: absolute;
-  top: -8px;
-  bottom: -8px;
+  top: 0;
+  bottom: 0;
   left: ${({ $left }) => $left}%;
   width: ${({ $width }) => $width}%;
   background: rgba(201, 162, 75, 0.12);
@@ -275,22 +278,20 @@ export default function LifeTimeline({ name, birth, death, events }: LifeTimelin
 
           return (
             <EventDotWrap key={`${id}-${i}`} $pct={pct}>
-              <motion.div
+              <DotButton
                 variants={dotMotion}
                 initial="hidden"
                 animate="visible"
+                whileHover={{ scale: 1.5 }}
                 custom={i}
-              >
-                <DotButton
-                  aria-label={ev.title}
-                  aria-expanded={isActive}
-                  aria-describedby={isActive ? `${id}-tip-${i}` : undefined}
-                  onMouseEnter={() => setActiveIdx(i)}
-                  onFocus={() => setActiveIdx(i)}
-                  onMouseLeave={() => setActiveIdx(null)}
-                  onBlur={() => setActiveIdx(null)}
-                />
-              </motion.div>
+                aria-label={ev.title}
+                aria-expanded={isActive}
+                aria-describedby={isActive ? `${id}-tip-${i}` : undefined}
+                onMouseEnter={() => setActiveIdx(i)}
+                onFocus={() => setActiveIdx(i)}
+                onMouseLeave={() => setActiveIdx(null)}
+                onBlur={() => setActiveIdx(null)}
+              />
 
               {isActive && (
                 <Tooltip $above={above} id={`${id}-tip-${i}`} role="tooltip">

@@ -76,8 +76,14 @@ const Page = styled.div`
 
 const Masthead = styled.header`
   padding: 2rem 0 0;
-  margin-bottom: 2rem;
+  margin-bottom: 0;
   border-bottom: 2px solid var(--rule-mid);
+
+  /* On mobile the tabs are a bordered grid, so the masthead's own bottom
+     rule reads as a redundant heavy line beneath them — drop it. */
+  @media (max-width: 800px) {
+    border-bottom: none;
+  }
 `;
 
 const Breadcrumb = styled.div`
@@ -123,6 +129,18 @@ const TabBar = styled.nav`
   overflow-x: auto;
   scrollbar-width: none;
   &::-webkit-scrollbar { display: none; }
+
+  /* On mobile the tabs wrap into a 2-column grid instead of scrolling
+     horizontally. The 1px gap over a rule-light background draws the cell
+     separators. */
+  @media (max-width: 800px) {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--rule-light);
+    border: 1px solid var(--rule-light);
+    overflow-x: visible;
+  }
 `;
 
 const TabBtn = styled.button<{ $active: boolean }>`
@@ -140,10 +158,27 @@ const TabBtn = styled.button<{ $active: boolean }>`
   cursor: pointer;
   transition: color 0.12s, border-color 0.12s;
   &:hover { color: var(--ink-secondary); }
+
+  @media (max-width: 800px) {
+    background: var(--paper-base);
+    text-align: center;
+    white-space: normal;
+    margin-bottom: 0;
+    padding: 0.6rem 0.5rem;
+
+    /* An odd final tab spans both columns so the grid never has an empty cell. */
+    &:last-child:nth-child(odd) {
+      grid-column: 1 / -1;
+    }
+  }
 `;
 
 const TabContent = styled.div`
-  padding: 2.5rem 0;
+  padding: 1rem 0 2.5rem;
+
+  @media (max-width: 800px) {
+    padding: 0.75rem 0 1.25rem;
+  }
 `;
 
 const GraphShell = styled.div`
@@ -257,10 +292,15 @@ export default function DebatsPageView({
     [router, pathname, searchParams],
   );
 
+  const visibleTabs = TABS.filter((t) => t.id !== "connections" || adminMode);
+
   const variantOptions: VariantOption[] = variants.map((v) => ({
     key: v.key,
     label: v.label,
   }));
+
+  const effectiveTab: TabId =
+    activeTab === "connections" && !adminMode ? "paper" : activeTab;
 
   return (
     <Page>
@@ -273,12 +313,12 @@ export default function DebatsPageView({
         <Title>Journal des Débats</Title>
         <Subtitle>Politiques et Littéraires · Founded 1789</Subtitle>
         <TabBar role="tablist" aria-label="Débats hub sections">
-          {TABS.map((t) => (
+          {visibleTabs.map((t) => (
             <TabBtn
               key={t.id}
               role="tab"
-              aria-selected={activeTab === t.id}
-              $active={activeTab === t.id}
+              aria-selected={effectiveTab === t.id}
+              $active={effectiveTab === t.id}
               onClick={() => setTab(t.id)}
             >
               {t.label}
@@ -288,13 +328,13 @@ export default function DebatsPageView({
       </Masthead>
 
       <TabContent role="tabpanel">
-        {activeTab === "paper" && <PaperProfile />}
+        {effectiveTab === "paper" && <PaperProfile />}
 
-        {activeTab === "press" && <PressRoom />}
+        {effectiveTab === "press" && <PressRoom />}
 
-        {activeTab === "business" && <PressBusiness />}
+        {effectiveTab === "business" && <PressBusiness />}
 
-        {activeTab === "connections" && (
+        {effectiveTab === "connections" && adminMode && (
           <GraphShell>
             {adminMode && (
               <AdminBar>
@@ -323,7 +363,7 @@ export default function DebatsPageView({
           </GraphShell>
         )}
 
-        {activeTab === "people" && (
+        {effectiveTab === "people" && (
           <div>
             <PeopleToggle>
               <SubBtn $active={peopleSubview === "grid"} onClick={() => setPeopleSubview("grid")}>

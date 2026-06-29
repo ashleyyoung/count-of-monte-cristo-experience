@@ -30,6 +30,10 @@ const PartHeader = styled.div`
   padding: 32px 36px 16px;
   border-bottom: 2px solid var(--rule-strong);
   margin-bottom: 4px;
+
+  @media (max-width: 600px) {
+    padding: 24px 20px 14px;
+  }
 `;
 
 const PartNumber = styled.div`
@@ -78,6 +82,12 @@ const HiatusBlock = styled.div`
   gap: 16px;
   margin-top: 2px;
   margin-bottom: 2px;
+  flex-wrap: wrap;
+
+  @media (max-width: 600px) {
+    margin: 2px 20px;
+    padding: 14px 16px;
+  }
 `;
 
 const HiatusLabel = styled.span`

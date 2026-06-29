@@ -47,6 +47,22 @@ const Row = styled.nav`
 
   &::-webkit-scrollbar { height: 3px; }
   &::-webkit-scrollbar-thumb { background: var(--rule-light); }
+
+  @media (max-width: 800px) {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    overflow-x: visible;
+    border-top: none;
+  }
+`;
+
+const TabLabel = styled.span<{ $active: boolean }>`
+  display: inline-block;
+
+  @media (max-width: 800px) {
+    border-bottom: 2px solid ${({ $active }) => ($active ? "var(--gilt-warm)" : "transparent")};
+    padding-bottom: 2px;
+  }
 `;
 
 const Tab = styled.button<{ $active: boolean }>`
@@ -63,6 +79,21 @@ const Tab = styled.button<{ $active: boolean }>`
   white-space: nowrap;
   margin-top: -1px;
   transition: color 0.15s;
+
+  @media (max-width: 800px) {
+    white-space: normal;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 8px;
+    border-top: none;
+    border-bottom: 1px solid var(--rule-light);
+    border-right: 1px solid var(--rule-light);
+    margin-top: 0;
+
+    &:nth-child(4n) { border-right: none; }
+    &:nth-last-child(-n+4) { border-bottom: none; }
+  }
 
   &:hover:not([aria-selected="true"]) {
     color: var(--ink-secondary);
@@ -122,7 +153,7 @@ export default function TabRow({
           aria-selected={tab.id === activeTab}
           onClick={() => handleTab(tab.id)}
         >
-          {tab.label}
+          <TabLabel $active={tab.id === activeTab}>{tab.label}</TabLabel>
         </Tab>
       ))}
     </Row>

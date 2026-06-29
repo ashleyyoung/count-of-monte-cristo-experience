@@ -126,9 +126,9 @@ const ConfidenceBadge = styled.span`
 
 const NoteText = styled.p`
   margin: 0 0 0.5rem;
-  font-family: var(--font-script-stack);
-  font-size: 0.95rem;
-  line-height: 1.4;
+  font-family: var(--font-tooltip-body-stack);
+  font-size: 0.82rem;
+  line-height: 1.45;
   color: var(--ink-secondary);
 `;
 

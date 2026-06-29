@@ -3,7 +3,7 @@
 /**
  * components/ui/Cite.tsx
  *
- * In-text superscript citation marker with a Pinyon-Script torn-margin hover card.
+ * In-text superscript citation marker with a torn-margin hover card.
  * Used everywhere an attribution is needed; the single citation primitive for the project.
  *
  * Design rules:
@@ -32,6 +32,8 @@ export interface CiteSource {
   license?: string;
   /** PUBLIC link to the untranslated French source (Gallica, FMC Project, etc.) */
   source_text_url?: string;
+  /** Generic reference link (Wikipedia, journal article, archive) — shown as "View source" */
+  reference_url?: string;
   /** Human translator credit — shown only for existing_published translations */
   translator?: string;
   /** "Further reading" outbound link for copyrighted translations that can't be embedded */
@@ -60,24 +62,29 @@ const fadeIn = keyframes`
 // ---------------------------------------------------------------------------
 
 const Marker = styled.button`
-  display: inline;
+  display: inline-block;
   vertical-align: super;
-  font-family: var(--font-display-stack);
-  font-style: italic;
-  font-size: 0.65em;
+  font-family: var(--font-labels-stack);
+  font-style: normal;
+  font-weight: 700;
+  font-size: 0.62em;
   line-height: 1;
-  color: var(--gilt-deep);
-  background: none;
-  border: none;
-  padding: 0 1px;
+  color: var(--oxblood);
+  background: rgba(201, 162, 75, 0.18);
+  border: 1px solid rgba(155, 36, 30, 0.35);
+  border-radius: 3px;
+  padding: 0.12em 0.32em;
+  margin: 0 1px 0 2px;
   cursor: pointer;
-  transition: color 0.1s;
+  transition: color 0.1s, background 0.1s, border-color 0.1s;
   position: relative;
-  top: -0.05em;
+  top: -0.15em;
 
   &:hover,
   &:focus-visible {
-    color: var(--oxblood);
+    color: var(--paper-base);
+    background: var(--oxblood);
+    border-color: var(--oxblood);
     outline: none;
   }
 `;
@@ -104,7 +111,7 @@ const Card = styled.div<{ $reducedMotion: boolean }>`
 
   padding: 0.65rem 0.85rem 0.6rem;
   min-width: 200px;
-  max-width: 280px;
+  max-width: min(280px, calc(100vw - 32px));
   width: max-content;
 
   ${({ $reducedMotion }) =>
@@ -116,17 +123,17 @@ const Card = styled.div<{ $reducedMotion: boolean }>`
 
 const CardTitle = styled.p`
   margin: 0 0 0.2rem;
-  font-family: var(--font-script-stack);
-  font-size: 1.05rem;
-  line-height: 1.3;
+  font-family: var(--font-tooltip-title-stack);
+  font-size: 0.95rem;
+  line-height: 1.35;
   color: var(--ink-primary);
 `;
 
 const CardMeta = styled.p`
   margin: 0 0 0.15rem;
-  font-family: var(--font-script-stack);
-  font-size: 0.88rem;
-  line-height: 1.3;
+  font-family: var(--font-tooltip-body-stack);
+  font-size: 0.82rem;
+  line-height: 1.45;
   color: var(--ink-secondary);
 `;
 
@@ -172,7 +179,7 @@ export default function Cite({ source, n, inline = true }: CiteProps) {
   const id = useId();
   const cardId = `cite-card-${id}`;
 
-  const numeral = ["¹","²","³","⁴","⁵","⁶","⁷","⁸","⁹"][n - 1] ?? `[${n}]`;
+  const numeral = n;
 
   return (
     <CardWrap
@@ -203,7 +210,7 @@ export default function Cite({ source, n, inline = true }: CiteProps) {
           {source.license && (
             <LicenseBadge>{source.license}</LicenseBadge>
           )}
-          {(source.source_text_url || source.translation_source_url) && (
+          {(source.source_text_url || source.reference_url || source.translation_source_url) && (
             <CardLinkRow>
               {source.source_text_url && (
                 <CardLink
@@ -212,6 +219,15 @@ export default function Cite({ source, n, inline = true }: CiteProps) {
                   rel="noopener noreferrer"
                 >
                   View the original (in French) ↗
+                </CardLink>
+              )}
+              {source.reference_url && (
+                <CardLink
+                  href={source.reference_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  View source ↗
                 </CardLink>
               )}
               {source.translation_source_url && (

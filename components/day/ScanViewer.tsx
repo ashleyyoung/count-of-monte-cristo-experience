@@ -13,6 +13,8 @@ interface Props {
   onPageChange: (page: number) => void;
   /** When true, index 0 is the feuilleton strip crop; full pages start at index 1. */
   leadingStrip?: boolean;
+  /** Label shown in the modal header before "· Page N" (default "Original Paper"). */
+  label?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -29,6 +31,10 @@ const Overlay = styled(motion.div)`
   align-items: center;
   justify-content: center;
   padding: 24px;
+
+  @media (max-width: 600px) {
+    padding: 10px;
+  }
 `;
 
 const Modal = styled(motion.div)`
@@ -104,6 +110,11 @@ const ModalFooter = styled.div`
   background: var(--paper-feature);
   flex-shrink: 0;
   gap: 12px;
+  flex-wrap: wrap;
+
+  @media (max-width: 600px) {
+    padding: 10px 12px;
+  }
 `;
 
 const PageControls = styled.div`
@@ -159,6 +170,7 @@ export default function ScanViewer({
   onClose,
   onPageChange,
   leadingStrip = false,
+  label = "Original Paper",
 }: Props) {
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -180,7 +192,7 @@ export default function ScanViewer({
   const modalTitle =
     leadingStrip && currentPage === 0
       ? page?.caption || "Feuilleton strip"
-      : `Original Paper · Page ${fullPageNumber} of ${fullPageCount || "—"}`;
+      : `${label} · Page ${fullPageNumber} of ${fullPageCount || "—"}`;
 
   return (
     <AnimatePresence>

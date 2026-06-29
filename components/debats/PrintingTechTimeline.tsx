@@ -276,17 +276,17 @@ const CardYear = styled.p`
 
 const CardTitle = styled.p`
   margin: 0 0 0.2rem;
-  font-family: var(--font-script-stack);
-  font-size: 1.1rem;
-  line-height: 1.25;
+  font-family: var(--font-tooltip-title-stack);
+  font-size: 0.95rem;
+  line-height: 1.35;
   color: var(--ink-primary);
 `;
 
 const CardInventor = styled.p`
   margin: 0 0 0.35rem;
-  font-family: var(--font-script-stack);
-  font-size: 0.9rem;
-  line-height: 1.3;
+  font-family: var(--font-tooltip-body-stack);
+  font-size: 0.82rem;
+  line-height: 1.45;
   color: var(--ink-secondary);
 `;
 

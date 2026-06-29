@@ -19,6 +19,10 @@ import type { Installment } from "@/lib/installments";
 const Wrapper = styled.div`
   padding: 0 36px;
   user-select: none;
+
+  @media (max-width: 600px) {
+    padding: 0 20px;
+  }
 `;
 
 const Label = styled.div`
@@ -62,6 +66,17 @@ const Band = styled.div<{ $flex: number; $isHiatus: boolean }>`
     letter-spacing: 0.1em;
     color: var(--ink-muted);
     white-space: nowrap;
+  }
+
+  /* On mobile the full band labels overlap each other and run off the right
+     edge (horizontal scroll). Swap to the compact roman numeral, centered
+     over each band, so they stay legible and within bounds. */
+  @media (max-width: 760px) {
+    &::before {
+      content: attr(data-short);
+      left: 50%;
+      transform: translateX(-50%);
+    }
   }
 `;
 
@@ -140,6 +155,8 @@ function slotToPercent(slot: number): number {
 
 interface BandConfig {
   label: string;
+  /** Compact label shown on mobile, where the full label would overlap. */
+  short: string;
   slots: number; // number of installment slots in this band
   isHiatus?: boolean;
 }
@@ -147,11 +164,11 @@ interface BandConfig {
 // Part 1: 32 installments, Part 2: 32 installments, hiatus, Part 3: 47 installments, Part 4: 28 installments
 // These numbers come from content/schedule.json (verified from lib/installments.ts)
 const BANDS: BandConfig[] = [
-  { label: "Part I · Aug–Oct 1844", slots: 32 },
-  { label: "Part II · Oct 1844", slots: 32 },
-  { label: "", slots: 1, isHiatus: true },
-  { label: "Part III · Jun–Nov 1845", slots: 47 },
-  { label: "Part IV · Nov 1845–Jan 1846", slots: 28 },
+  { label: "Part I · Aug–Oct 1844",      short: "I",  slots: 32 },
+  { label: "Part II · Oct 1844",         short: "II", slots: 32 },
+  { label: "",                           short: "",   slots: 1, isHiatus: true },
+  { label: "Part III · Jun–Nov 1845",    short: "III", slots: 47 },
+  { label: "Part IV · Nov 1845–Jan 1846", short: "IV", slots: 28 },
 ];
 
 // ---------------------------------------------------------------------------
@@ -239,6 +256,7 @@ export default function DateSelector({ installments, activeDate, onSelect }: Pro
               $flex={band.slots}
               $isHiatus={false}
               data-label={band.label}
+              data-short={band.short}
             />
           )
         ))}

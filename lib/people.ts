@@ -68,6 +68,9 @@ export interface PersonPageData {
   /** Resolved Cloudflare CDN URL for the portrait (or null). */
   portrait_url: string | null;
   portrait_attribution: string | null;
+  /** Resolved Cloudflare CDN URL for the profile backdrop image (or null). */
+  background_url: string | null;
+  background_attribution: string | null;
   sources: unknown[];
   /** Bio markdown fetched from R2 (null if not yet added). */
   bio_md: string | null;
@@ -77,6 +80,7 @@ export interface PersonPageData {
   bio_md_r2_key: string | null;
   autobio_md_r2_key: string | null;
   portrait_media_asset_id: string | null;
+  background_media_asset_id: string | null;
   life_events: LifeEvent[];
   relationships: PersonRelationship[];
   attributions: Attribution[];
@@ -112,6 +116,11 @@ export async function getPersonPageData(
     portrait_source_url: string | null;
     portrait_attribution: string | null;
     portrait_download_blocked: boolean;
+    background_media_asset_id: string | null;
+    background_r2_key: string | null;
+    background_source_url: string | null;
+    background_attribution: string | null;
+    background_download_blocked: boolean;
     life_events: LifeEvent[];
     relationships: PersonRelationship[];
     attributions: Attribution[];
@@ -138,6 +147,11 @@ export async function getPersonPageData(
         "portrait_source_url",
         "portrait_attribution",
         "portrait_download_blocked",
+        "background_media_asset_id",
+        "background_r2_key",
+        "background_source_url",
+        "background_attribution",
+        "background_download_blocked",
         "life_events",
         "relationships",
         "attributions",
@@ -155,9 +169,10 @@ export async function getPersonPageData(
 
   const row = rawRow as PersonViewRow;
 
-  // Resolve portrait URL
+  // Resolve portrait URL (r2_key, or source_url when download is blocked — e.g.
+  // Wikimedia 403s server-side fetches but serves the same URL fine to a browser <img>)
   let portrait_url: string | null = null;
-  if (row.portrait_r2_key) {
+  if (row.portrait_r2_key || row.portrait_source_url) {
     const asset: MediaAsset = {
       id: row.id,
       r2_key: row.portrait_r2_key,
@@ -169,6 +184,23 @@ export async function getPersonPageData(
       portrait_url = resolveMediaUrl(asset);
     } catch (err) {
       console.error("[people] portrait resolve:", err);
+    }
+  }
+
+  // Resolve background URL
+  let background_url: string | null = null;
+  if (row.background_r2_key || row.background_source_url) {
+    const asset: MediaAsset = {
+      id: row.id,
+      r2_key: row.background_r2_key,
+      source_url: row.background_source_url,
+      download_blocked: row.background_download_blocked ?? false,
+      download_blocked_reason: null,
+    };
+    try {
+      background_url = resolveMediaUrl(asset);
+    } catch (err) {
+      console.error("[people] background resolve:", err);
     }
   }
 
@@ -191,12 +223,15 @@ export async function getPersonPageData(
     death: row.death ?? null,
     portrait_url,
     portrait_attribution: row.portrait_attribution ?? null,
+    background_url,
+    background_attribution: row.background_attribution ?? null,
     sources: row.sources ?? [],
     bio_md: bio_md ?? null,
     autobio_md: autobio_md ?? null,
     bio_md_r2_key: row.bio_md_r2_key ?? null,
     autobio_md_r2_key: row.autobio_md_r2_key ?? null,
     portrait_media_asset_id: row.portrait_media_asset_id ?? null,
+    background_media_asset_id: row.background_media_asset_id ?? null,
     life_events: row.life_events ?? [],
     relationships: row.relationships ?? [],
     attributions: row.attributions ?? [],
@@ -292,7 +327,7 @@ export async function getPersonAssets(
       } | null;
     }>
   )
-    .filter((r) => r.media_assets && !r.media_assets.download_blocked)
+    .filter((r) => r.media_assets)
     .map((r) => ({
       id: r.media_assets!.id,
       r2_key: r.media_assets!.r2_key,

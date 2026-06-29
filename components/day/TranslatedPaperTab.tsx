@@ -8,6 +8,8 @@ import type { ContributorInfo } from "./ContributorByline";
 import type { DayContentSection } from "@/lib/types/day-content-section";
 import PaperPageSubTabRow from "./PaperPageSubTabRow";
 import { TabSection, TabSectionTitle, EmptyState, renderItems } from "./TabPrimitives";
+import MissingIssueNote from "./MissingIssueNote";
+import { isMissingGallicaIssue } from "@/lib/missing-issues";
 
 interface Props {
   data: DayPageData;
@@ -107,6 +109,14 @@ export default function TranslatedPaperTab({ data, contributors }: Props) {
             })}
           </SectionBlock>
         ))}
+      </TabSection>
+    );
+  }
+
+  if (isMissingGallicaIssue(installment_date)) {
+    return (
+      <TabSection>
+        <MissingIssueNote />
       </TabSection>
     );
   }

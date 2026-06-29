@@ -4,6 +4,8 @@ import type { DayPageData } from "@/lib/content";
 import type { ContributorInfo } from "./ContributorByline";
 import { TabSection, TabSectionTitle, EmptyState } from "./TabPrimitives";
 import AdminItemList from "@/components/admin/AdminItemList";
+import MissingIssueNote from "./MissingIssueNote";
+import { isMissingGallicaIssue } from "@/lib/missing-issues";
 
 interface Props {
   data: DayPageData;
@@ -12,6 +14,7 @@ interface Props {
 
 export default function ArtTab({ data, contributors }: Props) {
   const { resolved, doc, installment_date } = data;
+  const missing = isMissingGallicaIssue(installment_date);
   return (
     <TabSection>
       <TabSectionTitle>Art &amp; Exhibitions · Paris 1844</TabSectionTitle>
@@ -22,10 +25,14 @@ export default function ArtTab({ data, contributors }: Props) {
         resolvedItems={resolved.art_exhibitions}
         contributors={contributors}
         emptyMessage={
-          <EmptyState>
-            Art and exhibition coverage for this date — Louvre Salon, Musée de Cluny,
-            Versailles — is being prepared.
-          </EmptyState>
+          missing ? (
+            <MissingIssueNote />
+          ) : (
+            <EmptyState>
+              Art and exhibition coverage for this date — Louvre Salon, Musée de Cluny,
+              Versailles — is being prepared.
+            </EmptyState>
+          )
         }
         adminItemContext={{ date: installment_date }}
       />

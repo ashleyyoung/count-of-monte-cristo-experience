@@ -6,6 +6,8 @@ import styled from "styled-components";
 import type { DayPageData } from "@/lib/content";
 import ScanViewer from "./ScanViewer";
 import { EmptyState } from "./TabPrimitives";
+import MissingIssueNote from "./MissingIssueNote";
+import { isMissingGallicaIssue } from "@/lib/missing-issues";
 import { useAdminMode } from "@/components/admin/AdminModeProvider";
 import { visionTranscribe, setOriginalPageImage } from "@/app/actions/admin";
 import MediaUploadField from "@/components/admin/primitives/MediaUploadField";
@@ -283,6 +285,8 @@ export default function OriginalPaperTab({ data }: Props) {
             </OpenViewerBtn>
           )}
         </>
+      ) : isMissingGallicaIssue(data.installment_date) ? (
+        <MissingIssueNote />
       ) : (
         <EmptyState>
           Full-page scans for this issue are being sourced from Gallica / BnF.
