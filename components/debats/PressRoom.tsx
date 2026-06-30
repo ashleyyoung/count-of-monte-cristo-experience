@@ -15,6 +15,7 @@
 import styled from "styled-components";
 import { useRouter } from "next/navigation";
 import Cite, { type CiteSource } from "@/components/ui/Cite";
+import PeopleLinked from "@/components/people/PeopleLinked";
 import EditableText from "@/components/admin/primitives/EditableText";
 import { upsertEditorialBlock } from "@/app/actions/admin";
 import PrintingTechTimeline from "./PrintingTechTimeline";
@@ -286,6 +287,7 @@ export default function PressRoom() {
           value={SECTION_TEXT["press-room-dimensions"]}
           onSave={makeSectionSave("press-room-dimensions", "The Page Itself")}
         >
+          <PeopleLinked>
           <P>
             The Débats settled its modern shape in 1827, enlarging to roughly
             330 by 450 millimetres to carry about half a page of advertising a
@@ -296,6 +298,7 @@ export default function PressRoom() {
             feuilleton occupied the bottom strip of page one.
             <Cite source={cites[0]} n={1} />
           </P>
+          </PeopleLinked>
         </EditableText>
         </ProseWrap>
       </Section>
@@ -310,6 +313,7 @@ export default function PressRoom() {
               "Set by Hand, Letter by Letter",
             )}
           >
+            <PeopleLinked>
             <P>
               Yes, every letter was set by hand. From Gutenberg until the Linotype
               arrived in 1886, each character was a separate cast-metal sort. A
@@ -337,7 +341,8 @@ export default function PressRoom() {
               finished forme so a page could be preserved and rerun without
               resetting it.<Cite source={cites[2]} n={3} />
             </P>
-          </EditableText>
+            </PeopleLinked>
+        </EditableText>
         </ProseWrap>
         <Figure>
           <FigImg
@@ -366,6 +371,7 @@ export default function PressRoom() {
           value={SECTION_TEXT["press-room-layout"]}
           onSave={makeSectionSave("press-room-layout", "Laying Out the Page")}
         >
+          <PeopleLinked>
           <P>
             Someone had to make it all fit. A secretary of the editorial staff
             and the metteur en pages, the make-up man, gathered the day&apos;s
@@ -379,6 +385,7 @@ export default function PressRoom() {
             the trade called off stone, after which the locked forme went to
             press and any urgent late news went in as a separate stop-press.
           </P>
+          </PeopleLinked>
         </EditableText>
         </ProseWrap>
       </Section>
@@ -390,6 +397,7 @@ export default function PressRoom() {
             value={SECTION_TEXT["press-room-machines"]}
             onSave={makeSectionSave("press-room-machines", "The Machines")}
           >
+            <PeopleLinked>
             <P>
               The Débats was an early adopter of mechanized printing, running on
               Napier drum-cylinder machines from about 1825.
@@ -401,7 +409,8 @@ export default function PressRoom() {
               reached Paris with La Patrie in 1846 and could approach 8,000
               impressions an hour.<Cite source={cites[4]} n={5} />
             </P>
-          </EditableText>
+            </PeopleLinked>
+        </EditableText>
         </ProseWrap>
         <Figure>
           <FigImg
@@ -430,6 +439,7 @@ export default function PressRoom() {
           value={SECTION_TEXT["press-room-hands"]}
           onSave={makeSectionSave("press-room-hands", "How Many Hands")}
         >
+          <PeopleLinked>
           <P>
             Typesetting alone was the largest single trade in the shop. Paris
             counted roughly 2,234 typesetters in 1801, about 3,000 to 3,500
@@ -446,6 +456,7 @@ export default function PressRoom() {
             women were hired as setters at one-half to one-third of male pay.
             <Cite source={cites[7]} n={8} />
           </P>
+          </PeopleLinked>
         </EditableText>
         </ProseWrap>
       </Section>
@@ -460,6 +471,7 @@ export default function PressRoom() {
             "At the Case, Through the Night",
           )}
         >
+          <PeopleLinked>
           <P>
             The corrector, the correcteur, was a respected and often erudite
             figure, the last guard against the coquille, the stray wrong letter.
@@ -469,6 +481,7 @@ export default function PressRoom() {
             through the chapelle, the print shop&apos;s workers&apos;
             association.
           </P>
+          </PeopleLinked>
         </EditableText>
         </ProseWrap>
       </Section>
@@ -480,6 +493,7 @@ export default function PressRoom() {
           value={SECTION_TEXT["press-room-paper"]}
           onSave={makeSectionSave("press-room-paper", "The Paper Itself")}
         >
+          <PeopleLinked>
           <P>
             The paper had a surprising origin. Newsprint of the period was made
             from rags; the woodpulp paper familiar today arrived only in the
@@ -492,6 +506,7 @@ export default function PressRoom() {
             ink cleanly, then dried again after the run, a daily cycle of
             wetting and drying tons of paper.
           </Blockquote>
+          </PeopleLinked>
         </EditableText>
         </ProseWrap>
       </Section>
@@ -506,12 +521,14 @@ export default function PressRoom() {
             "Why There Were No Pictures",
           )}
         >
+          <PeopleLinked>
           <P>
             A daily was solid columns of type because engraving a picture took
             longer than an overnight deadline allowed. Illustration belonged to
             the weeklies, such as L&apos;Illustration, founded in 1843, where
             the slower work of the woodblock had time to be done.
           </P>
+          </PeopleLinked>
         </EditableText>
         </ProseWrap>
       </Section>
@@ -523,12 +540,14 @@ export default function PressRoom() {
           value={SECTION_TEXT["press-room-rhythm"]}
           onSave={makeSectionSave("press-room-rhythm", "The Nightly Rhythm")}
         >
+          <PeopleLinked>
           <P>
             A morning daily was a nightly performance. Copy arrived through the
             evening, the compositors set it overnight, the make-up reached off
             stone in the small hours, and the presses ran so the issue could
             reach subscribers, kiosks, cafés, and reading rooms at dawn.
           </P>
+          </PeopleLinked>
         </EditableText>
         </ProseWrap>
       </Section>

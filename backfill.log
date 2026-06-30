@@ -1,0 +1,12 @@
+[backfill] 4 day(s) to process (delay=16000ms between ALTO calls)
+  - 1844-08-28
+  - 1844-08-29
+  - 1844-08-31
+  - 1844-09-20
+
+[backfill] (1/4) 1844-08-28 …
+[backfill] 1844-08-28: [pipeline] Loading doc for 1844-08-28…
+[backfill] 1844-08-28: [pipeline] Translation model: claude-sonnet-4-6
+[backfill] 1844-08-28: [pipeline] Using ARK from day_content (no Issues API): bpt6k446668c
+[backfill] 1844-08-28: [french-source] Fetching ALTO OCR (4 page(s)) — BnF structured OCR, separate endpoint from texteBrut…
+[backfill] 1844-08-28: [french-source] ALTO page 1/4: using cached XML (no fetch).

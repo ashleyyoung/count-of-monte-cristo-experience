@@ -10,8 +10,8 @@
 import React, { Suspense, useRef, useState } from "react";
 import styled from "styled-components";
 import { motion, AnimatePresence } from "framer-motion";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
+import BreadcrumbBar from "@/components/ui/BreadcrumbBar";
 import type { PersonPageData } from "@/lib/people";
 import type { PortraitAsset } from "./PortraitGallery";
 import type { GraphPerson, GraphRelationship } from "@/lib/graph-layout";
@@ -64,32 +64,9 @@ const BannerAttribution = styled.span`
 `;
 
 const TopBar = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
   padding: 20px 0 16px;
   border-bottom: 1px solid var(--rule-light);
   margin-bottom: 2rem;
-`;
-
-const BackLink = styled(Link)`
-  font-family: var(--font-labels-stack);
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--ink-muted);
-  text-decoration: none;
-  &:hover { color: var(--gilt-deep); }
-`;
-
-const DebatsLink = styled(Link)`
-  font-family: var(--font-labels-stack);
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--ink-muted);
-  text-decoration: none;
-  &:hover { color: var(--gilt-deep); }
 `;
 
 const Header = styled.header`
@@ -373,8 +350,13 @@ export default function ProfilePageView({
         </BackgroundBanner>
       )}
       <TopBar>
-        <BackLink href="/debats?tab=people">← People & Lives</BackLink>
-        <DebatsLink href="/debats">Journal des Débats →</DebatsLink>
+        <BreadcrumbBar
+          crumbs={[
+            { label: "Journal des Débats", href: "/" },
+            { label: "People & Lives", href: "/debats?tab=people" },
+            { label: person.name },
+          ]}
+        />
       </TopBar>
 
       <Header>

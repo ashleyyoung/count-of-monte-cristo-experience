@@ -438,10 +438,19 @@ export default function LandingPage() {
 
             <CtaRow>
               <CtaPrimary href="/timeline">
-                Begin the serialization
+                Begin the experience
               </CtaPrimary>
               <CtaSecondary href="/debats">
                 Journal des Débats
+              </CtaSecondary>
+            </CtaRow>
+
+            <CtaRow>
+              <CtaSecondary href="/read">
+                Read the novel →
+              </CtaSecondary>
+              <CtaSecondary href="/listen">
+                Listen end to end ♪
               </CtaSecondary>
             </CtaRow>
           </HeroLeft>

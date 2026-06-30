@@ -9,6 +9,7 @@ import type { Installment } from "@/lib/installments";
 import type { TabId } from "./TabRow";
 import { TabSection, TabSectionTitle, EmptyState } from "./TabPrimitives";
 import AdminItemList from "@/components/admin/AdminItemList";
+import { stripChapterHeading } from "@/lib/book";
 
 interface Props {
   data: DayPageData;
@@ -177,7 +178,9 @@ export default function OverviewTab({ data, contributors, installment }: Props) 
           <TabSectionTitle>Today&rsquo;s Installment</TabSectionTitle>
           <ChapterTeaser>
             <TeaserLabel>{chapterLabel}</TeaserLabel>
-            <TeaserExcerpt>{plainTruncate(chapterTeaser.text, 280)}</TeaserExcerpt>
+            <TeaserExcerpt>
+              {plainTruncate(stripChapterHeading(chapterTeaser.text) ?? chapterTeaser.text, 280)}
+            </TeaserExcerpt>
             <CtaButton type="button" onClick={() => goToTab("chapter")}>
               Read the full chapter →
             </CtaButton>

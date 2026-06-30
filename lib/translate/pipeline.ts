@@ -23,6 +23,7 @@ import {
   translateAndSegmentByPage,
   segmentEnglishByPage,
   translatePaperPages,
+  translateSectionedPage,
   resolveTranslationModel,
   type SegmentedTranslation,
   type SectionTranslation,
@@ -39,10 +40,17 @@ import { putR2Text, getR2Text, isR2Configured } from "../r2-server";
 import {
   fetchAltoToR2,
   loadCachedFrench,
+  loadAltoSections,
   effectivePageCount,
 } from "./french-source";
 import { splitFrenchPages } from "./french-pages";
-import { parseDayDoc, type DayDoc, type TextItem } from "../types/content";
+import {
+  parseDayDoc,
+  type DayDoc,
+  type TextItem,
+  type PageRegion,
+  type PageSection,
+} from "../types/content";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -50,6 +58,7 @@ import { parseDayDoc, type DayDoc, type TextItem } from "../types/content";
 
 export type SectionKey =
   | "overview"
+  | "news"
   | "chapter"
   | "debats.music"
   | "debats.theater"
@@ -60,14 +69,20 @@ export type SectionKey =
   | "galignani";
 
 export const ALL_SECTIONS: SectionKey[] = [
-  "overview",
-  "chapter",
+  // News & politics — the segmented front page. Routed to its own `news`
+  // section so the summarize-day editorial prose (doc.overview) no longer
+  // overwrites it.
+  "news",
   "debats.music",
   "debats.theater",
   "debats.art",
   "debats.literature",
   "art_exhibitions",
   "science",
+  // overview is excluded: it is authored by summarize-day (editorial lead), not
+  // segmented from OCR.
+  // chapter is excluded: the day's novel text comes from the public-domain
+  // Gutenberg edition (ingest-gutenberg → doc.chapter), not the OCR'd feuilleton.
   // galignani is excluded: Galignani's Messenger is a separate English paper,
   // ingested on its own (import-existing / future Gallica fetch), not from Débats OCR.
 ];
@@ -136,6 +151,10 @@ function getSectionItems(doc: DayDoc, section: SectionKey): TextItem[] {
       return (doc.overview ?? []).filter(
         (i): i is TextItem => i.kind === "text",
       );
+    case "news":
+      return (doc.news ?? []).filter(
+        (i): i is TextItem => i.kind === "text",
+      );
     case "chapter":
       return (doc.chapter ?? []).filter(
         (i): i is TextItem => i.kind === "text",
@@ -181,6 +200,12 @@ export function setSectionTextItems(
     case "overview":
       updated.overview = [
         ...(doc.overview ?? []).filter((i) => i.kind !== "text"),
+        ...items,
+      ];
+      break;
+    case "news":
+      updated.news = [
+        ...(doc.news ?? []).filter((i) => i.kind !== "text"),
         ...items,
       ];
       break;
@@ -255,6 +280,10 @@ function pickSection(
 ): SectionTranslation | null {
   switch (section) {
     case "overview":
+      return seg.overview;
+    // The segmenter's `overview` field is the front-page news & politics text;
+    // it is routed to the `news` section (overview is now editorial-only).
+    case "news":
       return seg.overview;
     case "chapter":
       return seg.chapter;
@@ -522,6 +551,97 @@ async function resolveSourceIssue(
   };
 }
 
+/**
+ * Section-aware page translation: translate each page one column-run at a time
+ * (in a single marker-preserving call per page) so the English can be aligned
+ * back to source-image regions. Returns the same shape as translatePaperPages
+ * plus a per-page list of {region, start, end} spans into the page English.
+ *
+ * When the model does not preserve the column markers for a page, that page
+ * still gets correct prose but no section spans (omitted from sectionsByNumber).
+ */
+async function translatePaperPagesSectioned(
+  sectionsByPage: Map<number, Array<{ region: PageRegion; french: string }>>,
+  date: string,
+  options: {
+    model?: string;
+    skipPageNumbers?: Set<number>;
+    log: (msg: string) => void;
+  },
+): Promise<{
+  pages: PageTranslationResult[];
+  sectionsByNumber: Map<number, PageSection[]>;
+  totalUsage: {
+    model: string;
+    tokens_in: number;
+    tokens_out: number;
+    cost_usd: number;
+    duration_ms: number;
+  };
+}> {
+  const pageNumbers = [...sectionsByPage.keys()].sort((a, b) => a - b);
+  const pages: PageTranslationResult[] = [];
+  const sectionsByNumber = new Map<number, PageSection[]>();
+  let model = resolveTranslationModel(options.model);
+  let tokensIn = 0;
+  let tokensOut = 0;
+  let costUsd = 0;
+  let durationMs = 0;
+
+  for (const pageNumber of pageNumbers) {
+    if (options.skipPageNumbers?.has(pageNumber)) {
+      options.log(
+        `[pipeline] section-translate: page ${pageNumber} skipped (already translated).`,
+      );
+      continue;
+    }
+    const secs = sectionsByPage.get(pageNumber) ?? [];
+    const frenchSections = secs.map((s) => s.french);
+    options.log(
+      `[pipeline] section-translate: page ${pageNumber} (${secs.length} columns)…`,
+    );
+    const { result, usage } = await translateSectionedPage(
+      date,
+      pageNumber,
+      frenchSections,
+      { model, log: options.log },
+    );
+    model = usage.model;
+    tokensIn += usage.tokens_in;
+    tokensOut += usage.tokens_out;
+    costUsd += usage.cost_usd;
+    durationMs += usage.duration_ms;
+
+    if (result.aligned && result.sections.length === secs.length) {
+      let text = "";
+      const meta: PageSection[] = [];
+      for (let i = 0; i < secs.length; i++) {
+        if (i > 0) text += "\n\n";
+        const start = text.length;
+        text += result.sections[i];
+        meta.push({ region: secs[i].region, start, end: text.length });
+      }
+      pages.push({ pageNumber, text });
+      sectionsByNumber.set(pageNumber, meta);
+    } else {
+      // Markers not preserved — keep correct prose, omit region spans.
+      pages.push({ pageNumber, text: result.sections.join("\n\n") });
+    }
+  }
+
+  return {
+    pages,
+    sectionsByNumber,
+    totalUsage: {
+      model,
+      tokens_in: tokensIn,
+      tokens_out: tokensOut,
+      cost_usd: costUsd,
+      duration_ms: durationMs,
+    },
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Main pipeline
 // ---------------------------------------------------------------------------
@@ -646,7 +766,25 @@ export async function runDayTranslation(
   // 5. Full-paper page-by-page translation (Pass A — clean English prose)
   // ------------------------------------------------------------------
   const newlyTranslated = new Map<number, string>();
+  const sectionsByNumber = new Map<number, PageSection[]>();
   let englishPages: PageTranslationResult[] | null = null;
+
+  // Reading-order sections sidecar (region + French per newspaper column),
+  // written by fetchAltoToR2. When present, translate section-aware so the
+  // English aligns to scan regions; otherwise fall back to whole-page.
+  const altoSectionsDoc = await loadAltoSections(date);
+  const sectionsByPage = new Map<
+    number,
+    Array<{ region: PageRegion; french: string }>
+  >();
+  if (altoSectionsDoc) {
+    for (const p of altoSectionsDoc.pages) {
+      sectionsByPage.set(p.page, p.sections);
+    }
+    log(
+      `[pipeline] Section sidecar present: ${altoSectionsDoc.pages.length} page(s) → section-aware translation.`,
+    );
+  }
 
   log(`[pipeline] Translating full paper page by page…`);
   try {
@@ -658,16 +796,25 @@ export async function runDayTranslation(
         .map((i) => [i.slot_key as string, i]),
     );
 
-      const { pages, totalUsage } = await translatePaperPages(
-        frenchText,
-        date,
-        {
-          log,
-          model,
-          skipPageNumbers,
-          useMessageBatch,
-        },
-      );
+    const { pages, totalUsage } =
+      sectionsByPage.size > 0
+        ? await (async () => {
+            const out = await translatePaperPagesSectioned(
+              sectionsByPage,
+              date,
+              { log, model, skipPageNumbers },
+            );
+            for (const [n, meta] of out.sectionsByNumber) {
+              sectionsByNumber.set(n, meta);
+            }
+            return { pages: out.pages, totalUsage: out.totalUsage };
+          })()
+        : await translatePaperPages(frenchText, date, {
+            log,
+            model,
+            skipPageNumbers,
+            useMessageBatch,
+          });
     for (const page of pages) {
       newlyTranslated.set(page.pageNumber, page.text);
     }
@@ -755,6 +902,7 @@ export async function runDayTranslation(
           fr_intermediate_r2_key: frIntermediateKeyUsed,
           low_confidence: frenchSourceLowConfidence || undefined,
           translation_version_id: versionId,
+          sections: sectionsByNumber.get(pageNumber),
         });
       }
 

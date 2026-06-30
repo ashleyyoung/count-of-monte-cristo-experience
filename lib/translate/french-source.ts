@@ -30,7 +30,7 @@ import {
   isR2Configured,
   r2ObjectExists,
 } from "../r2-server";
-import type { DayDoc } from "../types/content";
+import type { DayDoc, PageRegion } from "../types/content";
 
 // ---------------------------------------------------------------------------
 // R2 keys
@@ -42,6 +42,16 @@ export function texteBrutR2Key(date: string): string {
 
 export function altoR2Key(date: string): string {
   return `${date}/fr-intermediate/gallica-alto.txt`;
+}
+
+/** Sidecar JSON: per-page reading-order sections (region + French) for ALTO. */
+export function altoSectionsR2Key(date: string): string {
+  return `${date}/fr-intermediate/gallica-alto-sections.json`;
+}
+
+/** Raw ALTO XML for one page — cached so re-segmentation never re-hits Gallica. */
+export function altoXmlR2Key(date: string, page: number): string {
+  return `${date}/fr-intermediate/gallica-alto-page${page}.xml`;
 }
 
 export function visionIssueR2Key(date: string): string {
@@ -71,7 +81,12 @@ export interface FrenchSourceResult {
   cost_usd: number;
 }
 
-const ALTO_PAGE_DELAY_MS = 1_200;
+/**
+ * Delay between real ALTO network calls. Defaults to 16s to stay clear of
+ * Gallica's rate limit; override with ALTO_PAGE_DELAY_MS env if needed. Cache
+ * hits impose no delay.
+ */
+const ALTO_PAGE_DELAY_MS = Number(process.env.ALTO_PAGE_DELAY_MS ?? 16_000);
 const MIN_CHARS = 200;
 
 // ---------------------------------------------------------------------------
@@ -223,6 +238,33 @@ export async function fetchTexteBrutToR2(
 // Source 2: Gallica ALTO per-page stitch (Tier 3)
 // ---------------------------------------------------------------------------
 
+/** One page's reading-order sections: source-image region + French text. */
+export interface AltoPageSections {
+  page: number;
+  sections: Array<{ region: PageRegion; french: string }>;
+}
+
+/** Sidecar document persisted alongside the flat ALTO stitch. */
+export interface AltoSectionsDoc {
+  pages: AltoPageSections[];
+}
+
+/** Load the per-page sections sidecar, or null if it does not exist. */
+export async function loadAltoSections(
+  date: string,
+): Promise<AltoSectionsDoc | null> {
+  if (!isR2Configured()) return null;
+  const key = altoSectionsR2Key(date);
+  if (!(await r2ObjectExists(key))) return null;
+  const json = await getR2Text(key);
+  if (!json) return null;
+  try {
+    return JSON.parse(json) as AltoSectionsDoc;
+  } catch {
+    return null;
+  }
+}
+
 export interface AltoOptions {
   date: string;
   ark: string;
@@ -234,6 +276,13 @@ export interface AltoOptions {
    * pipeline). When provided, skips the redundant network fetch for page 1.
    */
   page1Blocks?: AltoTextBlock[];
+  /** Override the inter-call delay (ms) between real ALTO fetches. */
+  pageDelayMs?: number;
+  /**
+   * When false, ignore any cached ALTO XML and re-fetch from Gallica (e.g. to
+   * repair a bad cache). Defaults to true: reuse cached XML and skip Gallica.
+   */
+  useCachedXml?: boolean;
 }
 
 /** Fetch + stitch Gallica ALTO OCR for every page, write to R2. Throws if empty. */
@@ -241,6 +290,7 @@ export async function fetchAltoToR2(
   options: AltoOptions,
 ): Promise<FrenchSourceResult> {
   const { date, ark, pageCount, log, page1Blocks } = options;
+  const useCachedXml = options.useCachedXml !== false;
 
   log(
     `[french-source] Fetching ALTO OCR (${pageCount} page(s)) — BnF structured OCR, separate endpoint from texteBrut…`,
@@ -248,8 +298,23 @@ export async function fetchAltoToR2(
 
   const altoPages = await fetchIssueAltoText(ark, pageCount, {
     log: (msg) => log(`[french-source] ${msg}`),
-    pageDelayMs: ALTO_PAGE_DELAY_MS,
+    pageDelayMs: options.pageDelayMs ?? ALTO_PAGE_DELAY_MS,
     page1Blocks,
+    loadCachedXml:
+      useCachedXml && isR2Configured()
+        ? async (page) => {
+            const key = altoXmlR2Key(date, page);
+            return (await r2ObjectExists(key)) ? getR2Text(key) : null;
+          }
+        : undefined,
+    onXml: isR2Configured()
+      ? async (page, xml) => {
+          await putR2Text(altoXmlR2Key(date, page), xml);
+          log(
+            `[french-source] Cached raw ALTO XML: ${altoXmlR2Key(date, page)} (${xml.length} chars).`,
+          );
+        }
+      : undefined,
   });
 
   const pageTexts = altoPages
@@ -267,6 +332,25 @@ export async function fetchAltoToR2(
   if (isR2Configured()) {
     await putR2Text(r2Key, combined);
     log(`[french-source] Wrote ${r2Key} (${combined.length} chars).`);
+
+    // Sidecar: per-page reading-order sections with regions, for section-aware
+    // translation and scan hover-highlighting.
+    const sectionsDoc: AltoSectionsDoc = {
+      pages: altoPages
+        .filter((p) => p.sections.length > 0)
+        .map((p) => ({
+          page: p.page,
+          sections: p.sections.map((s) => ({
+            region: s.region,
+            french: s.text,
+          })),
+        })),
+    };
+    const sectionsKey = altoSectionsR2Key(date);
+    await putR2Text(sectionsKey, JSON.stringify(sectionsDoc));
+    log(
+      `[french-source] Wrote ${sectionsKey} (${sectionsDoc.pages.length} page(s) of sections).`,
+    );
   }
 
   return {

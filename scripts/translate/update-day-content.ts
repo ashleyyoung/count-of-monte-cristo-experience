@@ -129,6 +129,12 @@ function setSectionItem(
         item,
       ];
       break;
+    case "news":
+      updated.news = [
+        ...(doc.news ?? []).filter((i) => i.kind !== "text"),
+        item,
+      ];
+      break;
     case "chapter":
       updated.chapter = [
         ...(doc.chapter ?? []).filter((i) => i.kind !== "text"),

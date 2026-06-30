@@ -17,6 +17,36 @@
 import { z } from "zod";
 
 // ---------------------------------------------------------------------------
+// Page sections (translated_pages) — reading-order column-runs with regions
+// ---------------------------------------------------------------------------
+
+/**
+ * A bounding box on the source page image, in page-percentage coordinates
+ * (0–100). Scale-independent so it maps onto any IIIF image size via `pct:`.
+ */
+export const PageRegionSchema = z.object({
+  x: z.number(),
+  y: z.number(),
+  w: z.number(),
+  h: z.number(),
+});
+
+/**
+ * One reading-order section of a translated page (a newspaper column-run).
+ * `region` locates it on the scan (for hover-to-highlight); `start`/`end` are
+ * character offsets into the page's English prose (the text_r2_key object), so
+ * the section text is a substring rather than a duplicated body.
+ */
+export const PageSectionSchema = z.object({
+  region: PageRegionSchema,
+  start: z.number().int().nonnegative(),
+  end: z.number().int().nonnegative(),
+});
+
+export type PageRegion = z.infer<typeof PageRegionSchema>;
+export type PageSection = z.infer<typeof PageSectionSchema>;
+
+// ---------------------------------------------------------------------------
 // Item variants
 // ---------------------------------------------------------------------------
 
@@ -105,6 +135,14 @@ export const TextItemSchema = z.object({
    * Allows the admin UI to identify and manage the live version.
    */
   translation_version_id: z.string().uuid().optional(),
+
+  /**
+   * Reading-order sections of this page, each with its source-image region and
+   * the character span it occupies in the English prose. Present on per-page
+   * translations (translated_pages) produced section-aware; absent on legacy
+   * whole-page translations and on non-page items.
+   */
+  sections: z.array(PageSectionSchema).optional(),
 });
 
 /** An image asset — page scans, feuilleton-strip crop, illustrations, portraits. */
@@ -189,8 +227,15 @@ export const DayDocSchema = z.object({
    */
   original_pages: z.array(ImageItemSchema).default([]),
 
-  /** Day overview — highlights, editorial summary. */
+  /** Day overview — editorial summary / standfirst lead (written by summarize-day). */
   overview: z.array(DocItemSchema).default([]),
+
+  /**
+   * Front-page general news & politics, segmented from the translated pages.
+   * Kept separate from `overview` so the editorial summary (summarize-day) no
+   * longer overwrites the segmented news content.
+   */
+  news: z.array(DocItemSchema).default([]),
 
   /** Chapter text items for this installment. */
   chapter: z.array(DocItemSchema).default([]),

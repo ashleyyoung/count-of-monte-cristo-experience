@@ -8,6 +8,7 @@ import type { Installment } from "@/lib/installments";
 import { resolveActiveChapterNum } from "@/lib/chapters";
 import type { ContributorInfo } from "@/components/day/ContributorByline";
 import type { TabId } from "@/components/day/TabRow";
+import { normalizeReaderTab } from "@/components/day/TabRow";
 import { useAdminMode } from "@/components/admin/AdminModeProvider";
 import { requestDayTranslation } from "@/app/actions/admin";
 import DayTopBar from "@/components/day/DayTopBar";
@@ -24,6 +25,8 @@ import FrenchTextPasteField from "@/components/admin/primitives/FrenchTextPasteF
 import { extractArk, texteBrutViewUrl, altoPageViewUrl } from "@/lib/gallica-links";
 import TranslatedPaperTab from "@/components/day/TranslatedPaperTab";
 import GalignaniTab from "@/components/day/GalignaniTab";
+import ParisThatDayTab from "@/components/day/ParisThatDayTab";
+import PaperTab, { type PaperLang } from "@/components/day/PaperTab";
 
 /** Latest local translation run for this day (admin-only; null when none). */
 export interface TranslationRunStatus {
@@ -195,6 +198,36 @@ function formatDateLabel(iso: string) {
   return `${MONTHS[m - 1]} ${d}`;
 }
 
+/** Distinct contributors appearing in the day's content, for the rail. */
+function figuresToday(
+  data: DayPageData,
+  contributors: Map<string, ContributorInfo>,
+): ContributorInfo[] {
+  const ids = new Set<string>();
+  const { resolved } = data;
+  const sections = [
+    resolved.overview,
+    resolved.news,
+    resolved.chapter,
+    resolved.debats.music,
+    resolved.debats.theater,
+    resolved.debats.art,
+    resolved.debats.literature,
+    resolved.art_exhibitions,
+    resolved.science,
+    resolved.galignani,
+  ];
+  for (const section of sections) {
+    for (const item of section) {
+      if (item.kind === "text" && item.contributor_id) ids.add(item.contributor_id);
+    }
+  }
+  return [...ids]
+    .map((id) => contributors.get(id))
+    .filter((c): c is ContributorInfo => !!c)
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
 function formatRunTime(iso: string): string {
   const dt = new Date(iso);
   return dt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -216,7 +249,8 @@ function describeRun(run: TranslationRunStatus): string {
 }
 
 const VALID_TABS: TabId[] = [
-  "overview", "chapter", "debats", "art", "science", "original", "translated", "galignani",
+  "chapter", "paris", "paper",
+  "overview", "debats", "art", "science", "original", "translated", "galignani",
 ];
 
 function parseTab(raw: string | null | undefined, fallback: TabId): TabId {
@@ -230,25 +264,45 @@ function getTabContent(
   contributors: Map<string, ContributorInfo>,
   installment: Installment,
   activeChapterNum: string | null,
+  nextDate: string | null,
+  adminMode: boolean,
 ) {
-  switch (tab) {
-    case "overview":   return <OverviewTab data={data} contributors={contributors} installment={installment} />;
-    case "chapter":    return (
+  // Chapter and Galignani are identical in both modes.
+  if (tab === "chapter") {
+    return (
       <ChapterTab
         data={data}
         contributors={contributors}
         chapters={installment.chapters}
         activeChapterNum={activeChapterNum}
+        nextDate={nextDate}
       />
     );
-    case "debats":     return <DebatsTab data={data} contributors={contributors} />;
-    case "art":        return <ArtTab data={data} contributors={contributors} />;
-    case "science":    return <ScienceTab data={data} contributors={contributors} />;
-    case "original":    return <OriginalPaperTab data={data} />;
-    case "translated":  return <TranslatedPaperTab data={data} contributors={contributors} />;
-    case "galignani":   return <GalignaniTab data={data} contributors={contributors} />;
-    default:           return <OverviewTab data={data} contributors={contributors} installment={installment} />;
   }
+  if (tab === "galignani") {
+    return <GalignaniTab data={data} contributors={contributors} />;
+  }
+
+  // Admin sees every granular section so each stays editable.
+  if (adminMode) {
+    switch (tab) {
+      case "debats":     return <DebatsTab data={data} contributors={contributors} />;
+      case "art":        return <ArtTab data={data} contributors={contributors} />;
+      case "science":    return <ScienceTab data={data} contributors={contributors} />;
+      case "original":   return <OriginalPaperTab data={data} />;
+      case "translated": return <TranslatedPaperTab data={data} contributors={contributors} />;
+      case "overview":
+      default:           return <OverviewTab data={data} contributors={contributors} installment={installment} />;
+    }
+  }
+
+  // Readers get the consolidated surfaces; legacy/granular ids fold in.
+  const reader = normalizeReaderTab(tab);
+  if (reader === "paper") {
+    const defaultLang: PaperLang = tab === "translated" ? "en" : "fr";
+    return <PaperTab data={data} contributors={contributors} defaultLang={defaultLang} />;
+  }
+  return <ParisThatDayTab data={data} contributors={contributors} />;
 }
 
 // ---------------------------------------------------------------------------
@@ -324,7 +378,15 @@ export default function DayPageView({
     contributors,
     installment,
     activeChapterNum,
+    nextDate,
+    adminMode,
   );
+
+  // The scan-heavy surfaces want full width, so the "On this day" rail is
+  // hidden there; it stays beside the chapter and "Paris, that day".
+  const showSidebar =
+    normalizeReaderTab(activeTab) !== "paper" && activeTab !== "galignani";
+  const figures = figuresToday(data, contributors);
 
   const multiChapter = installment.chapters.length > 1;
   const chapterTitle = multiChapter
@@ -422,20 +484,9 @@ export default function DayPageView({
           tabContent={tabContent}
           installmentDate={installment.date}
           translatedPageCount={data.resolved.translated_pages?.length ?? 0}
+          showSidebar={showSidebar}
           sidebar={
-            <ParisSidebar
-              date={installment.date}
-              musicItems={data.resolved.debats.music}
-              theatreItems={data.resolved.debats.theater}
-              politicsDebatsItems={data.resolved.debats.literature}
-              politicsGalignaniItems={data.resolved.galignani}
-              annonceItems={[]}
-              contributors={contributors}
-              rawMusicItems={data.doc.debats.music}
-              rawTheatreItems={data.doc.debats.theater}
-              rawLiteratureItems={data.doc.debats.literature}
-              rawGalignaniItems={data.doc.galignani}
-            />
+            <ParisSidebar date={installment.date} figures={figures} />
           }
         />
       </ThreeCol>

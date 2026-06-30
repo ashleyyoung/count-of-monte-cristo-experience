@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { Installment } from "@/lib/installments";
 import ProgressCheck from "@/components/timeline/ProgressCheck";
 import DayDatePicker from "@/components/day/DayDatePicker";
+import BreadcrumbBar from "@/components/ui/BreadcrumbBar";
 
 interface Props {
   installment: Installment;
@@ -70,6 +71,28 @@ const ChapterSubtitle = styled.span`
   white-space: nowrap;
 `;
 
+const Dateline = styled.span`
+  font-family: var(--font-labels-stack);
+  font-style: italic;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--ink-tertiary);
+`;
+
+const WEEKDAYS = [
+  "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday",
+];
+const MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+function formatDateline(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const weekday = WEEKDAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
+  return `${weekday}, ${MONTHS[m - 1]} ${d}, ${y}`;
+}
+
 const Center = styled.div`
   text-align: center;
 
@@ -108,23 +131,8 @@ const NavBtn = styled(Link)<{ $disabled?: boolean }>`
   }
 `;
 
-const Breadcrumb = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-family: var(--font-labels-stack);
-  font-style: italic;
-  font-size: 11px;
-  color: var(--ink-muted);
+const DayBreadcrumb = styled(BreadcrumbBar)`
   margin-bottom: 4px;
-
-  a {
-    color: var(--ink-muted);
-    text-decoration: none;
-    &:hover { color: var(--ink-primary); }
-  }
-
-  span { color: var(--rule-mid); }
 `;
 
 // ---------------------------------------------------------------------------
@@ -142,16 +150,17 @@ export default function DayTopBar({
   return (
     <Bar>
       <Left>
-        <Breadcrumb>
-          <Link href="/">Journal des Débats</Link>
-          <span>/</span>
-          <Link href="/timeline">Timeline</Link>
-          <span>/</span>
-          <span>{installment.date}</span>
-        </Breadcrumb>
+        <DayBreadcrumb
+          crumbs={[
+            { label: "Journal des Débats", href: "/" },
+            { label: "Timeline", href: "/timeline" },
+            { label: installment.date },
+          ]}
+        />
         <InstallmentLabel>
           Installment {installment.global_index} of 139
         </InstallmentLabel>
+        <Dateline>{formatDateline(installment.date)}</Dateline>
         <ChapterSubtitle>{installment.label}</ChapterSubtitle>
       </Left>
 

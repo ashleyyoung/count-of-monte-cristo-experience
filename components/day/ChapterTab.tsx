@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import styled from "styled-components";
 import type { DayPageData } from "@/lib/content";
@@ -22,6 +23,7 @@ interface Props {
   contributors: Map<string, ContributorInfo>;
   chapters: Chapter[];
   activeChapterNum: string | null;
+  nextDate: string | null;
 }
 
 const NextChapterBtn = styled.button`
@@ -36,6 +38,56 @@ const NextChapterBtn = styled.button`
   cursor: pointer;
   letter-spacing: 0.06em;
   align-self: flex-start;
+  transition: background 0.15s, border-color 0.15s;
+
+  &:hover {
+    background: var(--gilt-deep);
+    border-color: var(--gilt-deep);
+  }
+`;
+
+const FootActions = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 48px;
+  padding-top: 28px;
+  border-top: 1px solid var(--rule-light);
+`;
+
+const TopBtn = styled.button`
+  font-family: var(--font-labels-stack);
+  font-style: italic;
+  font-size: 18px;
+  line-height: 1;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  background: transparent;
+  color: var(--ink-muted);
+  border: 1px solid var(--rule-mid);
+  border-radius: 2px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+
+  &:hover {
+    color: var(--ink-primary);
+    border-color: var(--ink-secondary);
+    background: rgba(120, 84, 40, 0.06);
+  }
+`;
+
+const NextDayBtn = styled(Link)`
+  font-family: var(--font-labels-stack);
+  font-style: italic;
+  font-size: 13px;
+  padding: 10px 22px;
+  background: var(--gilt-warm);
+  color: var(--ink-primary);
+  border: 1px solid var(--gilt-warm);
+  text-decoration: none;
+  letter-spacing: 0.06em;
   transition: background 0.15s, border-color 0.15s;
 
   &:hover {
@@ -61,6 +113,7 @@ export default function ChapterTab({
   contributors,
   chapters,
   activeChapterNum,
+  nextDate,
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -134,6 +187,18 @@ export default function ChapterTab({
           Next chapter: {nextChapter.num}. {nextChapter.title} →
         </NextChapterBtn>
       )}
+      <FootActions>
+        <TopBtn
+          type="button"
+          onClick={scrollToChapterTop}
+          aria-label="Back to top"
+        >
+          ↑
+        </TopBtn>
+        {nextDate && (
+          <NextDayBtn href={`/day/${nextDate}`}>Next day →</NextDayBtn>
+        )}
+      </FootActions>
     </TabSection>
   );
 }

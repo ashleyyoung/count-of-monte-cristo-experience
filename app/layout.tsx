@@ -13,6 +13,8 @@ import StyledComponentsRegistry from "@/components/StyledComponentsRegistry";
 import { AdminModeProvider } from "@/components/admin/AdminModeProvider";
 import AdminModeToggle from "@/components/admin/AdminModeToggle";
 import { createClient } from "@/lib/supabase/server";
+import { listLinkablePeople } from "@/lib/people";
+import { PeopleIndexProvider } from "@/lib/people-linker";
 
 // ---------------------------------------------------------------------------
 // Fonts
@@ -108,6 +110,7 @@ export default async function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   // Resolve admin status server-side so the toggle only renders for admins.
   let isAdmin = false;
+  const peoplePromise = listLinkablePeople();
   try {
     const supabase = await createClient();
     const {
@@ -125,24 +128,28 @@ export default async function RootLayout({
     // Non-fatal — admin mode simply won't appear.
   }
 
+  const people = await peoplePromise;
+
   return (
     <html lang="fr" className={fontVars}>
       <body>
         <StyledComponentsRegistry>
           <AdminModeProvider isAdmin={isAdmin}>
-            {isAdmin && (
-              <div
-                style={{
-                  position: "fixed",
-                  top: 10,
-                  right: 14,
-                  zIndex: 9999,
-                }}
-              >
-                <AdminModeToggle />
-              </div>
-            )}
-            {children}
+            <PeopleIndexProvider people={people}>
+              {isAdmin && (
+                <div
+                  style={{
+                    position: "fixed",
+                    top: 10,
+                    right: 14,
+                    zIndex: 9999,
+                  }}
+                >
+                  <AdminModeToggle />
+                </div>
+              )}
+              {children}
+            </PeopleIndexProvider>
           </AdminModeProvider>
         </StyledComponentsRegistry>
       </body>

@@ -1377,8 +1377,8 @@ export function stitchAltoBlocks(
     .join("\n");
 }
 
-/** Default pause between per-page ALTO fetches (metadata class is also throttled in fetch). */
-const DEFAULT_ALTO_PAGE_DELAY_MS = 1_200;
+/** Default pause between real per-page ALTO fetches — 16s to respect Gallica's rate limit. */
+const DEFAULT_ALTO_PAGE_DELAY_MS = 16_000;
 
 export interface IssueAltoPage {
   /** 1-based page number. */
@@ -1387,6 +1387,14 @@ export interface IssueAltoPage {
   text: string;
   /** Number of ALTO TextBlocks found on the page. */
   blockCount: number;
+  /** Reading-order sections (column-runs) with page-percentage regions. */
+  sections: AltoSection[];
+  /**
+   * Raw ALTO XML for the page when it was fetched (or read from cache) this
+   * call. Lets callers persist the geometry so re-segmentation never re-hits
+   * Gallica. Undefined for pages served from pre-supplied blocks.
+   */
+  xml?: string;
 }
 
 /**
@@ -1405,26 +1413,47 @@ export async function fetchIssueAltoText(
     pageDelayMs?: number;
     /** Pre-fetched page-1 blocks (e.g. from crop-strip) to skip one network call. */
     page1Blocks?: AltoTextBlock[];
+    /**
+     * Return cached ALTO XML for a page, or null to fetch from Gallica. When a
+     * cached page is returned, no network call (and no delay) is made — this is
+     * how re-segmentation avoids the rate-limited ALTO endpoint entirely.
+     */
+    loadCachedXml?: (page: number) => Promise<string | null>;
+    /** Persist freshly-fetched ALTO XML for a page (e.g. write it to R2). */
+    onXml?: (page: number, xml: string) => Promise<void>;
   },
 ): Promise<IssueAltoPage[]> {
   const log = options?.log ?? (() => {});
   const pageDelayMs = options?.pageDelayMs ?? DEFAULT_ALTO_PAGE_DELAY_MS;
   const pages: IssueAltoPage[] = [];
+  // Throttle only actual Gallica calls; cache hits impose no delay.
+  let madeNetworkCall = false;
 
   for (let page = 1; page <= pageCount; page++) {
-    if (page > 1 && pageDelayMs > 0) {
-      await sleep(pageDelayMs);
-    }
-
     let blocks: AltoTextBlock[];
     let pageWidth = 0;
     let pageHeight = 0;
+    let pageXml: string | undefined;
     if (page === 1 && options?.page1Blocks) {
       log(`ALTO page 1: reusing pre-fetched blocks (no refetch).`);
       blocks = options.page1Blocks;
     } else {
-      log(`ALTO: fetching page ${page}/${pageCount}…`);
-      const xml = await fetchAltoXml(ark, page);
+      const cached = options?.loadCachedXml
+        ? await options.loadCachedXml(page)
+        : null;
+      let xml: string;
+      if (cached) {
+        log(`ALTO page ${page}/${pageCount}: using cached XML (no fetch).`);
+        xml = cached;
+      } else {
+        // Space out real network calls to respect the ALTO rate limit.
+        if (madeNetworkCall && pageDelayMs > 0) await sleep(pageDelayMs);
+        madeNetworkCall = true;
+        log(`ALTO: fetching page ${page}/${pageCount}…`);
+        xml = await fetchAltoXml(ark, page);
+        if (options?.onXml) await options.onXml(page, xml);
+      }
+      pageXml = xml;
       const parsed = parseAltoPage(xml);
       blocks = parsed.blocks;
       pageWidth = parsed.width;
@@ -1433,13 +1462,19 @@ export async function fetchIssueAltoText(
 
     if (blocks.length === 0) {
       log(`ALTO page ${page}: no TextBlocks.`);
-      pages.push({ page, text: "", blockCount: 0 });
+      pages.push({ page, text: "", blockCount: 0, sections: [], xml: pageXml });
       continue;
     }
 
-    const text = stitchAltoBlocks(blocks, pageWidth, pageHeight);
-    log(`ALTO page ${page}: ${blocks.length} blocks, ${text.length} chars.`);
-    pages.push({ page, text, blockCount: blocks.length });
+    const sections = buildAltoSections(blocks, pageWidth, pageHeight);
+    const text = sections
+      .map((s) => s.text)
+      .filter(Boolean)
+      .join("\n");
+    log(
+      `ALTO page ${page}: ${blocks.length} blocks, ${sections.length} sections, ${text.length} chars.`,
+    );
+    pages.push({ page, text, blockCount: blocks.length, sections, xml: pageXml });
   }
 
   return pages;

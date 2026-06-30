@@ -19,9 +19,11 @@ interface Props {
   tabContent: React.ReactNode;
   installmentDate: string;
   translatedPageCount?: number;
-  /** The "Paris that day" sidebar — rendered as a side column on desktop,
-   *  and as a collapsible section between the tabs and the chapter content
-   *  on mobile (see ColumnGrid below). */
+  /** When false, the rail is hidden and content runs full width (scan tabs). */
+  showSidebar?: boolean;
+  /** The "On this day" rail — rendered as a side column on desktop, and as a
+   *  collapsible section between the tabs and the chapter content on mobile
+   *  (see ColumnGrid below). */
   sidebar: React.ReactNode;
 }
 
@@ -58,7 +60,7 @@ const Column = styled.main`
  * content track is minmax(0, 1fr) (NOT a bare 1fr, which is minmax(auto,
  * 1fr) and would expand to the content's min-content width and overflow).
  */
-const ColumnGrid = styled.div`
+const ColumnGrid = styled.div<{ $noSidebar: boolean }>`
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -67,19 +69,35 @@ const ColumnGrid = styled.div`
 
   @media (min-width: 801px) {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 318px;
-    grid-template-areas:
-      "kicker side"
-      "title side"
-      "cta side"
-      "tabs side"
-      "content side";
-    grid-template-rows: auto auto auto auto 1fr;
     align-items: start;
+
+    ${({ $noSidebar }) =>
+      $noSidebar
+        ? `
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-areas:
+        "kicker"
+        "title"
+        "cta"
+        "tabs"
+        "content";
+      grid-template-rows: auto auto auto auto 1fr;
+    `
+        : `
+      grid-template-columns: minmax(0, 1fr) 318px;
+      grid-template-areas:
+        "kicker side"
+        "title side"
+        "cta side"
+        "tabs side"
+        "content side";
+      grid-template-rows: auto auto auto auto 1fr;
+    `}
   }
 
   @media (min-width: 801px) and (max-width: 1100px) {
-    grid-template-columns: minmax(0, 1fr) 260px;
+    grid-template-columns: ${({ $noSidebar }) =>
+      $noSidebar ? "minmax(0, 1fr)" : "minmax(0, 1fr) 260px"};
   }
 `;
 
@@ -254,6 +272,7 @@ export default function ReadingColumn({
   tabContent,
   installmentDate,
   translatedPageCount = 0,
+  showSidebar = true,
   sidebar,
 }: Props) {
   const searchParams = useSearchParams();
@@ -286,7 +305,7 @@ export default function ReadingColumn({
 
   return (
     <Column>
-      <ColumnGrid>
+      <ColumnGrid $noSidebar={!showSidebar}>
         <ChapterKicker>{chapterLabel}</ChapterKicker>
         <ChapterTitle>{chapterTitle}</ChapterTitle>
 
@@ -322,14 +341,18 @@ export default function ReadingColumn({
           />
         </TabsArea>
 
-        <SidebarToggleInput type="checkbox" id="paris-sidebar-toggle" />
-        <SidebarToggleLabel htmlFor="paris-sidebar-toggle">
-          <span>Paris, that day</span>
-          <SidebarToggleIcon aria-hidden="true">›</SidebarToggleIcon>
-        </SidebarToggleLabel>
-        <SidebarPanelWrap>
-          <SidebarPanelInner>{sidebar}</SidebarPanelInner>
-        </SidebarPanelWrap>
+        {showSidebar && (
+          <>
+            <SidebarToggleInput type="checkbox" id="paris-sidebar-toggle" />
+            <SidebarToggleLabel htmlFor="paris-sidebar-toggle">
+              <span>On this day</span>
+              <SidebarToggleIcon aria-hidden="true">›</SidebarToggleIcon>
+            </SidebarToggleLabel>
+            <SidebarPanelWrap>
+              <SidebarPanelInner>{sidebar}</SidebarPanelInner>
+            </SidebarPanelWrap>
+          </>
+        )}
 
         <TabContent role="tabpanel">{tabContent}</TabContent>
       </ColumnGrid>

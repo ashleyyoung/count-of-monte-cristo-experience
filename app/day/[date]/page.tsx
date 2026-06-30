@@ -4,6 +4,9 @@ import { getDayPageData } from "@/lib/content";
 import { getByDate, getNext, getPrev } from "@/lib/installments";
 import { createClient } from "@/lib/supabase/server";
 import { getCompletedDates } from "@/lib/progress";
+import { getBeatLabel } from "@/lib/beat-display";
+import { listLinkablePeople } from "@/lib/people";
+import type { LinkablePerson } from "@/lib/people-linker";
 import type { ContributorInfo } from "@/components/day/ContributorByline";
 import type { TabId } from "@/components/day/TabRow";
 import DayPageView, {
@@ -19,33 +22,27 @@ interface PageProps {
 // Contributor resolver (server-side, alongside main query)
 // ---------------------------------------------------------------------------
 
-async function resolveContributors(
+/** Byline map (keyed by id) for the contributors who appear in this day. */
+function buildContributorMap(
+  people: LinkablePerson[],
   contributorIds: string[],
-): Promise<Map<string, ContributorInfo>> {
+): Map<string, ContributorInfo> {
+  const want = new Set(contributorIds);
   const map = new Map<string, ContributorInfo>();
-  if (contributorIds.length === 0) return map;
-
-  const supabase = await createClient();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any)
-    .from("people")
-    .select("id, name, slug, role")
-    .in("id", contributorIds);
-
-  if (error) {
-    console.error("[day/page] resolveContributors:", error.message);
-    return map;
-  }
-
-  for (const row of data ?? []) {
-    map.set(row.id as string, {
-      id: row.id as string,
-      name: row.name as string,
-      slug: row.slug as string,
-      role: (row.role as string | null) ?? null,
+  for (const p of people) {
+    if (!want.has(p.id)) continue;
+    map.set(p.id, {
+      id: p.id,
+      name: p.name,
+      slug: p.slug,
+      // The people table has no `role` column; the byline suffix is the beat label.
+      role: getBeatLabel(p.beat),
+      beat: p.beat ?? null,
+      birth: p.birth ?? null,
+      death: p.death ?? null,
+      tagline: p.tagline ?? null,
     });
   }
-
   return map;
 }
 
@@ -55,6 +52,7 @@ function collectContributorIds(data: Awaited<ReturnType<typeof getDayPageData>>)
 
   const allSections = [
     data.resolved.overview,
+    data.resolved.news,
     data.resolved.chapter,
     data.resolved.debats.music,
     data.resolved.debats.theater,
@@ -81,12 +79,13 @@ function collectContributorIds(data: Awaited<ReturnType<typeof getDayPageData>>)
 // ---------------------------------------------------------------------------
 
 const VALID_TABS: TabId[] = [
-  "overview", "chapter", "debats", "art", "science", "original", "galignani",
+  "chapter", "paris", "paper",
+  "overview", "debats", "art", "science", "original", "translated", "galignani",
 ];
 
 function parseTab(raw: string | undefined): TabId {
   if (raw && VALID_TABS.includes(raw as TabId)) return raw as TabId;
-  return "overview";
+  return "chapter";
 }
 
 // ---------------------------------------------------------------------------
@@ -126,7 +125,8 @@ export default async function DayPage({ params, searchParams }: PageProps) {
   const next = getNext(date);
 
   const contributorIds = collectContributorIds(data);
-  const contributors = await resolveContributors(contributorIds);
+  const people = await listLinkablePeople();
+  const contributors = buildContributorMap(people, contributorIds);
 
   const activeTab = parseTab(tabParam);
 

@@ -16,6 +16,7 @@
 import styled from "styled-components";
 import { useRouter } from "next/navigation";
 import Cite, { type CiteSource } from "@/components/ui/Cite";
+import PeopleLinked from "@/components/people/PeopleLinked";
 import EditableText from "@/components/admin/primitives/EditableText";
 import { upsertEditorialBlock } from "@/app/actions/admin";
 
@@ -251,6 +252,7 @@ export default function PressBusiness() {
               "What It Cost the Reader",
             )}
           >
+            <PeopleLinked>
             <P>
               A traditional Paris daily cost about 80 francs a year, more than a
               week of a skilled worker&apos;s wages, so the paper was a possession
@@ -264,7 +266,8 @@ export default function PressBusiness() {
               two-thirds of the Débats readership lay outside the capital.
               <Cite source={cites[0]} n={1} />
             </P>
-          </EditableText>
+          </PeopleLinked>
+        </EditableText>
         </ProseWrap>
       </Section>
 
@@ -278,6 +281,7 @@ export default function PressBusiness() {
               "The 1836 Price War",
             )}
           >
+            <PeopleLinked>
             <P>
               On 1 July 1836 two new dailies, Émile de Girardin&apos;s La Presse
               and Armand Dutacq&apos;s Le Siècle, launched at 40 francs a year,
@@ -291,7 +295,8 @@ export default function PressBusiness() {
               competing for. The Débats, an established and upmarket paper, took
               up the same weapon when it secured Dumas.
             </P>
-          </EditableText>
+          </PeopleLinked>
+        </EditableText>
         </ProseWrap>
         <Figure>
           <FigImg
@@ -320,6 +325,7 @@ export default function PressBusiness() {
           value={SECTION_TEXT["press-business-line"]}
           onSave={makeSectionSave("press-business-line", "Paid by the Line")}
         >
+          <PeopleLinked>
           <P>
             Serial novelists were paid by the printed line. The arrangement is
             widely credited with shaping the prose itself, rewarding short,
@@ -327,6 +333,7 @@ export default function PressBusiness() {
             reader moving down the column. It is a rare case where a payment
             scheme left a visible mark on a literary style.
           </P>
+          </PeopleLinked>
         </EditableText>
         </ProseWrap>
       </Section>
@@ -338,6 +345,7 @@ export default function PressBusiness() {
           value={SECTION_TEXT["press-business-tax"]}
           onSave={makeSectionSave("press-business-tax", "Taxed and Bonded")}
         >
+          <PeopleLinked>
           <P>
             The state shaped the press through its budget. A stamp duty, the
             timbre, fell on each sheet, and under the September Laws of 9
@@ -353,6 +361,7 @@ export default function PressBusiness() {
             titles and pushed the whole press toward the advertising-funded
             commercial model that La Presse and Le Siècle had pioneered.
           </P>
+          </PeopleLinked>
         </EditableText>
         </ProseWrap>
       </Section>
@@ -367,6 +376,7 @@ export default function PressBusiness() {
             "How the News Arrived",
           )}
         >
+          <PeopleLinked>
           <P>
             News moved at the speed of the fastest available carrier. Before the
             electric telegraph reached France, reports traveled by stagecoach,
@@ -382,6 +392,7 @@ export default function PressBusiness() {
             and Bernhard Wolff, went on to found the London and Berlin agencies.
             <Cite source={cites[3]} n={4} />
           </P>
+          </PeopleLinked>
         </EditableText>
         </ProseWrap>
       </Section>
@@ -396,6 +407,7 @@ export default function PressBusiness() {
               "Coordinating the Writers",
             )}
           >
+            <PeopleLinked>
             <P>
               Contributors filed on standing schedules. Jules Janin&apos;s theatre
               column appeared on Mondays, Berlioz&apos;s music feuilletons
@@ -417,7 +429,8 @@ export default function PressBusiness() {
               compositors only a day or two before it was set.
               <Cite source={cites[4]} n={6} />
             </P>
-          </EditableText>
+          </PeopleLinked>
+        </EditableText>
         </ProseWrap>
         <Figure>
           <FigImg
@@ -449,6 +462,7 @@ export default function PressBusiness() {
             "Scandal and Piracy",
           )}
         >
+          <PeopleLinked>
           <P>
             Success drew fire. In 1845, while Monte Cristo was still running,
             Eugène de Mirecourt published a pamphlet titled Fabrique de romans:
@@ -460,6 +474,7 @@ export default function PressBusiness() {
             circulated French novels across the border and cut into the income
             of authors and publishers alike.
           </Blockquote>
+          </PeopleLinked>
         </EditableText>
         </ProseWrap>
       </Section>

@@ -418,6 +418,8 @@ export async function translateFrenchToEnglish(
     maxTokens?: number;
     log?: TranslationLogFn;
     model?: string;
+    /** When set, used verbatim as the user prompt instead of the default. */
+    userPrompt?: string;
   },
 ): Promise<TranslationUsage> {
   const client = getClient();
@@ -440,7 +442,9 @@ export async function translateFrenchToEnglish(
     : `section "${context.section}"`;
 
   const pageMatch = context.section.match(/^page-(\d+)$/);
-  const userPrompt = pageMatch
+  const userPrompt = context.userPrompt
+    ? context.userPrompt
+    : pageMatch
     ? buildPageTranslateUserPrompt(
         context.date,
         parseInt(pageMatch[1], 10),
@@ -1048,6 +1052,127 @@ export async function translatePaperPages(
       cost_usd: totalCost,
       duration_ms: totalMs,
     },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Section-aware page translation
+// ---------------------------------------------------------------------------
+
+/**
+ * Marker placed between reading-order sections (newspaper column-runs) in the
+ * French sent to the model, and preserved in the English so each section's
+ * translation can be split back out and aligned to its source-image region.
+ * Chosen to be vanishingly unlikely in 1844 prose or the model's output.
+ */
+const SECTION_MARKER = (i: number) => `@@@COLUMN_${i}@@@`;
+const SECTION_MARKER_RE = /@@@COLUMN_\d+@@@/g;
+
+/** A translated page split into its reading-order sections. */
+export interface SectionedPageResult {
+  pageNumber: number;
+  /** English of each section, in reading order (same length as input). */
+  sections: string[];
+  /**
+   * True when the model preserved the section markers and the English was
+   * split 1:1. False when it fell back to a single combined section (the
+   * whole page as `sections[0]`), so callers must not assume regions align.
+   */
+  aligned: boolean;
+}
+
+/** Build the user prompt for a single page translated section by section. */
+export function buildSectionedPageUserPrompt(
+  date: string,
+  pageNumber: number,
+  sectionsFrench: string[],
+): string {
+  const body = sectionsFrench
+    .map((fr, i) => `${SECTION_MARKER(i)}\n${fr}`)
+    .join("\n\n");
+  return `Please translate the following page of the Journal des Débats, ${date}, page ${pageNumber}.
+
+The page is divided into ${sectionsFrench.length} newspaper columns, each introduced by a marker line of the form @@@COLUMN_n@@@. These markers denote reading order across the columns.
+
+Rules:
+- Reproduce every @@@COLUMN_n@@@ marker EXACTLY as written, each on its own line, in the same order, immediately before the English translation of that column. Do not add, drop, renumber, reorder, or merge markers.
+- Translate the text of each column into English Markdown. Text may flow from the end of one column into the next; translate it continuously, but keep each portion under its own marker.
+- Return ONLY the markers and the translated English — no preamble, no closing remarks, no metadata.
+- Where the source has OCR damage (mid-word ellipses, broken hyphenation, stray punctuation, or nonsense glyphs), translate only what is clearly readable and mark the damaged span with [illegible in source]. Do not reconstruct missing letters or guess proper nouns from corrupted fragments, and do not silently drop them.
+
+---
+${body}
+---`;
+}
+
+/**
+ * Split a model response on the section markers. Returns one string per
+ * section when the marker count matches `expected`, else null (caller falls
+ * back to treating the whole response as a single section).
+ */
+export function parseSectionedTranslation(
+  english: string,
+  expected: number,
+): string[] | null {
+  const markers = english.match(SECTION_MARKER_RE);
+  if (!markers || markers.length !== expected) return null;
+  // Split and drop the leading pre-marker chunk (should be empty).
+  const parts = english.split(SECTION_MARKER_RE);
+  const sections = parts.slice(1).map((s) => s.trim());
+  if (sections.length !== expected) return null;
+  return sections;
+}
+
+/**
+ * Translate one page section by section in a single model call, preserving
+ * column markers so the English can be aligned back to source-image regions.
+ * Falls back to a single combined section (aligned:false) if the model does
+ * not return the expected markers.
+ */
+export async function translateSectionedPage(
+  date: string,
+  pageNumber: number,
+  sectionsFrench: string[],
+  options: { model?: string; log?: TranslationLogFn } = {},
+): Promise<{ result: SectionedPageResult; usage: TranslationUsage }> {
+  const model = resolveTranslationModel(options.model);
+  const userPrompt = buildSectionedPageUserPrompt(
+    date,
+    pageNumber,
+    sectionsFrench,
+  );
+  const joinedFrench = sectionsFrench.join("\n\n");
+
+  const usage = await translateFrenchToEnglish(joinedFrench, {
+    date,
+    section: `page-${pageNumber}`,
+    maxTokens: SEGMENT_MAX_TOKENS,
+    model,
+    log: options.log,
+    userPrompt,
+  });
+
+  const split = parseSectionedTranslation(usage.text, sectionsFrench.length);
+  if (split) {
+    return {
+      result: { pageNumber, sections: split, aligned: true },
+      usage,
+    };
+  }
+
+  // Fallback: markers not preserved — keep the full text as one section so the
+  // page still reads correctly, but mark it unaligned (no per-region mapping).
+  translationLog(options.log)(
+    `[translate] page ${pageNumber}: section markers not preserved ` +
+      `(expected ${sectionsFrench.length}); falling back to single section.`,
+  );
+  return {
+    result: {
+      pageNumber,
+      sections: [usage.text.replace(SECTION_MARKER_RE, "").trim()],
+      aligned: false,
+    },
+    usage,
   };
 }
 

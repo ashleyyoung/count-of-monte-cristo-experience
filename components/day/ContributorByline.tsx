@@ -1,13 +1,20 @@
 "use client";
 
 import styled from "styled-components";
-import Link from "next/link";
+import PersonHoverCard from "@/components/people/PersonHoverCard";
 
 export interface ContributorInfo {
   id: string;
   name: string;
   slug: string;
+  /** Display role for the byline suffix (derived from beat). */
   role: string | null;
+  /** Beat enum (music, drama, …) for the hover card's badge. */
+  beat: string | null;
+  birth: number | null;
+  death: number | null;
+  /** One-line editorial blurb for the hover card; null falls back to beat + years. */
+  tagline: string | null;
 }
 
 interface Props {
@@ -26,27 +33,21 @@ const Byline = styled.div`
   letter-spacing: 0.04em;
 `;
 
-const BylineLink = styled(Link)`
+const BylineName = styled.span`
   font-family: var(--font-labels-stack);
   font-style: italic;
   font-size: 11px;
   color: var(--ink-tertiary);
-  text-decoration: underline;
-  text-underline-offset: 2px;
   letter-spacing: 0.04em;
-
-  &:hover {
-    color: var(--oxblood);
-  }
 `;
 
 export default function ContributorByline({ contributor, prefix = "By" }: Props) {
   return (
     <Byline>
       <span>{prefix}</span>
-      <BylineLink href={`/people/${contributor.slug}`}>
-        {contributor.name}
-      </BylineLink>
+      <PersonHoverCard person={contributor}>
+        <BylineName>{contributor.name}</BylineName>
+      </PersonHoverCard>
       {contributor.role && (
         <span>· {contributor.role}</span>
       )}

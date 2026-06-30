@@ -155,7 +155,7 @@ export async function runIngestDay(
   }
 
   // 5. translate-day
-  step(5, "translate-day");
+  step("translate-day");
   const summary = await runDayTranslation(
     date,
     log,

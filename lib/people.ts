@@ -238,6 +238,44 @@ export async function getPersonPageData(
   };
 }
 
+/** Fields needed for inline profile hover cards site-wide. */
+export interface LinkablePersonRow {
+  id: string;
+  name: string;
+  slug: string;
+  beat: PersonBeat | null;
+  birth: number | null;
+  death: number | null;
+  tagline: string | null;
+}
+
+/**
+ * Returns all profiled people with the fields needed for PersonHoverCard /
+ * people-linker name matching.
+ */
+export async function listLinkablePeople(): Promise<LinkablePersonRow[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("people")
+    .select("id, name, slug, beat, birth, death, tagline")
+    .order("name");
+
+  if (error) {
+    console.error("[people] listLinkablePeople:", error.message);
+    return [];
+  }
+
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    name: row.name,
+    slug: row.slug,
+    beat: (row.beat as PersonBeat | null) ?? null,
+    birth: (row.birth as number | null) ?? null,
+    death: (row.death as number | null) ?? null,
+    tagline: (row.tagline as string | null) ?? null,
+  }));
+}
+
 /**
  * Returns a lightweight list of all people (for nav, graph seeding, etc.).
  * Does not fetch bios or life events — contributors and figures only.

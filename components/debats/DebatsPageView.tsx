@@ -10,8 +10,8 @@
 import React, { useCallback, useState } from "react";
 import styled from "styled-components";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import Link from "next/link";
 import dynamic from "next/dynamic";
+import BreadcrumbBar from "@/components/ui/BreadcrumbBar";
 import type { GraphPerson, GraphRelationship } from "@/lib/graph-layout";
 import type { PersistedCoord } from "@/components/graph/NetworkGraph";
 import type { GraphVariantRow } from "@/lib/graph-recompute";
@@ -86,23 +86,8 @@ const Masthead = styled.header`
   }
 `;
 
-const Breadcrumb = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-family: var(--font-labels-stack);
-  font-style: italic;
-  font-size: 11px;
-  color: var(--ink-muted);
+const DebatsBreadcrumb = styled(BreadcrumbBar)`
   margin-bottom: 0.75rem;
-
-  a {
-    color: var(--ink-muted);
-    text-decoration: none;
-    &:hover { color: var(--ink-primary); }
-  }
-
-  span { color: var(--rule-mid); }
 `;
 
 const Title = styled.h1`
@@ -302,14 +287,18 @@ export default function DebatsPageView({
   const effectiveTab: TabId =
     activeTab === "connections" && !adminMode ? "paper" : activeTab;
 
+  const activeTabLabel =
+    TABS.find((t) => t.id === effectiveTab)?.label ?? "The Paper";
+
   return (
     <Page>
       <Masthead>
-        <Breadcrumb>
-          <Link href="/">Home</Link>
-          <span>/</span>
-          <span>Journal des Débats</span>
-        </Breadcrumb>
+        <DebatsBreadcrumb
+          crumbs={[
+            { label: "Journal des Débats", href: "/" },
+            { label: activeTabLabel },
+          ]}
+        />
         <Title>Journal des Débats</Title>
         <Subtitle>Politiques et Littéraires · Founded 1789</Subtitle>
         <TabBar role="tablist" aria-label="Débats hub sections">

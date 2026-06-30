@@ -30,6 +30,8 @@ const PEOPLE = [
   {
     slug: "jules-janin",
     name: "Jules Janin",
+    tagline:
+      "Drama critic of the Journal des Débats for four decades; called the prince of critics.",
     is_contributor: true,
     category: "contributor" as const,
     beat: "drama" as const,
@@ -112,6 +114,8 @@ const PEOPLE = [
   {
     slug: "hector-berlioz",
     name: "Hector Berlioz",
+    tagline:
+      "Composer of the Symphonie fantastique and music critic for the Journal des Débats.",
     is_contributor: true,
     category: "contributor" as const,
     beat: "music" as const,
@@ -186,6 +190,8 @@ const PEOPLE = [
   {
     slug: "etienne-jean-delecluze",
     name: "Étienne-Jean Delécluze",
+    tagline:
+      "Art critic of the Journal des Débats; a pupil of David and chronicler of the Salon.",
     is_contributor: true,
     category: "contributor" as const,
     beat: "art" as const,
@@ -258,6 +264,8 @@ const PEOPLE = [
   {
     slug: "silvestre-de-sacy",
     name: "Silvestre de Sacy",
+    tagline:
+      "Literary editorialist of the Journal des Débats and curator at the Bibliothèque Mazarine.",
     is_contributor: true,
     category: "contributor" as const,
     beat: "literature" as const,
@@ -308,6 +316,8 @@ const PEOPLE = [
   {
     slug: "philarete-chasles",
     name: "Philarète Chasles",
+    tagline:
+      "Comparative-literature critic and scholar of English and American letters.",
     is_contributor: true,
     category: "contributor" as const,
     beat: "literature" as const,
@@ -351,6 +361,8 @@ const PEOPLE = [
   {
     slug: "leon-foucault",
     name: "Léon Foucault",
+    tagline:
+      "Physicist who later proved Earth's rotation with his pendulum; co-wrote the paper's science feuilleton.",
     is_contributor: true,
     category: "contributor" as const,
     beat: "science" as const,
@@ -438,6 +450,8 @@ const PEOPLE = [
   {
     slug: "alfred-donne",
     name: "Alfred Donné",
+    tagline:
+      "Physician and microscopy pioneer who wrote the Journal des Débats science feuilleton.",
     is_contributor: true,
     category: "contributor" as const,
     beat: "science" as const,
@@ -502,6 +516,8 @@ const PEOPLE = [
   {
     slug: "saint-marc-girardin",
     name: "Saint-Marc Girardin",
+    tagline:
+      "Sorbonne professor, deputy, and political editorialist for the Journal des Débats.",
     is_contributor: true,
     category: "contributor" as const,
     beat: "politics" as const,
@@ -552,6 +568,8 @@ const PEOPLE = [
   {
     slug: "john-lemoinne",
     name: "John Lemoinne",
+    tagline:
+      "Foreign-affairs writer for the Journal des Débats, expert on English politics.",
     is_contributor: true,
     category: "contributor" as const,
     beat: "foreign" as const,
@@ -603,6 +621,8 @@ const PEOPLE = [
   {
     slug: "michel-chevalier",
     name: "Michel Chevalier",
+    tagline:
+      "Economist and Saint-Simonian; champion of free trade and the railways.",
     is_contributor: true,
     category: "contributor" as const,
     beat: "economics" as const,
@@ -653,6 +673,8 @@ const PEOPLE = [
   {
     slug: "alfred-cuvillier-fleury",
     name: "Alfred-Auguste Cuvillier-Fleury",
+    tagline:
+      "Historian and columnist, former tutor to the Orléans princes.",
     is_contributor: true,
     category: "contributor" as const,
     beat: "politics" as const,
@@ -703,6 +725,7 @@ const PEOPLE = [
   {
     slug: "armand-bertin",
     name: "Armand Bertin",
+    tagline: "Proprietor and director of the Journal des Débats.",
     is_contributor: true,
     category: "contributor" as const,
     beat: "direction" as const,

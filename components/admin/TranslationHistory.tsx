@@ -28,6 +28,7 @@ import {
   pickProseRenderer,
   renderProseParagraphs,
 } from "@/lib/render-prose";
+import { usePeopleLinkPlain } from "@/lib/people-linker";
 
 // ---------------------------------------------------------------------------
 // Styled components
@@ -314,8 +315,9 @@ function ComparePanel({
   version: TranslationVersionMeta;
   onClose: () => void;
 }) {
-  const liveRenderer = pickProseRenderer(liveTranslationOrigin);
-  const versionRenderer = pickProseRenderer(version.translation_origin);
+  const linkPlain = usePeopleLinkPlain();
+  const liveRenderer = pickProseRenderer(liveTranslationOrigin, linkPlain);
+  const versionRenderer = pickProseRenderer(version.translation_origin, linkPlain);
 
   return (
     <div>

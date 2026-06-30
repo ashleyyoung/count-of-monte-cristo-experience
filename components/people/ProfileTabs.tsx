@@ -36,6 +36,8 @@ const RelationshipGraph = dynamic(
 
 import SourceBlock from "./SourceBlock";
 import Cite, { type CiteSource } from "@/components/ui/Cite";
+import { usePeopleLinkPlain } from "@/lib/people-linker";
+import type { LinkPlain } from "@/lib/render-prose";
 
 // ---------------------------------------------------------------------------
 // Tab definitions
@@ -926,6 +928,7 @@ function stripFootnoteDefs(md: string): string {
 function MarkdownRender({ md }: { md: string }) {
   const footnotes = useMemo(() => parseFootnotes(md), [md]);
   const body = useMemo(() => stripFootnoteDefs(md), [md]);
+  const linkPlain = usePeopleLinkPlain();
 
   const lines = body.split("\n");
   const elements: React.ReactNode[] = [];
@@ -934,17 +937,17 @@ function MarkdownRender({ md }: { md: string }) {
   while (i < lines.length) {
     const line = lines[i];
     if (line.startsWith("### ")) {
-      elements.push(<h3 key={i}>{inlineRender(line.slice(4), footnotes)}</h3>);
+      elements.push(<h3 key={i}>{inlineRender(line.slice(4), footnotes, linkPlain)}</h3>);
     } else if (line.startsWith("## ")) {
-      elements.push(<h2 key={i}>{inlineRender(line.slice(3), footnotes)}</h2>);
+      elements.push(<h2 key={i}>{inlineRender(line.slice(3), footnotes, linkPlain)}</h2>);
     } else if (line.startsWith("# ")) {
-      elements.push(<h1 key={i}>{inlineRender(line.slice(2), footnotes)}</h1>);
+      elements.push(<h1 key={i}>{inlineRender(line.slice(2), footnotes, linkPlain)}</h1>);
     } else if (line.startsWith("> ")) {
-      elements.push(<blockquote key={i}>{inlineRender(line.slice(2), footnotes)}</blockquote>);
+      elements.push(<blockquote key={i}>{inlineRender(line.slice(2), footnotes, linkPlain)}</blockquote>);
     } else if (line.trim() === "") {
       // skip blank lines
     } else {
-      elements.push(<p key={i}>{inlineRender(line, footnotes)}</p>);
+      elements.push(<p key={i}>{inlineRender(line, footnotes, linkPlain)}</p>);
     }
     i++;
   }
@@ -952,15 +955,29 @@ function MarkdownRender({ md }: { md: string }) {
   return <>{elements}</>;
 }
 
-function inlineRender(text: string, footnotes?: Map<number, CiteSource>): React.ReactNode {
+function inlineRender(
+  text: string,
+  footnotes?: Map<number, CiteSource>,
+  linkPlain?: LinkPlain,
+): React.ReactNode {
   // Match bold, italic, links, and footnote markers [^n]
   const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|\[[^\]]+\]\([^)]+\)|\[\^\d+\])/g);
   return parts.map((part, j) => {
     if (part.startsWith("**") && part.endsWith("**")) {
-      return <strong key={j}>{part.slice(2, -2)}</strong>;
+      const inner = part.slice(2, -2);
+      return (
+        <strong key={j}>
+          {linkPlain ? linkPlain(inner, `${j}-`) : inner}
+        </strong>
+      );
     }
     if (part.startsWith("*") && part.endsWith("*")) {
-      return <em key={j}>{part.slice(1, -1)}</em>;
+      const inner = part.slice(1, -1);
+      return (
+        <em key={j}>
+          {linkPlain ? linkPlain(inner, `${j}-`) : inner}
+        </em>
+      );
     }
     const fnMatch = part.match(/^\[\^(\d+)\]$/);
     if (fnMatch && footnotes) {
@@ -980,6 +997,6 @@ function inlineRender(text: string, footnotes?: Map<number, CiteSource>): React.
         </a>
       );
     }
-    return part;
+    return linkPlain ? linkPlain(part, String(j)) : part;
   });
 }

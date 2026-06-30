@@ -5,10 +5,13 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import type { Chapter } from "@/lib/installments";
 import { chapterTabLabel } from "@/lib/chapters";
+import { useAdminMode } from "@/components/admin/AdminModeProvider";
 
 export type TabId =
-  | "overview"
   | "chapter"
+  | "paris"
+  | "paper"
+  | "overview"
   | "debats"
   | "art"
   | "science"
@@ -16,9 +19,18 @@ export type TabId =
   | "translated"
   | "galignani";
 
-const BASE_TABS: { id: TabId; label: string }[] = [
-  { id: "overview", label: "Overview" },
+/** Four consolidated surfaces readers see. Chapter is the default. */
+const READER_TABS: { id: TabId; label: string }[] = [
   { id: "chapter", label: "Chapter" },
+  { id: "paris", label: "Paris, that day" },
+  { id: "paper", label: "The paper" },
+  { id: "galignani", label: "Galignani" },
+];
+
+/** Full granular set admins see, so every editable section stays reachable. */
+const ADMIN_TABS: { id: TabId; label: string }[] = [
+  { id: "chapter", label: "Chapter" },
+  { id: "overview", label: "Overview" },
   { id: "debats", label: "Débats" },
   { id: "art", label: "Art & exhibitions" },
   { id: "science", label: "Science" },
@@ -26,6 +38,15 @@ const BASE_TABS: { id: TabId; label: string }[] = [
   { id: "translated", label: "Translated paper" },
   { id: "galignani", label: "Galignani" },
 ];
+
+/** Map a granular/legacy tab id onto the reader surface that now contains it. */
+export function normalizeReaderTab(tab: TabId): TabId {
+  if (tab === "overview" || tab === "debats" || tab === "art" || tab === "science") {
+    return "paris";
+  }
+  if (tab === "original" || tab === "translated") return "paper";
+  return tab;
+}
 
 interface Props {
   activeTab: TabId;
@@ -116,8 +137,14 @@ export default function TabRow({
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { adminMode } = useAdminMode();
 
-  const tabs = BASE_TABS.map((tab) =>
+  // Readers see four consolidated surfaces; admins see every granular section.
+  // Reader highlight folds granular/legacy ids onto their owning surface.
+  const baseTabs = adminMode ? ADMIN_TABS : READER_TABS;
+  const highlightTab = adminMode ? activeTab : normalizeReaderTab(activeTab);
+
+  const tabs = baseTabs.map((tab) =>
     tab.id === "chapter"
       ? { ...tab, label: chapterTabLabel(chapters.length) }
       : tab,
@@ -126,6 +153,7 @@ export default function TabRow({
   function handleTab(id: TabId) {
     const params = new URLSearchParams(searchParams.toString());
     params.set("tab", id);
+
     if (id === "chapter" && chapters.length > 1) {
       if (!params.get("chapter")) {
         params.set("chapter", chapters[0].num);
@@ -133,13 +161,20 @@ export default function TabRow({
     } else {
       params.delete("chapter");
     }
-    if (id === "translated" && translatedPageCount > 1) {
-      if (!params.get("page")) {
-        params.set("page", "1");
-      }
+
+    // "The paper" opens on the French original; the English reader uses ?page.
+    if (id === "paper") {
+      if (!params.get("lang")) params.set("lang", "fr");
     } else {
+      params.delete("lang");
+    }
+
+    if (id === "translated" && translatedPageCount > 1) {
+      if (!params.get("page")) params.set("page", "1");
+    } else if (id !== "paper") {
       params.delete("page");
     }
+
     router.replace(`?${params.toString()}`, { scroll: false });
   }
 
@@ -148,12 +183,12 @@ export default function TabRow({
       {tabs.map((tab) => (
         <Tab
           key={tab.id}
-          $active={tab.id === activeTab}
+          $active={tab.id === highlightTab}
           role="tab"
-          aria-selected={tab.id === activeTab}
+          aria-selected={tab.id === highlightTab}
           onClick={() => handleTab(tab.id)}
         >
-          <TabLabel $active={tab.id === activeTab}>{tab.label}</TabLabel>
+          <TabLabel $active={tab.id === highlightTab}>{tab.label}</TabLabel>
         </Tab>
       ))}
     </Row>

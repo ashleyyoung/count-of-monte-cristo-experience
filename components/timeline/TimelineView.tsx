@@ -7,8 +7,8 @@
 
 import { useCallback, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
 import styled from "styled-components";
+import BreadcrumbBar from "@/components/ui/BreadcrumbBar";
 import type { Installment } from "@/lib/installments";
 import type { SchedulePart } from "@/lib/installments";
 import ViewToggle, { type TimelineView } from "@/components/timeline/ViewToggle";
@@ -58,27 +58,6 @@ const NavTitle = styled.span`
   font-size: 13px;
   color: var(--ink-muted);
   letter-spacing: 0.06em;
-`;
-
-const HomeLink = styled(Link)`
-  font-family: var(--font-labels-stack);
-  font-style: italic;
-  font-size: 12px;
-  color: var(--ink-tertiary);
-  text-decoration: none;
-  letter-spacing: 0.06em;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-
-  &:hover {
-    color: var(--ink-primary);
-  }
-
-  &::before {
-    content: "←";
-    font-style: normal;
-  }
 `;
 
 const AdminIntroBar = styled.div`
@@ -176,7 +155,12 @@ export default function TimelineView({
   return (
     <Shell>
       <Nav>
-        <HomeLink href="/">Journal des Débats</HomeLink>
+        <BreadcrumbBar
+          crumbs={[
+            { label: "Journal des Débats", href: "/" },
+            { label: "Timeline" },
+          ]}
+        />
         <NavTitle>1844–46</NavTitle>
         <ViewToggle view={view} onChange={handleViewChange} />
       </Nav>

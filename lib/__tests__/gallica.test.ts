@@ -35,8 +35,12 @@ import {
   parsePaginationXml,
   parseAltoXml,
   deriveFeuilletonRegion,
+  segmentAltoBlocks,
+  buildAltoSections,
+  stitchAltoBlocks,
   DEBATS_PERIODICAL_ARK,
   type IIIFDimensions,
+  type AltoTextBlock,
 } from "../gallica";
 
 // ---------------------------------------------------------------------------
@@ -364,5 +368,72 @@ describe("deriveFeuilletonRegion", () => {
         PAGE,
       ),
     ).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 8. segmentAltoBlocks / buildAltoSections / stitchAltoBlocks
+//    Reading-order reconstruction from block geometry. Fixtures mirror real
+//    Débats geometry: columns whose boxes abut/overlap in x (no blank gutter),
+//    and a feuilleton strip whose blocks are one-per-column (not full width).
+// ---------------------------------------------------------------------------
+
+const blk = (
+  id: string,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  text?: string,
+): AltoTextBlock => ({ id, x, y, w, h, text: text ?? id });
+
+describe("segmentAltoBlocks", () => {
+  it("orders abutting columns column-major, not row-major (the core bug)", () => {
+    // col1 right edge 120 overlaps col2 left edge 100, so blank-gutter
+    // detection fails. A y-primary sort yields A,B,C; column clustering must
+    // yield A,C (col1) then B (col2). col2 spans both rows so no false y-gap.
+    const A = blk("A", 0, 0, 120, 100); // col1 top
+    const C = blk("C", 0, 110, 120, 100); // col1 bottom
+    const B = blk("B", 100, 0, 120, 210); // col2, spans both rows
+    expect(stitchAltoBlocks([B, A, C], 220, 210)).toBe("A\nC\nB");
+  });
+
+  it("separates the bottom feuilleton strip into its own band", () => {
+    // News columns stagger (no full-width y-gap); the only gap is the rule
+    // above the feuilleton. Reading order: news col1, news col2, then the
+    // feuilleton columns left-to-right.
+    const a = blk("a", 0, 0, 120, 100); // col1 news
+    const c = blk("c", 0, 110, 120, 90); // col1 news
+    const b = blk("b", 100, 0, 120, 205); // col2 news (spans the news band)
+    const e = blk("e", 0, 260, 120, 50); // col1 feuilleton
+    const f = blk("f", 100, 260, 120, 50); // col2 feuilleton
+    const sections = segmentAltoBlocks([e, f, b, a, c], 220, 310);
+    expect(sections.map((s) => s.map((x) => x.id).join(""))).toEqual([
+      "ac",
+      "b",
+      "e",
+      "f",
+    ]);
+  });
+
+  it("returns [] for no blocks and one section for a single block", () => {
+    expect(segmentAltoBlocks([], 100, 100)).toEqual([]);
+    expect(segmentAltoBlocks([blk("x", 0, 0, 10, 10)], 100, 100)).toEqual([
+      [blk("x", 0, 0, 10, 10)],
+    ]);
+  });
+});
+
+describe("buildAltoSections", () => {
+  it("emits page-percentage regions per section", () => {
+    const sections = buildAltoSections(
+      [blk("A", 0, 0, 100, 100), blk("B", 100, 0, 100, 100)],
+      200,
+      400,
+    );
+    expect(sections).toHaveLength(2);
+    // col1: x 0%, w 100/200=50%, h 100/400=25%
+    expect(sections[0].region).toEqual({ x: 0, y: 0, w: 50, h: 25 });
+    expect(sections[1].region).toEqual({ x: 50, y: 0, w: 50, h: 25 });
   });
 });

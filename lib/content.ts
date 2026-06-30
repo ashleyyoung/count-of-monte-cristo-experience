@@ -16,7 +16,12 @@
 import { createClient } from "@/lib/supabase/server";
 import { getR2Text } from "@/lib/r2-server";
 import { resolveMediaUrl, type MediaAsset } from "@/lib/media";
-import type { DayDoc, DocItem, ImageItem } from "@/lib/types/content";
+import type {
+  DayDoc,
+  DocItem,
+  ImageItem,
+  PageSection,
+} from "@/lib/types/content";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -66,6 +71,12 @@ export interface ResolvedTextItem {
   low_confidence?: boolean;
   /** FK-by-value to the current translation_versions row. */
   translation_version_id?: string;
+  /**
+   * Reading-order sections with source-image regions and character spans into
+   * `text`. Present on section-aware per-page translations; enables
+   * hover-to-highlight against the page scan.
+   */
+  sections?: PageSection[];
 }
 
 export interface ResolvedImageItem {
@@ -105,6 +116,7 @@ export interface DayPageData {
     feuilleton_strip: ResolvedImageItem | null;
     original_pages: ResolvedImageItem[];
     overview: ResolvedDocItem[];
+    news: ResolvedDocItem[];
     chapter: ResolvedDocItem[];
     debats: ResolvedDebats;
     art_exhibitions: ResolvedDocItem[];
@@ -192,6 +204,7 @@ function collectAssetIds(doc: DayDoc): string[] {
 
   for (const section of [
     doc.overview,
+    doc.news,
     doc.chapter,
     doc.art_exhibitions,
     doc.science,
@@ -216,6 +229,7 @@ function collectTextKeys(doc: DayDoc): string[] {
 
   for (const section of [
     doc.overview,
+    doc.news,
     doc.chapter,
     doc.art_exhibitions,
     doc.science,
@@ -331,6 +345,7 @@ function resolveItem(
       admin_notes: item.admin_notes,
       low_confidence: item.low_confidence,
       translation_version_id: item.translation_version_id,
+      sections: item.sections,
     };
   }
 
@@ -404,6 +419,7 @@ async function resolveDoc(
       .map((p) => resolveImageItem(p, assetMap))
       .filter((p): p is ResolvedImageItem => p !== null),
     overview: resolveSection(doc.overview ?? [], assetMap, textMap),
+    news: resolveSection(doc.news ?? [], assetMap, textMap),
     chapter: resolveSection(doc.chapter ?? [], assetMap, textMap),
     debats: {
       music: resolveSection(doc.debats?.music ?? [], assetMap, textMap),

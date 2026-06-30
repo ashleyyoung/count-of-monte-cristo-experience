@@ -17,6 +17,8 @@ import {
   pickProseRenderer,
   renderProseParagraphs,
 } from "@/lib/render-prose";
+import { usePeopleLinkPlain } from "@/lib/people-linker";
+import { stripChapterHeading } from "@/lib/book";
 
 // ---------------------------------------------------------------------------
 // Base layout
@@ -197,7 +199,11 @@ function TextItemWrapper({
       ? "Compare translations"
       : undefined;
 
-  const renderInline = pickProseRenderer(item.translation_origin);
+  const linkPlain = usePeopleLinkPlain({ enabled: !adminContext?.isChapter });
+  const renderInline = pickProseRenderer(item.translation_origin, linkPlain);
+  const displayText = adminContext?.isChapter
+    ? stripChapterHeading(item.text) ?? item.text
+    : item.text;
 
   return (
     <div>
@@ -216,7 +222,7 @@ function TextItemWrapper({
         </div>
       )}
       <ProseBlock>
-        {renderProseParagraphs(item.text, renderInline)}
+        {renderProseParagraphs(displayText, renderInline)}
       </ProseBlock>
       {contributor && (
         <ContributorByline contributor={contributor} />

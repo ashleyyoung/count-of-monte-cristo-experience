@@ -8,6 +8,14 @@
 
 import type { ReactNode } from "react";
 
+/**
+ * Optional hook to transform a plain (non-emphasis) text segment — used to wrap
+ * recognized people's names in profile hover cards. Receives a stable key prefix
+ * so any injected elements get React keys. Returns the segment unchanged when
+ * there is nothing to link.
+ */
+export type LinkPlain = (text: string, keyPrefix: string) => ReactNode;
+
 const PUBLIC_DOMAIN_INLINE =
   /(_[^_\n]+_|(?<!\*)\*[^*\n]+\*(?!\*))/g;
 
@@ -17,7 +25,10 @@ const CLAUDE_BOLD = /\*\*(.+?)\*\*(?=[^*]|$)/g;
 const CLAUDE_INNER = /(\*[^*\n]+\*|_[^_\n]+_|\[[^\]]+\])/g;
 
 /** Gutenberg / hberlioz / staff: _underscore_ and *italic* only; ** stays literal. */
-export function renderPublicDomainInline(text: string): ReactNode {
+export function renderPublicDomainInline(
+  text: string,
+  linkPlain?: LinkPlain,
+): ReactNode {
   const parts = text.split(PUBLIC_DOMAIN_INLINE);
   return parts.map((part, j) => {
     if (part.startsWith("_") && part.endsWith("_") && part.length > 2) {
@@ -31,11 +42,15 @@ export function renderPublicDomainInline(text: string): ReactNode {
     ) {
       return <em key={j}>{part.slice(1, -1)}</em>;
     }
-    return part;
+    return linkPlain ? linkPlain(part, String(j)) : part;
   });
 }
 
-function renderClaudeInner(text: string, keyPrefix = ""): ReactNode {
+function renderClaudeInner(
+  text: string,
+  keyPrefix = "",
+  linkPlain?: LinkPlain,
+): ReactNode {
   const parts = text.split(CLAUDE_INNER);
   return parts.map((part, j) => {
     const key = `${keyPrefix}${j}`;
@@ -55,12 +70,15 @@ function renderClaudeInner(text: string, keyPrefix = ""): ReactNode {
         </span>
       );
     }
-    return part;
+    return linkPlain ? linkPlain(part, key) : part;
   });
 }
 
 /** Claude machine translations: full inline Markdown from the translation prompt. */
-export function renderClaudeTranslationInline(text: string): ReactNode {
+export function renderClaudeTranslationInline(
+  text: string,
+  linkPlain?: LinkPlain,
+): ReactNode {
   const nodes: ReactNode[] = [];
   let lastIndex = 0;
   const boldRe = new RegExp(CLAUDE_BOLD.source, "g");
@@ -69,23 +87,23 @@ export function renderClaudeTranslationInline(text: string): ReactNode {
   while ((match = boldRe.exec(text)) !== null) {
     if (match.index > lastIndex) {
       nodes.push(
-        renderClaudeInner(text.slice(lastIndex, match.index), `${lastIndex}-`),
+        renderClaudeInner(text.slice(lastIndex, match.index), `${lastIndex}-`, linkPlain),
       );
     }
     nodes.push(
       <strong key={match.index}>
-        {renderClaudeInner(match[1], `${match.index}-`)}
+        {renderClaudeInner(match[1], `${match.index}-`, linkPlain)}
       </strong>,
     );
     lastIndex = match.index + match[0].length;
   }
 
   if (lastIndex < text.length) {
-    nodes.push(renderClaudeInner(text.slice(lastIndex), `${lastIndex}-`));
+    nodes.push(renderClaudeInner(text.slice(lastIndex), `${lastIndex}-`, linkPlain));
   }
 
   if (nodes.length === 0) {
-    return renderClaudeInner(text);
+    return renderClaudeInner(text, "", linkPlain);
   }
   if (nodes.length === 1) {
     return nodes[0];
@@ -97,10 +115,16 @@ export type ProseInlineRenderer = (text: string) => ReactNode;
 
 export function pickProseRenderer(
   translationOrigin: string | undefined,
+  linkPlain?: LinkPlain,
 ): ProseInlineRenderer {
-  return translationOrigin === "machine_claude"
-    ? renderClaudeTranslationInline
-    : renderPublicDomainInline;
+  const base =
+    translationOrigin === "machine_claude"
+      ? renderClaudeTranslationInline
+      : renderPublicDomainInline;
+  // Preserve the bare function reference when there's nothing to link (keeps
+  // referential equality that callers/tests rely on).
+  if (!linkPlain) return base;
+  return (text: string) => base(text, linkPlain);
 }
 
 /** Split on blank lines and render each paragraph with the chosen inline renderer. */

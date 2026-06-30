@@ -9,6 +9,7 @@ import type { DayContentSection } from "@/lib/types/day-content-section";
 import PaperPageSubTabRow from "./PaperPageSubTabRow";
 import { TabSection, TabSectionTitle, EmptyState, renderItems } from "./TabPrimitives";
 import MissingIssueNote from "./MissingIssueNote";
+import SectionedPaperPage from "./SectionedPaperPage";
 import { isMissingGallicaIssue } from "@/lib/missing-issues";
 
 interface Props {
@@ -75,16 +76,24 @@ export default function TranslatedPaperTab({ data, contributors }: Props) {
     );
     const item = pages[activePage - 1];
 
+    // Section-aware page: render the scan + translation side-by-side with
+    // hover-to-highlight when the item carries reading-order section regions.
+    const scanUrl = resolved.original_pages[activePage - 1]?.url ?? null;
+
     return (
       <TabSection>
         {pages.length > 1 && (
           <PaperPageSubTabRow pageCount={pages.length} activePage={activePage} />
         )}
-        {item &&
+        {item && item.kind === "text" && (item.sections?.length ?? 0) > 0 ? (
+          <SectionedPaperPage item={item} scanUrl={scanUrl} />
+        ) : (
+          item &&
           renderItems([item], contributors, {
             date: installment_date,
             section: "translated_pages",
-          })}
+          })
+        )}
       </TabSection>
     );
   }

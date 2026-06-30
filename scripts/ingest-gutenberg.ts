@@ -171,10 +171,16 @@ async function main() {
     }
 
     const doc = (existing?.doc ?? {}) as Record<string, unknown>;
-    const existingChapter = (doc.chapter ?? []) as typeof newItems;
+    const existingChapter = (doc.chapter ?? []) as Array<
+      (typeof newItems)[number] & { translation_origin?: string }
+    >;
 
-    // Merge: keep existing items, append new ones not already present by r2_key
-    const merged = [...existingChapter];
+    // The novel's text is the public-domain Gutenberg edition, never the OCR'd
+    // feuilleton: drop any machine-translated chapter items before merging so a
+    // re-run heals days that were snapshotted from the paper.
+    const merged = existingChapter.filter(
+      (e) => e.translation_origin !== "machine_claude",
+    );
     for (const item of newItems) {
       if (!merged.some((e) => e.text_r2_key === item.text_r2_key)) {
         merged.push(item);

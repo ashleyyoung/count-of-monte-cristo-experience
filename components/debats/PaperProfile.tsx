@@ -13,6 +13,7 @@
 import { useState } from "react";
 import styled from "styled-components";
 import Cite, { type CiteSource } from "@/components/ui/Cite";
+import PeopleLinked from "@/components/people/PeopleLinked";
 import EditableText from "@/components/admin/primitives/EditableText";
 import { useAdminMode } from "@/components/admin/AdminModeProvider";
 import { upsertEditorialBlock } from "@/app/actions/admin";
@@ -186,6 +187,7 @@ export default function PaperProfile() {
           value={SECTION_TEXT["paper-profile-founded"]}
           onSave={makeSectionSave("paper-profile-founded", "Founded 1789")}
         >
+          <PeopleLinked>
           <P>
             The <em>Journal des Débats</em> was founded on 29 August 1789, just weeks after the fall of the
             Bastille, to publish the debates of the new National Assembly. Under the motto{" "}
@@ -197,6 +199,7 @@ export default function PaperProfile() {
             artists, scientists, financiers — and its feuilleton section, printed in small type at the
             bottom of the front page, had become the most coveted literary real estate in France.<Cite source={cites[0]} n={1} />
           </P>
+          </PeopleLinked>
         </EditableText>
       </Section>
 
@@ -206,6 +209,7 @@ export default function PaperProfile() {
           value={SECTION_TEXT["paper-profile-bertins"]}
           onSave={makeSectionSave("paper-profile-bertins", "The Bertin Family")}
         >
+          <PeopleLinked>
           <H3>Louis-François Bertin (<em>l&apos;aîné</em>), 1766–1841</H3>
           <P>
             Louis-François Bertin rescued the paper from revolutionary chaos, refounded it in 1800 under
@@ -224,6 +228,7 @@ export default function PaperProfile() {
             Armand Bertin was also a patron of the arts; the Ingres portrait of his father hangs today in the
             Louvre as testament to the family&apos;s cultural ambitions.<Cite source={cites[1]} n={2} />
           </P>
+          </PeopleLinked>
         </EditableText>
       </Section>
 
@@ -233,6 +238,7 @@ export default function PaperProfile() {
           value={SECTION_TEXT["paper-profile-politics"]}
           onSave={makeSectionSave("paper-profile-politics", "Political Alignment")}
         >
+          <PeopleLinked>
           <P>
             The Débats was a Orléanist paper — loyal to the constitutional monarchy of Louis-Philippe
             (r. 1830–48) and to the propertied bourgeoisie. It opposed Legitimism (the Bourbon claim),
@@ -244,6 +250,7 @@ export default function PaperProfile() {
             to champion, which composers to praise, which serials to publish. Dumas&apos;s Monte Cristo — a story
             of injustice, revenge, and self-invention — fit the Débats&apos;s worldview with uncanny precision.
           </P>
+          </PeopleLinked>
         </EditableText>
       </Section>
 
@@ -253,6 +260,7 @@ export default function PaperProfile() {
           value={SECTION_TEXT["paper-profile-feuilleton"]}
           onSave={makeSectionSave("paper-profile-feuilleton", "The Feuilleton")}
         >
+          <PeopleLinked>
           <P>
             The bottom strip of the front page — the <em>feuilleton</em> (literally &quot;little leaf&quot;) — was
             physically separated from the news above by a horizontal rule. It was the paper&apos;s entertainment
@@ -269,6 +277,7 @@ export default function PaperProfile() {
             The Débats archive preserves every issue of the paper from its founding through the
             serialization years.<Cite source={cites[2]} n={3} />
           </P>
+          </PeopleLinked>
         </EditableText>
       </Section>
 
@@ -278,6 +287,7 @@ export default function PaperProfile() {
           value={SECTION_TEXT["paper-profile-cultural-role"]}
           onSave={makeSectionSave("paper-profile-cultural-role", "Cultural Role 1844-46")}
         >
+          <PeopleLinked>
           <P>
             During the Monte Cristo serialization the Débats was not merely a newspaper: it was a
             cultural institution. Its front page on any given morning in 1844 might carry:
@@ -294,6 +304,7 @@ export default function PaperProfile() {
             A reader who followed the paper through the full serialization — 28 August 1844 to 15 January 1846,
             139 installments — absorbed not only Dumas&apos;s novel but the full cultural life of Paris.
           </P>
+          </PeopleLinked>
         </EditableText>
       </Section>
 
