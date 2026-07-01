@@ -17,20 +17,53 @@
  * Pure and side-effect free so it can run at render time with zero cost.
  */
 
-/** A line is "real" prose if it contains at least one run of 4+ letters. */
-const HAS_WORD = /[A-Za-zÀ-ſ]{4,}/;
+/** Whole words of 4+ letters. */
+const WHOLE_WORD = /\b[A-Za-zÀ-ſ]{4,}\b/g;
 
 /** Characters we treat as symbol noise when scoring a line. */
 const SYMBOL = /[^A-Za-z0-9À-ſ\s.,;:'"()\-—–]/g;
 
+function countWholeWords(line: string): number {
+  return (line.match(WHOLE_WORD) ?? []).length;
+}
+
+function financialNoiseRatio(line: string): number {
+  const trimmed = line.trim();
+  if (!trimmed) return 0;
+  const financial = (trimmed.match(/[\d£$%]/g) ?? []).length;
+  return financial / trimmed.length;
+}
+
+function nonAlphaRatio(line: string): number {
+  const trimmed = line.trim();
+  if (!trimmed) return 0;
+  const alpha = (trimmed.match(/[A-Za-zÀ-ſ]/g) ?? []).length;
+  return 1 - alpha / trimmed.length;
+}
+
 function isNoiseLine(line: string): boolean {
   const trimmed = line.trim();
   if (!trimmed) return false; // blank lines are handled by paragraph collapsing
-  if (HAS_WORD.test(trimmed)) return false; // any real word → keep the line
+
+  const wordCount = countWholeWords(trimmed);
+
+  // Price tables, stock rows: mostly digits/currency.
+  if (wordCount <= 2 && financialNoiseRatio(trimmed) >= 0.5) return true;
+
+  // Column fragments: few real words, many short tokens, no sentence end.
+  const tokenCount = trimmed.split(/\s+/).length;
+  if (
+    wordCount <= 2 &&
+    !/[.?!]/.test(trimmed) &&
+    (nonAlphaRatio(trimmed) >= 0.35 || tokenCount >= 4)
+  ) {
+    return true;
+  }
+
+  if (wordCount >= 1) return false;
 
   const hasDigit = /\d/.test(trimmed);
   const symbolCount = (trimmed.match(SYMBOL) ?? []).length;
-  // No real word AND (it's a number row or symbol-heavy) → drop it.
   return hasDigit || symbolCount >= 2 || trimmed.length <= 2;
 }
 
@@ -53,11 +86,14 @@ export function cleanGalignaniOcr(raw: string): string {
         .replace(/[ \t]+/g, " ")
         .replace(/\s+([.,;:!?])/g, "$1")
         .trim(),
-    );
+    )
+    .filter(Boolean);
 
-  return cleanedLines
-    .join("\n")
-    // Collapse 3+ newlines into a paragraph break.
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
+  return (
+    cleanedLines
+      .join("\n")
+      // Collapse 3+ newlines into a paragraph break.
+      .replace(/\n{3,}/g, "\n\n")
+      .trim()
+  );
 }

@@ -3,10 +3,20 @@
 import styled from "styled-components";
 import { useRouter, useSearchParams } from "next/navigation";
 
+type PageTab = "translated" | "galignani";
+type PageParamKey = "page" | "gpage";
+
 interface Props {
   pageCount: number;
   activePage: number;
+  tab?: PageTab;
+  paramKey?: PageParamKey;
 }
+
+const TAB_LABELS: Record<PageTab, string> = {
+  translated: "Translated paper pages",
+  galignani: "Galignani OCR pages",
+};
 
 const Row = styled.nav`
   display: flex;
@@ -46,19 +56,24 @@ const SubTab = styled.button<{ $active: boolean }>`
   }
 `;
 
-export default function PaperPageSubTabRow({ pageCount, activePage }: Props) {
+export default function PaperPageSubTabRow({
+  pageCount,
+  activePage,
+  tab = "translated",
+  paramKey = tab === "galignani" ? "gpage" : "page",
+}: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
   function handleSelect(page: number) {
     const params = new URLSearchParams(searchParams.toString());
-    params.set("tab", "translated");
-    params.set("page", String(page));
+    params.set("tab", tab);
+    params.set(paramKey, String(page));
     router.replace(`?${params.toString()}`, { scroll: false });
   }
 
   return (
-    <Row role="tablist" aria-label="Translated paper pages">
+    <Row role="tablist" aria-label={TAB_LABELS[tab]}>
       {Array.from({ length: pageCount }, (_, i) => {
         const page = i + 1;
         const active = page === activePage;

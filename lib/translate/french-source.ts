@@ -10,8 +10,9 @@
  *   - fetchAltoToR2       → Gallica ALTO per-page stitch (Tier 3); gallica-alto.txt
  *   - transcribeVisionToR2 → Claude vision OCR of R2 page scans (Tier 4); vision-issue.txt
  *
- * loadCachedFrench reads whichever intermediate already exists (precedence:
- * texteBrut → ALTO → vision) so a translate step can reuse prior work.
+ * loadCachedFrench reads whichever intermediate already exists. Tier-3
+ * precedence is texteBrut → ALTO, but undivided texteBrut (no page markers)
+ * yields to ALTO when ALTO splits into more pages. Vision is last resort.
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -31,6 +32,7 @@ import {
   r2ObjectExists,
 } from "../r2-server";
 import type { DayDoc, PageRegion } from "../types/content";
+import { splitFrenchPages } from "./french-pages";
 
 // ---------------------------------------------------------------------------
 // R2 keys
@@ -114,13 +116,27 @@ function looksLikeHtml(text: string): boolean {
   return /^\s*</.test(trimmed) && /<html|<!doctype/i.test(trimmed);
 }
 
+/**
+ * Gallica texteBrut is often one blob with no `--- Page N ---` markers. When
+ * ALTO is cached with proper page splits, prefer it so Pass A runs per page.
+ */
+export function shouldPreferAltoOverTexteBrut(
+  texteBrutText: string,
+  altoText: string | null | undefined,
+): boolean {
+  if (!altoText?.trim()) return false;
+  const texteBrutPages = splitFrenchPages(texteBrutText).length;
+  const altoPages = splitFrenchPages(altoText).length;
+  return texteBrutPages <= 1 && altoPages > texteBrutPages;
+}
+
 // ---------------------------------------------------------------------------
 // Cache lookup (used by the translate step)
 // ---------------------------------------------------------------------------
 
 /**
- * Return the best French intermediate already in R2, or null. Precedence:
- * texteBrut → ALTO → vision. Skips empty, too-short, or HTML-bodied caches.
+ * Return the best French intermediate already in R2, or null. Skips empty,
+ * too-short, or HTML-bodied caches. Undivided texteBrut yields to paged ALTO.
  */
 export async function loadCachedFrench(
   date: string,
@@ -155,6 +171,19 @@ export async function loadCachedFrench(
     },
   ];
 
+  let altoText: string | null = null;
+  const altoKey = altoR2Key(date);
+  if (await r2ObjectExists(altoKey)) {
+    const raw = await getR2Text(altoKey);
+    if (
+      raw &&
+      raw.trim().length >= MIN_CHARS &&
+      !looksLikeHtml(raw)
+    ) {
+      altoText = raw;
+    }
+  }
+
   for (const c of candidates) {
     if (!(await r2ObjectExists(c.key))) continue;
     const text = await getR2Text(c.key);
@@ -166,8 +195,19 @@ export async function loadCachedFrench(
       log(`[french-source] Cached ${c.key} is HTML, not OCR; skipping.`);
       continue;
     }
+    if (
+      c.key === texteBrutR2Key(date) &&
+      shouldPreferAltoOverTexteBrut(text, altoText)
+    ) {
+      log(
+        `[french-source] Cached texteBrut has no page markers; ` +
+          `preferring ALTO (${splitFrenchPages(altoText!).length} page(s)).`,
+      );
+      continue;
+    }
     log(
-      `[french-source] Using cached FR intermediate: ${c.key} (${text.length} chars).`,
+      `[french-source] Using cached FR intermediate: ${c.key} (${text.length} chars, ` +
+        `${splitFrenchPages(text).length} page(s)).`,
     );
     return {
       frenchText: text,

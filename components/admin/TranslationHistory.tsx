@@ -368,6 +368,8 @@ interface Props {
   currentTranslationOrigin?: string;
   /** Custom pill label (e.g. "Compare translations" for chapter) */
   label?: string;
+  /** Prefetched version count for the pill label (e.g. "history (3)"). */
+  versionCount?: number;
 }
 
 export default function TranslationHistory({
@@ -379,6 +381,7 @@ export default function TranslationHistory({
   currentAttribution,
   currentTranslationOrigin,
   label,
+  versionCount,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [versions, setVersions] = useState<TranslationVersionMeta[] | null>(null);
@@ -482,7 +485,10 @@ export default function TranslationHistory({
     });
   }
 
-  const pillLabel = label ?? "history";
+  const pillLabel =
+    versionCount != null && versionCount > 0
+      ? `${label ?? "history"} (${versionCount})`
+      : (label ?? "history");
 
   return (
     <>

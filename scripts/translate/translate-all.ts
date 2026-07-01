@@ -20,6 +20,7 @@ import {
   docIsFullyTranslated,
   type TranslationRunSummary,
 } from "../../lib/translate/pipeline";
+import { chainSummarizeAfterTranslation } from "../../lib/translate/chain-summarize";
 import { buildTranslationRunOptions } from "../../lib/translate/run-options";
 import { parseDayDoc } from "../../lib/types/content";
 import {
@@ -117,6 +118,7 @@ async function processDate(
       log,
       translationRunOptions(model),
     );
+    await chainSummarizeAfterTranslation(date, summary, log, model);
 
     if (summary.failed.length > 0) {
       const message = `${summary.failed.length} section(s) failed`;

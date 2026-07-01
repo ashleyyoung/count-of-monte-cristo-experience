@@ -67,14 +67,31 @@ export const VISION_MODEL = process.env.TRANSLATION_VISION_MODEL ?? MODEL;
 const API_KEY = process.env.ANTHROPIC_API_KEY;
 
 /**
- * Max output tokens for the whole-issue translate+segment call. A full 4-page
- * Débats issue translated to English can be large, so this is generous and
- * configurable. Opus 4.8 supports high output limits. If a run still truncates,
- * raise this or split the issue.
+ * Per-model maximum output token limits. Used to set max_tokens on translation
+ * calls so they use the full capacity of the configured model rather than a
+ * fixed cap that may be wrong for the current model.
  */
-const SEGMENT_MAX_TOKENS = Number(
-  process.env.TRANSLATION_MAX_OUTPUT_TOKENS ?? "32000",
-);
+const MODEL_MAX_OUTPUT_TOKENS: Record<string, number> = {
+  "claude-fable-5":    128000,
+  "claude-opus-4-8":   128000,
+  "claude-opus-4-7":   128000,
+  "claude-opus-4-6":   128000,
+  "claude-sonnet-4-6":  64000,
+  "claude-sonnet-4-5":  64000,
+  "claude-haiku-4-5":   64000,
+};
+
+/**
+ * Max output tokens for the whole-issue translate+segment call. Reads the
+ * env var override first; otherwise looks up the configured model's max.
+ */
+function getSegmentMaxTokens(modelOverride?: string): number {
+  if (process.env.TRANSLATION_MAX_OUTPUT_TOKENS) {
+    return Number(process.env.TRANSLATION_MAX_OUTPUT_TOKENS);
+  }
+  const model = resolveTranslationModel(modelOverride);
+  return MODEL_MAX_OUTPUT_TOKENS[model] ?? 64000;
+}
 
 /** Max output tokens for a single-section translation or vision transcription. */
 const SINGLE_MAX_TOKENS = Number(
@@ -260,7 +277,9 @@ function summarizeSegmented(seg: SegmentedTranslation): string {
     const len = s?.text?.trim().length ?? 0;
     if (len > 0) parts.push(`${name}=${len}ch`);
   };
-  add("overview", seg.overview);
+  add("news", seg.news);
+  add("society", seg.society);
+  add("scandals", seg.scandals);
   add("chapter", seg.chapter);
   add("debats.music", seg.debats?.music);
   add("debats.theater", seg.debats?.theater);
@@ -347,7 +366,9 @@ export function translationSystemPrompt(): string {
 }
 
 /** Max output tokens for full-page translation (exported for batch requests). */
-export const SEGMENT_MAX_OUTPUT_TOKENS = SEGMENT_MAX_TOKENS;
+export function getSegmentMaxOutputTokens(model?: string): number {
+  return getSegmentMaxTokens(model);
+}
 
 export function buildPageTranslateUserPrompt(
   date: string,
@@ -478,7 +499,7 @@ ${frenchText}
     if (result.stop_reason === "max_tokens") {
       throw new Error(
         `hit ${tokenCap}-token output cap` +
-          (tokenCap < SEGMENT_MAX_TOKENS
+          (tokenCap < getSegmentMaxTokens(context.model)
             ? ` (raise TRANSLATION_SINGLE_MAX_OUTPUT_TOKENS, currently ${SINGLE_MAX_TOKENS})`
             : " (already at model maximum)"),
       );
@@ -539,7 +560,7 @@ function parseSegmentationJson(rawText: string): SegmentedTranslation {
     .replace(/\n?```$/m, "")
     .trim();
 
-  // Salvage responses that start mid-object (e.g. ":{\"overview\"…").
+  // Salvage responses that start mid-object (e.g. ":{\"news\"…").
   const firstBrace = raw.indexOf("{");
   if (firstBrace > 0) {
     raw = raw.slice(firstBrace);
@@ -578,7 +599,9 @@ export function mergeSegmentedTranslations(
   pages: SegmentedTranslation[],
 ): SegmentedTranslation {
   return {
-    overview: mergeSectionTranslations(pages.map((p) => p.overview)),
+    news: mergeSectionTranslations(pages.map((p) => p.news)),
+    society: mergeSectionTranslations(pages.map((p) => p.society)),
+    scandals: mergeSectionTranslations(pages.map((p) => p.scandals)),
     chapter: mergeSectionTranslations(pages.map((p) => p.chapter)),
     debats: {
       music: mergeSectionTranslations(pages.map((p) => p.debats?.music)),
@@ -603,7 +626,12 @@ export function mergeSegmentedTranslations(
  * confidence have low_confidence: true.
  */
 export interface SegmentedTranslation {
-  overview: SectionTranslation | null;
+  /** Front-page hard news: state politics, parliament, foreign affairs, major Paris political events. */
+  news: SectionTranslation | null;
+  /** Court/society notices, social events, salons, notable people, royal family movements. */
+  society: SectionTranslation | null;
+  /** Crimes, tragedies, accidents, suicides, curiosities of city life. */
+  scandals: SectionTranslation | null;
   chapter: SectionTranslation | null;
   debats: {
     music: SectionTranslation | null;
@@ -640,7 +668,7 @@ export async function translateAndSegment(
     label,
     operation: "segment",
     inputChars: frenchText.length,
-    maxTokens: SEGMENT_MAX_TOKENS,
+    maxTokens: getSegmentMaxTokens(options.model),
     model,
   };
   logCallStart(callCtx);
@@ -659,7 +687,9 @@ Your task:
 
 Schema:
 {
-  "overview": { "text": "<English Markdown>", "low_confidence": <bool>, "admin_notes": "<optional string>" } | null,
+  "news": { "text": "<English Markdown>", "low_confidence": <bool>, "admin_notes": "<optional string>" } | null,
+  "society": { "text": "<English Markdown>", "low_confidence": <bool> } | null,
+  "scandals": { "text": "<English Markdown>", "low_confidence": <bool> } | null,
   "chapter": { "text": "<English Markdown>", "low_confidence": <bool>, "admin_notes": "<optional string>" } | null,
   "debats": {
     "music": { "text": "<English Markdown>", "low_confidence": <bool> } | null,
@@ -672,7 +702,9 @@ Schema:
 }
 
 Section identification guide:
-- "overview": general news, politics, Paris society items at the top of the paper.
+- "news": hard news only — state politics, parliamentary debates, foreign affairs, major Paris political events. Not a catch-all.
+- "society": court and social register — receptions, salons, balls, notable people in formal/genteel settings, royal family movements.
+- "scandals": dramatic register — crimes, robberies, murders, suicides, accidents, fires, trials, duels, curiosities of city life.
 - "chapter": the roman-feuilleton (novel serialisation — Dumas's "Le Comte de Monte-Cristo" in this period) printed in the bottom strip.
 - "debats.music": feuilleton music criticism (Berlioz in this period; typically signed H. BERLIOZ or H. B.).
 - "debats.theater": theater and opera reviews.
@@ -695,7 +727,7 @@ Return ONLY the JSON object — no preamble, no markdown code fences.
     const rawResult = await withRetry(async () => {
       const stream = await client.messages.stream({
         model,
-        max_tokens: SEGMENT_MAX_TOKENS,
+        max_tokens: getSegmentMaxTokens(options.model),
         system: [
           {
             type: "text",
@@ -717,7 +749,7 @@ Return ONLY the JSON object — no preamble, no markdown code fences.
     });
 
     if (rawResult.stop_reason === "max_tokens") {
-      throw new Error(`hit ${SEGMENT_MAX_TOKENS}-token output cap`);
+      throw new Error(`hit ${getSegmentMaxTokens(options.model)}-token output cap`);
     }
 
     const textBlock = rawResult.content.find((b) => b.type === "text");
@@ -975,8 +1007,8 @@ export interface PageTranslationResult {
  *
  * The French source uses `--- Page N ---` section markers produced by
  * ALTO stitching. This function splits on those markers and calls
- * translateFrenchToEnglish once per page. Each call uses SEGMENT_MAX_TOKENS —
- * the model's highest supported output cap — so no page is truncated.
+ * translateFrenchToEnglish once per page. Each call uses the model's highest
+ * supported output cap so no page is truncated.
  *
  * When no markers are found (plain texteBrut), the entire text is treated
  * as page 1 and translated as a single call.
@@ -1027,7 +1059,7 @@ export async function translatePaperPages(
     const result = await translateFrenchToEnglish(text, {
       date,
       section: `page-${pageNumber}`,
-      maxTokens: SEGMENT_MAX_TOKENS,
+      maxTokens: getSegmentMaxTokens(modelOverride),
       log: options.log,
       model: modelOverride,
     });
@@ -1146,7 +1178,7 @@ export async function translateSectionedPage(
   const usage = await translateFrenchToEnglish(joinedFrench, {
     date,
     section: `page-${pageNumber}`,
-    maxTokens: SEGMENT_MAX_TOKENS,
+    maxTokens: getSegmentMaxTokens(options.model),
     model,
     log: options.log,
     userPrompt,
@@ -1184,7 +1216,9 @@ export const ANCHOR_MAX_OUTPUT_TOKENS = Number(
 const ANCHOR_MAX_TOKENS = ANCHOR_MAX_OUTPUT_TOKENS;
 
 export type SectionAnchorKey =
-  | "overview"
+  | "news"
+  | "society"
+  | "scandals"
   | "chapter"
   | "debats.music"
   | "debats.theater"
@@ -1201,7 +1235,9 @@ export interface SectionAnchor {
 
 function emptySegmentedTranslation(): SegmentedTranslation {
   return {
-    overview: null,
+    news: null,
+    society: null,
+    scandals: null,
     chapter: null,
     debats: {
       music: null,
@@ -1311,7 +1347,9 @@ export function sliceEnglishByAnchors(
   };
 
   return {
-    overview: joinSection("overview"),
+    news: joinSection("news"),
+    society: joinSection("society"),
+    scandals: joinSection("scandals"),
     chapter: joinSection("chapter"),
     debats: {
       music: joinSection("debats.music"),
@@ -1336,7 +1374,9 @@ The text is already translated. Your task is ONLY to identify section boundaries
 Return a JSON object listing each section span on this page in READING ORDER. For each span, give the section key and a start_anchor: the first 6–10 words of that span copied EXACTLY from the English text below (verbatim, including punctuation).
 
 Use section keys:
-- "overview": general news, politics, Paris society
+- "news": hard news only — state politics, parliamentary debates, foreign affairs and diplomatic dispatches, major Paris political events. Not a catch-all; do not route society notices or crime items here.
+- "society": court and social register — receptions, salons, balls, notable people in formal/genteel settings, royal family movements, official appointments with social flavour.
+- "scandals": dramatic and sensational register — crimes, robberies, murders, suicides, accidents, fires, trials, duels, curiosities of city life.
 - "chapter": the roman-feuilleton novel serial (Le Comte de Monte-Cristo)
 - "debats.music": music criticism feuilleton
 - "debats.theater": theater and opera reviews
@@ -1344,12 +1384,14 @@ Use section keys:
 - "debats.literature": literary reviews and book notices
 - "art_exhibitions": Salon and gallery coverage
 - "science": science and technology reports
-- "ignore": ads, stock tables, Galignani's Messenger tails, or other non-Débats filler to skip
+- "ignore": true filler only — classified ads, stock/exchange tables, theater showtimes with no criticism, Galignani's Messenger tails, masthead/colophon lines. Do not use to discard substantive content; route anything real to the closest matching section instead.
+
+Scan the entire page paragraph by paragraph. Emit a new anchor every time the topic or rubric changes — do not merge adjacent but distinct items under one anchor.
 
 Schema:
 {
   "anchors": [
-    { "section": "overview", "start_anchor": "<exact opening words>" },
+    { "section": "news", "start_anchor": "<exact opening words>" },
     { "section": "chapter", "start_anchor": "<exact opening words>" }
   ]
 }

@@ -33,7 +33,9 @@ interface SectionEntry {
 }
 
 const SEGMENTED_SECTIONS: Omit<SectionEntry, "items">[] = [
-  { label: "News & Politics",                       section: "overview" },
+  { label: "News & Politics",                       section: "news" },
+  { label: "Society",                               section: "society" },
+  { label: "Scandals & Curiosities",                section: "scandals" },
   { label: "Feuilleton — Le Comte de Monte-Cristo", section: "chapter", isChapter: true },
   { label: "Débats — Music",                        section: "debats.music" },
   { label: "Débats — Theatre",                      section: "debats.theater" },
@@ -48,7 +50,9 @@ function getSectionItems(
   section: DayContentSection,
 ) {
   switch (section) {
-    case "overview":          return resolved.overview;
+    case "news":              return resolved.news;
+    case "society":           return resolved.society;
+    case "scandals":          return resolved.scandals;
     case "chapter":           return resolved.chapter;
     case "debats.music":      return resolved.debats.music;
     case "debats.theater":    return resolved.debats.theater;

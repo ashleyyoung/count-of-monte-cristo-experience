@@ -85,7 +85,7 @@ const VALID_TABS: TabId[] = [
 
 function parseTab(raw: string | undefined): TabId {
   if (raw && VALID_TABS.includes(raw as TabId)) return raw as TabId;
-  return "chapter";
+  return "paris";
 }
 
 // ---------------------------------------------------------------------------
@@ -140,6 +140,7 @@ export default async function DayPage({ params, searchParams }: PageProps) {
   // Latest translation run for the admin status line (admin-only; RLS also
   // guards the table, and we skip the query entirely for non-admins).
   let translationRun: TranslationRunStatus | null = null;
+  let overviewVersionCount = 0;
   if (user) {
     const { data: profile } = await supabase
       .from("profiles")
@@ -147,15 +148,25 @@ export default async function DayPage({ params, searchParams }: PageProps) {
       .eq("id", user.id)
       .single();
     if (profile?.role === "admin") {
-      const { data: run } = await supabase
-        .from("translation_runs")
-        .select("status, created_at, finished_at, error")
-        .eq("installment_date", date)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      const [{ data: run }, { count }] = await Promise.all([
+        supabase
+          .from("translation_runs")
+          .select("id, status, created_at, finished_at, error")
+          .eq("installment_date", date)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        supabase
+          .from("translation_versions")
+          .select("id", { count: "exact", head: true })
+          .eq("installment_date", date)
+          .eq("section", "overview")
+          .eq("slot_key", "overview-1"),
+      ]);
+      overviewVersionCount = count ?? 0;
       if (run) {
         translationRun = {
+          id: run.id as string,
           status: run.status as TranslationRunStatus["status"],
           createdAt: run.created_at as string,
           finishedAt: (run.finished_at as string | null) ?? null,
@@ -178,6 +189,7 @@ export default async function DayPage({ params, searchParams }: PageProps) {
         contributors={contributors}
         localRunnerEnabled={localRunnerEnabled}
         translationRun={translationRun}
+        overviewVersionCount={overviewVersionCount}
       />
     </Suspense>
   );

@@ -12,6 +12,8 @@
  */
 
 import { spawn } from "node:child_process";
+import { closeSync, mkdirSync, openSync, writeSync } from "node:fs";
+import path from "node:path";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { assertAdmin } from "@/lib/admin/assert-admin";
@@ -36,6 +38,7 @@ import {
 } from "@/lib/types/media";
 import type { DayContentSection } from "@/lib/types/day-content-section";
 import { texteBrutR2Key, altoR2Key } from "@/lib/translate/french-source";
+import { translationRunLogPath } from "@/lib/translate/translation-run-log";
 import type { ImageItem } from "@/lib/types/content";
 
 // ---------------------------------------------------------------------------
@@ -679,10 +682,60 @@ const CLAUDE_MODEL_BY_ENGINE: Record<TranslationEngine, string> = {
   haiku: "claude-haiku-4-5",
 };
 
+/** Queued runs that never start are likely a failed spawn (dev reload, etc.). */
+const STALE_QUEUED_MS = 15 * 60 * 1000;
+/** Running runs past this window are treated as interrupted (no live process). */
+const STALE_RUNNING_MS = 6 * 60 * 60 * 1000;
+
+async function expireStaleTranslationRuns(
+  db: ReturnType<typeof createAdminClient>,
+  date: string,
+): Promise<void> {
+  const { data: active } = await db
+    .from("translation_runs")
+    .select("id, status, created_at, started_at")
+    .eq("installment_date", date)
+    .in("status", ["queued", "running"]);
+  if (!active?.length) return;
+
+  const now = Date.now();
+  const staleIds: string[] = [];
+  for (const run of active) {
+    const createdAt = new Date(run.created_at as string).getTime();
+    const startedAt = run.started_at
+      ? new Date(run.started_at as string).getTime()
+      : null;
+    const isStale =
+      run.status === "queued"
+        ? now - createdAt > STALE_QUEUED_MS
+        : startedAt
+          ? now - startedAt > STALE_RUNNING_MS
+          : now - createdAt > STALE_QUEUED_MS;
+    if (isStale) staleIds.push(run.id as string);
+  }
+  if (staleIds.length === 0) return;
+
+  await db
+    .from("translation_runs")
+    .update({
+      status: "failed",
+      error:
+        "Run expired (no completion within expected window; process may have been interrupted).",
+      finished_at: new Date().toISOString(),
+    })
+    .in("id", staleIds);
+}
+
 export async function requestDayTranslation(
   date: string,
   engine: TranslationEngine = "sonnet",
-): Promise<{ accepted: boolean; runId?: string; reason?: string }> {
+  options: { force?: boolean } = {},
+): Promise<{
+  accepted: boolean;
+  runId?: string;
+  reason?: string;
+  logPath?: string;
+}> {
   await assertAdmin();
 
   if (!isLocalTranslationRunnerEnabled()) {
@@ -703,6 +756,8 @@ export async function requestDayTranslation(
   }
 
   const db = createAdminClient();
+
+  await expireStaleTranslationRuns(db, date);
 
   // Double-run guard: don't enqueue if a run is already pending for this day.
   const { data: active } = await db
@@ -749,22 +804,32 @@ export async function requestDayTranslation(
   // Spawn the local CLI runner detached so it survives dev hot reloads and the
   // action returns immediately. Inherits env (Supabase service role, Anthropic
   // key, TRANSLATION_MODEL, …) so the child can do its work.
-  const child = spawn(
-    "npx",
-    [
-      "tsx",
-      "scripts/translate/translate-day.ts",
-      `--date=${date}`,
-      `--run-id=${runId}`,
-      `--model=${CLAUDE_MODEL_BY_ENGINE[engine]}`,
-    ],
-    {
-      cwd: process.cwd(),
-      env: process.env,
-      detached: true,
-      stdio: "ignore",
-    },
+  const spawnArgs = [
+    "tsx",
+    "scripts/translate/translate-day.ts",
+    `--date=${date}`,
+    `--run-id=${runId}`,
+    `--model=${CLAUDE_MODEL_BY_ENGINE[engine]}`,
+  ];
+  if (options.force) spawnArgs.push("--force");
+
+  const logRel = translationRunLogPath(date, runId);
+  const logAbs = path.join(process.cwd(), logRel);
+  mkdirSync(path.dirname(logAbs), { recursive: true });
+  const logFd = openSync(logAbs, "a");
+  writeSync(
+    logFd,
+    `\n--- translation run ${runId} started ${new Date().toISOString()} ---\n`,
   );
+
+  const child = spawn("npx", spawnArgs, {
+    cwd: process.cwd(),
+    env: process.env,
+    detached: true,
+    stdio: ["ignore", logFd, logFd],
+  });
+  // Child inherits a copy of the fd; parent can close its handle.
+  closeSync(logFd);
   // If the process can't even start, record it so the day page shows the error.
   child.on("error", (e) => {
     void db
@@ -779,7 +844,7 @@ export async function requestDayTranslation(
   child.unref();
 
   revalidatePath(`/day/${date}`);
-  return { accepted: true, runId };
+  return { accepted: true, runId, logPath: logRel };
 }
 
 // ---------------------------------------------------------------------------

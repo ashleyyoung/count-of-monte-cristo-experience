@@ -109,25 +109,25 @@ export default function PaperTab({ data, contributors, defaultLang }: Props) {
         <Toggle role="tablist" aria-label="Paper language">
           <ToggleBtn
             role="tab"
-            aria-selected={lang === "fr"}
-            $active={lang === "fr"}
-            onClick={() => setLang("fr")}
-          >
-            French (original)
-          </ToggleBtn>
-          <ToggleBtn
-            role="tab"
             aria-selected={lang === "en"}
             $active={lang === "en"}
             onClick={() => setLang("en")}
           >
             English
           </ToggleBtn>
+          <ToggleBtn
+            role="tab"
+            aria-selected={lang === "fr"}
+            $active={lang === "fr"}
+            onClick={() => setLang("fr")}
+          >
+            French (original)
+          </ToggleBtn>
         </Toggle>
       </TopRow>
 
       {lang === "fr" ? (
-        <OriginalPaperTab data={data} />
+        <OriginalPaperTab data={data} showFeuilletonOnPage1 />
       ) : (
         <TranslatedPaperTab data={data} contributors={contributors} />
       )}

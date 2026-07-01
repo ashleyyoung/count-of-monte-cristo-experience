@@ -38,6 +38,7 @@ import {
   runDayTranslation,
   type TranslationRunSummary,
 } from "../../lib/translate/pipeline";
+import { chainSummarizeAfterTranslation } from "../../lib/translate/chain-summarize";
 import { buildTranslationRunOptions } from "../../lib/translate/run-options";
 
 export type { TranslationRunSummary };
@@ -202,6 +203,7 @@ async function main() {
         useMessageBatch: SYNC ? false : undefined,
       }),
     );
+    await chainSummarizeAfterTranslation(date, summary, log, model);
     if (runId) await markDone(supabase, runId, summary);
     log(
       `Done. translated=${summary.translated} challengers=${summary.challengers} ` +

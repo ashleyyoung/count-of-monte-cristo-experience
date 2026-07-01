@@ -16,6 +16,10 @@ import {
   type TranslationLogFn,
   type TranslationUsage,
 } from "./translate";
+import {
+  parseParisOverview,
+  type ParisOverview,
+} from "../types/paris-overview";
 
 // ---------------------------------------------------------------------------
 // Config
@@ -24,7 +28,7 @@ import {
 const API_KEY = process.env.ANTHROPIC_API_KEY;
 
 const SUMMARIZE_MAX_TOKENS = Number(
-  process.env.SUMMARIZE_MAX_OUTPUT_TOKENS ?? "2000",
+  process.env.SUMMARIZE_MAX_OUTPUT_TOKENS ?? "1200",
 );
 
 // ---------------------------------------------------------------------------
@@ -121,56 +125,49 @@ async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
 // System prompt
 // ---------------------------------------------------------------------------
 
-export const SUMMARIZE_SYSTEM_PROMPT = `You are an editorial curator preparing a daily briefing for a modern reader of the
-Journal des Débats, a Paris political and cultural newspaper published in 1844–46.
+export const SUMMARIZE_SYSTEM_PROMPT = `You are an editorial curator preparing the Overview tab for a modern reader of the
+Journal des Débats (Paris, 1844–46).
 
-Your job is to write a short highlights passage — roughly 350 to 450 words — that
-makes the reader feel they have opened this particular issue and understood what
-matters in it and why. This is not a list of headlines. It is a connected piece of
-prose that gives the reader a sense of the day.
+You will receive translated newspaper sections for one issue. Output a single JSON
+object only — no markdown wrapper, no commentary before or after.
 
-Rules:
+Schema (strict):
+{
+  "version": 2,
+  "lead": "<one sentence>",
+  "highlights": [
+    { "text": "<one sentence>", "section": "<section id>" }
+  ]
+}
 
-1. Orientation first. Begin with a plain, specific sentence that places the reader in
-   the day: what city, what moment, what the paper is dominated by. No mood-setting
-   or scene-painting.
+Section ids:
+- "news" — News & Politics
+- "society" — Society
+- "scandals" — Scandals & Curiosities
+- "arts" — Arts (Art & Letters and Art & Exhibitions combined)
+- "literature" — Literature
+- "science" — Science
+- "music" — Music
+- "theatre" — Theatre
 
-2. Find the through-line. Most issues have a connective thread — a diplomatic
-   situation, a military campaign, a long-running controversy — that ties several
-   items together. Use it. Relate items to each other rather than listing them as
-   disconnected briefs.
+Rules for "lead":
+1. One short sentence (max ~25 words) naming the 2–3 most prominent topics in this issue.
+2. Concrete nouns only — name the subjects (Morocco, a murder trial, the Academy of Sciences).
+   Do not describe the issue's mood, energy, spirit, or character. Do not use metaphors.
+3. No adjectives that editorialize ("dramatic", "restless", "vivid"). Plain declarative prose.
 
-3. Stakes and context. For each major item, supply the one sentence of background a
-   21st-century reader needs to follow it: who a figure is, why a conflict matters,
-   what an institution does. Draw only on general historical knowledge. Do not invent
-   any detail not in the source.
+Rules for "highlights":
+1. 5–8 entries total. Each is a completely distinct story or fact.
+   No two items may describe the same event — not even from different angles.
+2. "text": one vivid sentence per entry (max ~35 words). Name names, give numbers.
+   Write for a curious modern reader. Prefer the surprising, striking, or unusual.
+3. "section": the section id the item came from. Required — never omit.
+4. Include at least one item for every section with substantive content in the source.
+5. Skip routine items: stock prices, horse-racing, routine appointments, weather.
+6. Do not include feuilleton or Monte-Cristo chapter content — that lives elsewhere.
+7. Preserve *italics* for newspaper and work titles.
 
-4. The feuilleton, told straight. Give the day's installment of The Count of
-   Monte-Cristo real space. Recount the scene plainly — what happens, who is present,
-   what shifts. Do not editorialize about the novel's importance or future reputation.
-
-5. Scan beyond the front page. Pages 2 through 4 carry court reports, provincial
-   dispatches, criminal cases, accidents, and legal notices that illuminate daily life
-   more vividly than most front-page politics. Look for: striking criminal cases or
-   verdicts, unusual deaths or incidents, curiosities that reveal the texture of the
-   period (technology experiments, theatrical debuts, railway oddities, crimes of
-   passion). Include at most two such items — only the ones genuinely striking enough
-   to make a reader pause. Do not list horse-racing results, stock prices, or
-   administrative appointments.
-
-6. Restraint over flourish. Write plainly. Do not use the foreshadowing narrator
-   ("little did they know," "what no one yet knew," "a legend was beginning"). Do not
-   claim anything about a work's future fame or place in history. Avoid puns,
-   rhetorical antitheses, and tidy parallel constructions. Avoid purple prose:
-   stacked adjectives, manufactured atmosphere, and sentences that describe a mood
-   rather than a fact ("Paris held its breath," "the city trembled," "in the gray
-   light of that August morning"). If a sentence sounds like a book-jacket blurb or a
-   documentary voiceover, cut it.
-
-7. Style. Commas, semicolons, and periods instead of em-dashes. Say what things are;
-   do not describe them by what they are not. No invented facts. No editorial
-   commentary on what readers should think. Output clean Markdown; preserve italics
-   for publication titles.`;
+Output valid JSON only.`;
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -178,6 +175,11 @@ Rules:
 
 export interface SummarizePageInput {
   pageNumber: number;
+  text: string;
+}
+
+export interface SummarizeSectionInput {
+  label: string;
   text: string;
 }
 
@@ -193,7 +195,7 @@ export interface SummarizeOptions {
   log?: TranslationLogFn;
 }
 
-function buildUserPrompt(
+function buildPagesUserPrompt(
   date: string,
   installment: SummarizeInstallmentContext,
   pages: SummarizePageInput[],
@@ -205,25 +207,38 @@ function buildUserPrompt(
   return `Journal des Débats, ${date}.
 Installment: ${installment.label} — ${installment.chapterLabel} (Part ${installment.part}, installment ${installment.part_index}).
 
-Below are the translated pages of this issue. Write the highlights briefing described
+Below are the translated pages of this issue. Output the JSON overview object described
 in your instructions.
 
 ${pageBlocks}`;
 }
 
-/**
- * Summarize live translated English pages into a highlights briefing.
- */
-export async function summarizeTranslatedPages(
-  pages: SummarizePageInput[],
+function buildSectionsUserPrompt(
   date: string,
   installment: SummarizeInstallmentContext,
-  options?: SummarizeOptions,
-): Promise<TranslationUsage> {
+  sections: SummarizeSectionInput[],
+): string {
+  const sectionBlocks = sections
+    .map((s) => `--- ${s.label} ---\n${s.text.trim()}`)
+    .join("\n\n");
+
+  return `Journal des Débats, ${date}.
+Installment: ${installment.label} — ${installment.chapterLabel} (Part ${installment.part}, installment ${installment.part_index}).
+
+Below are the translated newspaper sections for this issue. Output the JSON overview
+object described in your instructions.
+
+${sectionBlocks}`;
+}
+
+async function callSummarizeApi(
+  userPrompt: string,
+  date: string,
+  options: SummarizeOptions | undefined,
+): Promise<TranslationUsage & { overview: ParisOverview }> {
   const client = getClient();
   const model = resolveTranslationModel(options?.model);
   const log = options?.log ?? ((msg) => console.error(msg));
-  const userPrompt = buildUserPrompt(date, installment, pages);
   const started = Date.now();
 
   log(
@@ -259,6 +274,13 @@ export async function summarizeTranslatedPages(
       throw new Error("no text block in Anthropic summarize response");
     }
 
+    const overview: ParisOverview | null = parseParisOverview(textBlock.text);
+    if (!overview) {
+      throw new Error(
+        `summarize output is not valid overview JSON. Raw prefix: ${textBlock.text.slice(0, 200)}`,
+      );
+    }
+
     const tokensIn = result.usage.input_tokens;
     const tokensOut = result.usage.output_tokens;
     const durationMs = Date.now() - started;
@@ -267,12 +289,13 @@ export async function summarizeTranslatedPages(
     log(
       `[summarize] ok ${date}: ${(durationMs / 1000).toFixed(1)}s, ` +
         `${tokensIn.toLocaleString()} in / ${tokensOut.toLocaleString()} out, ` +
-        `${textBlock.text.length.toLocaleString()} chars en, $${costUsd.toFixed(4)}, ` +
-        `stop=${result.stop_reason ?? "unknown"}`,
+        `${overview.version === 2 ? overview.highlights.length + " highlight(s)" : overview.sections.length + " section(s), " + overview.noteworthy.length + " noteworthy"}, ` +
+        `$${costUsd.toFixed(4)}, stop=${result.stop_reason ?? "unknown"}`,
     );
 
     return {
-      text: textBlock.text,
+      text: JSON.stringify(overview, null, 2),
+      overview,
       model,
       tokens_in: tokensIn,
       tokens_out: tokensOut,
@@ -286,4 +309,30 @@ export async function summarizeTranslatedPages(
     );
     throw err instanceof Error ? err : new Error(message);
   }
+}
+
+/**
+ * Summarize live translated English pages into a highlights briefing.
+ */
+export async function summarizeTranslatedPages(
+  pages: SummarizePageInput[],
+  date: string,
+  installment: SummarizeInstallmentContext,
+  options?: SummarizeOptions,
+): Promise<TranslationUsage> {
+  const userPrompt = buildPagesUserPrompt(date, installment, pages);
+  return callSummarizeApi(userPrompt, date, options);
+}
+
+/**
+ * Summarize segmented section texts into a highlights briefing.
+ */
+export async function summarizeSectionTexts(
+  sections: SummarizeSectionInput[],
+  date: string,
+  installment: SummarizeInstallmentContext,
+  options?: SummarizeOptions,
+): Promise<TranslationUsage> {
+  const userPrompt = buildSectionsUserPrompt(date, installment, sections);
+  return callSummarizeApi(userPrompt, date, options);
 }

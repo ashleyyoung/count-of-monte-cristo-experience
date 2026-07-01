@@ -237,6 +237,12 @@ export const DayDocSchema = z.object({
    */
   news: z.array(DocItemSchema).default([]),
 
+  /** Paris court/society notices, social events, salons, royal family movements. */
+  society: z.array(DocItemSchema).default([]),
+
+  /** Crimes, tragedies, accidents, suicides, curiosities of city life. */
+  scandals: z.array(DocItemSchema).default([]),
+
   /** Chapter text items for this installment. */
   chapter: z.array(DocItemSchema).default([]),
 

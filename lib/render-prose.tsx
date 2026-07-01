@@ -6,7 +6,7 @@
  * - existing_published / staff / undefined: Gutenberg-style _underscore_ and *italic* only
  */
 
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 /**
  * Optional hook to transform a plain (non-emphasis) text segment — used to wrap
@@ -127,11 +127,60 @@ export function pickProseRenderer(
   return (text: string) => base(text, linkPlain);
 }
 
+const RUBRIC_BASE: CSSProperties = {
+  fontFamily: "var(--font-labels-stack)",
+  fontSize: "11px",
+  letterSpacing: "0.1em",
+  textTransform: "uppercase",
+  color: "var(--ink-muted)",
+  fontWeight: 500,
+  paddingBottom: "4px",
+  borderBottom: "1px solid var(--rule-light)",
+};
+
+/** Small-caps section rubric (shared with Galignani OCR headings). */
+export function ProseRubric({
+  children,
+  style,
+}: {
+  children: ReactNode;
+  style?: CSSProperties;
+}) {
+  return <h4 style={{ ...RUBRIC_BASE, margin: "0 0 0.4em", ...style }}>{children}</h4>;
+}
+
+/**
+ * Detect a paragraph that is entirely a bold rubric label, e.g.:
+ *   **CHAMBRE DES PAIRS.**   **PARIS, le 1er septembre.**
+ * Returns the inner text (with any period that was inside the bold span),
+ * or null if this is regular prose.
+ */
+function parseRubricText(para: string): string | null {
+  // Whole paragraph is one bold span, optional trailing punctuation outside.
+  const m = /^\*\*([^*\n]+)\*\*[.!?,;]?$/.exec(para.trim());
+  return m ? m[1] : null;
+}
+
 /** Split on blank lines and render each paragraph with the chosen inline renderer. */
 export function renderProseParagraphs(
   text: string,
   renderInline: ProseInlineRenderer,
 ): ReactNode {
   const paragraphs = text.split(/\n\n+/).filter(Boolean);
-  return paragraphs.map((p, j) => <p key={j}>{renderInline(p)}</p>);
+  return paragraphs.map((p, j) => {
+    const rubric = parseRubricText(p);
+    if (rubric !== null) {
+      return (
+        <ProseRubric
+          key={j}
+          style={{
+            margin: j === 0 ? "0 0 0.4em" : "1.5em 0 0.4em",
+          }}
+        >
+          {rubric}
+        </ProseRubric>
+      );
+    }
+    return <p key={j}>{renderInline(p)}</p>;
+  });
 }

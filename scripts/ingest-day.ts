@@ -42,6 +42,7 @@ import {
   loadCachedFrench,
 } from "../lib/translate/french-source";
 import { runDayTranslation } from "../lib/translate/pipeline";
+import { chainSummarizeAfterTranslation } from "../lib/translate/chain-summarize";
 import { buildTranslationRunOptions } from "../lib/translate/run-options";
 import { getByDate } from "../lib/installments";
 
@@ -161,6 +162,7 @@ export async function runIngestDay(
     log,
     buildTranslationRunOptions({ model }),
   );
+  await chainSummarizeAfterTranslation(date, summary, log, model);
   log(
     `translate-day done: translated=${summary.translated} ` +
       `created=${summary.created} skipped=${summary.skipped} failed=${summary.failed.length}`,

@@ -15,6 +15,8 @@ import { extractArk, iiifPageImageUrl } from "@/lib/gallica-links";
 
 interface Props {
   data: DayPageData;
+  /** When true (Paper tab French view), annotate page 1 with the feuilleton strip. */
+  showFeuilletonOnPage1?: boolean;
 }
 
 const Wrapper = styled.div`
@@ -157,8 +159,29 @@ const OpenViewerBtn = styled.button`
   &:hover { background: var(--oxblood); }
 `;
 
-export default function OriginalPaperTab({ data }: Props) {
-  const { original_pages } = data.resolved;
+const FeuilletonNote = styled.p`
+  font-family: var(--font-labels-stack);
+  font-style: italic;
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--gilt-warm);
+  text-align: center;
+  margin: 6px 0 0;
+`;
+
+const FeuilletonThumb = styled.img`
+  width: 100%;
+  height: auto;
+  display: block;
+  margin-top: 8px;
+  border: 1px solid var(--rule-light);
+`;
+
+export default function OriginalPaperTab({
+  data,
+  showFeuilletonOnPage1 = false,
+}: Props) {
+  const { original_pages, feuilleton_strip } = data.resolved;
   const gallicaUrl = data.doc.gallica_issue_url;
   const ark = gallicaUrl ? extractArk(gallicaUrl) : null;
   const pageCount = Math.max(
@@ -242,6 +265,20 @@ export default function OriginalPaperTab({ data }: Props) {
                     <MissingPageThumb>Page {i + 1} — not yet pulled</MissingPageThumb>
                   )}
                   <ThumbLabel>Page {i + 1}</ThumbLabel>
+                  {showFeuilletonOnPage1 && i === 0 && (
+                    <>
+                      <FeuilletonNote>
+                        Today&rsquo;s chapter ran as the <em>feuilleton</em> along the
+                        foot of this page.
+                      </FeuilletonNote>
+                      {feuilleton_strip?.url && (
+                        <FeuilletonThumb
+                          src={feuilleton_strip.url}
+                          alt="Feuilleton strip at the foot of page 1"
+                        />
+                      )}
+                    </>
+                  )}
                   {adminMode && page && (
                     <>
                       <VisionBtn

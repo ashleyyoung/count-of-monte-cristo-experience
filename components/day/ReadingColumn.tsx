@@ -19,6 +19,7 @@ interface Props {
   tabContent: React.ReactNode;
   installmentDate: string;
   translatedPageCount?: number;
+  galignaniPageCount?: number;
   /** When false, the rail is hidden and content runs full width (scan tabs). */
   showSidebar?: boolean;
   /** The "On this day" rail — rendered as a side column on desktop, and as a
@@ -272,6 +273,7 @@ export default function ReadingColumn({
   tabContent,
   installmentDate,
   translatedPageCount = 0,
+  galignaniPageCount = 0,
   showSidebar = true,
   sidebar,
 }: Props) {
@@ -338,6 +340,7 @@ export default function ReadingColumn({
             activeTab={activeTab}
             chapters={chapters}
             translatedPageCount={translatedPageCount}
+            galignaniPageCount={galignaniPageCount}
           />
         </TabsArea>
 

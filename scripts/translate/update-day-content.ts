@@ -135,6 +135,18 @@ function setSectionItem(
         item,
       ];
       break;
+    case "society":
+      updated.society = [
+        ...(doc.society ?? []).filter((i) => i.kind !== "text"),
+        item,
+      ];
+      break;
+    case "scandals":
+      updated.scandals = [
+        ...(doc.scandals ?? []).filter((i) => i.kind !== "text"),
+        item,
+      ];
+      break;
     case "chapter":
       updated.chapter = [
         ...(doc.chapter ?? []).filter((i) => i.kind !== "text"),

@@ -59,6 +59,8 @@ import {
 export type SectionKey =
   | "overview"
   | "news"
+  | "society"
+  | "scandals"
   | "chapter"
   | "debats.music"
   | "debats.theater"
@@ -73,6 +75,8 @@ export const ALL_SECTIONS: SectionKey[] = [
   // section so the summarize-day editorial prose (doc.overview) no longer
   // overwrites it.
   "news",
+  "society",
+  "scandals",
   "debats.music",
   "debats.theater",
   "debats.art",
@@ -107,6 +111,15 @@ export interface TranslationRunSummary {
   failed: TranslationFailure[];
   /** Aggregate cost across all API calls in this run. */
   cost_usd_total: number;
+  /** Pass C (summarize-day) outcome when chained after translation. */
+  summarize?: {
+    updated: boolean;
+    skipped: boolean;
+    cost_usd_total: number;
+    model: string;
+    skip_reason?: string;
+    error?: string;
+  };
 }
 
 export interface RunDayTranslationOptions {
@@ -152,9 +165,11 @@ function getSectionItems(doc: DayDoc, section: SectionKey): TextItem[] {
         (i): i is TextItem => i.kind === "text",
       );
     case "news":
-      return (doc.news ?? []).filter(
-        (i): i is TextItem => i.kind === "text",
-      );
+      return (doc.news ?? []).filter((i): i is TextItem => i.kind === "text");
+    case "society":
+      return (doc.society ?? []).filter((i): i is TextItem => i.kind === "text");
+    case "scandals":
+      return (doc.scandals ?? []).filter((i): i is TextItem => i.kind === "text");
     case "chapter":
       return (doc.chapter ?? []).filter(
         (i): i is TextItem => i.kind === "text",
@@ -206,6 +221,18 @@ export function setSectionTextItems(
     case "news":
       updated.news = [
         ...(doc.news ?? []).filter((i) => i.kind !== "text"),
+        ...items,
+      ];
+      break;
+    case "society":
+      updated.society = [
+        ...(doc.society ?? []).filter((i) => i.kind !== "text"),
+        ...items,
+      ];
+      break;
+    case "scandals":
+      updated.scandals = [
+        ...(doc.scandals ?? []).filter((i) => i.kind !== "text"),
         ...items,
       ];
       break;
@@ -280,11 +307,15 @@ function pickSection(
 ): SectionTranslation | null {
   switch (section) {
     case "overview":
-      return seg.overview;
-    // The segmenter's `overview` field is the front-page news & politics text;
-    // it is routed to the `news` section (overview is now editorial-only).
+      // doc.overview is the editorial summary authored by Pass C (summarize-day),
+      // never produced by segmentation.
+      return null;
     case "news":
-      return seg.overview;
+      return seg.news;
+    case "society":
+      return seg.society;
+    case "scandals":
+      return seg.scandals;
     case "chapter":
       return seg.chapter;
     case "debats.music":
@@ -313,7 +344,7 @@ export async function snapshotToVersions(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: ReturnType<typeof makeClient>,
   date: string,
-  section: SectionKey | "translated_pages",
+  section: SectionKey | "translated_pages" | "overview",
   item: TextItem,
   log: (msg: string) => void,
 ): Promise<void> {
@@ -350,6 +381,52 @@ export async function snapshotToVersions(
       `[pipeline] Warning: failed to snapshot ${section}/${item.slot_key}: ${error.message}`,
     );
   }
+}
+
+/**
+ * Before replacing a live item, ensure its current R2 text is represented in
+ * translation_versions. Skips when that text_r2_key is already archived for
+ * the slot (including the row pointed at by translation_version_id).
+ */
+export async function ensureLiveTextArchived(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: ReturnType<typeof makeClient>,
+  date: string,
+  section: SectionKey | "translated_pages" | "overview",
+  item: TextItem,
+  log: (msg: string) => void,
+): Promise<void> {
+  if (!item.slot_key || !item.text_r2_key) return;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .from("translation_versions")
+    .select("id")
+    .eq("installment_date", date)
+    .eq("section", section)
+    .eq("slot_key", item.slot_key)
+    .eq("text_r2_key", item.text_r2_key)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    log(
+      `[pipeline] Warning: could not check version archive for ${section}/${item.slot_key}: ${error.message}`,
+    );
+    return;
+  }
+
+  if (data?.id) {
+    log(
+      `[pipeline] ${section}/${item.slot_key}: live text already archived (version ${data.id as string}).`,
+    );
+    return;
+  }
+
+  log(
+    `[pipeline] ${section}/${item.slot_key}: archiving live text before replace.`,
+  );
+  await snapshotToVersions(supabase, date, section, item, log);
 }
 
 /** Insert a new machine_claude translation_versions row (single-writer). */
@@ -698,7 +775,9 @@ export async function runDayTranslation(
   const model = resolveTranslationModel(options.model);
   log(`[pipeline] Translation model: ${model}`);
   if (useMessageBatch === false) {
-    log(`[pipeline] Message Batches API disabled — streaming calls (full price).`);
+    log(
+      `[pipeline] Message Batches API disabled — streaming calls (full price).`,
+    );
   } else if (useMessageBatch === true) {
     log(`[pipeline] Message Batches API enabled — 50% token discount.`);
   }
@@ -790,9 +869,7 @@ export async function runDayTranslation(
   try {
     const existingPages = new Map<string, TextItem>(
       (doc.translated_pages ?? [])
-        .filter(
-          (i): i is TextItem => i.kind === "text" && Boolean(i.slot_key),
-        )
+        .filter((i): i is TextItem => i.kind === "text" && Boolean(i.slot_key))
         .map((i) => [i.slot_key as string, i]),
     );
 
@@ -832,9 +909,7 @@ export async function runDayTranslation(
         pages.length > 0 ? totalUsage.cost_usd / pages.length : 0;
 
       const newByNumber = new Map(pages.map((p) => [p.pageNumber, p.text]));
-      const pageNumbers = splitFrenchPages(frenchText).map(
-        (c) => c.pageNumber,
-      );
+      const pageNumbers = splitFrenchPages(frenchText).map((c) => c.pageNumber);
 
       const pageItems: TextItem[] = [];
       for (const pageNumber of pageNumbers) {
@@ -851,16 +926,11 @@ export async function runDayTranslation(
 
         const pageKey = `${date}/en/${slotKey}/${runStamp}.txt`;
         await putR2Text(pageKey, newText);
-        log(
-          `[pipeline] Page ${pageNumber}: EN text written to R2: ${pageKey}`,
-        );
+        log(`[pipeline] Page ${pageNumber}: EN text written to R2: ${pageKey}`);
 
         const existingItem = existingPages.get(slotKey);
-        if (existingItem && !existingItem.translation_version_id) {
-          log(
-            `[pipeline] ${slotKey}: snapshotting legacy page item before overwrite.`,
-          );
-          await snapshotToVersions(
+        if (existingItem) {
+          await ensureLiveTextArchived(
             supabase,
             date,
             "translated_pages",
@@ -1063,22 +1133,7 @@ export async function runDayTranslation(
         }
 
         if (existingItem) {
-          if (existingItem.translation_version_id) {
-            log(
-              `[pipeline] ${section}: re-translating machine_claude item (prior state already versioned).`,
-            );
-          } else {
-            log(
-              `[pipeline] ${section}: snapshotting legacy item + re-translating.`,
-            );
-            await snapshotToVersions(
-              supabase,
-              date,
-              section,
-              existingItem,
-              log,
-            );
-          }
+          await ensureLiveTextArchived(supabase, date, section, existingItem, log);
         } else {
           log(`[pipeline] ${section}: creating new live item.`);
         }

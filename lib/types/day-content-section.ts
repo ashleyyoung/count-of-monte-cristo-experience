@@ -2,6 +2,8 @@
 export type DayContentSection =
   | "overview"
   | "news"
+  | "society"
+  | "scandals"
   | "chapter"
   | "debats.music"
   | "debats.theater"

@@ -32,7 +32,7 @@ import {
   type PageTranslationResult,
   type SegmentedTranslation,
   type SectionAnchor,
-  SEGMENT_MAX_OUTPUT_TOKENS,
+  getSegmentMaxOutputTokens,
   ANCHOR_MAX_OUTPUT_TOKENS,
 } from "./translate";
 
@@ -89,7 +89,9 @@ function extractTextFromMessage(
 
 function emptySegmentedTranslation(): SegmentedTranslation {
   return {
-    overview: null,
+    news: null,
+    society: null,
+    scandals: null,
     chapter: null,
     debats: {
       music: null,
@@ -108,7 +110,9 @@ function summarizeSegmented(seg: SegmentedTranslation): string {
     const len = text?.trim().length ?? 0;
     if (len > 0) parts.push(`${name}=${len}ch`);
   };
-  add("overview", seg.overview?.text);
+  add("news", seg.news?.text);
+  add("society", seg.society?.text);
+  add("scandals", seg.scandals?.text);
   add("chapter", seg.chapter?.text);
   add("debats.music", seg.debats?.music?.text);
   add("debats.theater", seg.debats?.theater?.text);
@@ -241,7 +245,7 @@ export function buildTranslatePageBatchRequest(
     custom_id: translatePageCustomId(pageNumber),
     params: {
       model,
-      max_tokens: SEGMENT_MAX_OUTPUT_TOKENS,
+      max_tokens: getSegmentMaxOutputTokens(model),
       system: systemBlocks(),
       messages: [
         {

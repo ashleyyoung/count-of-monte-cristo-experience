@@ -1,15 +1,23 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import styled from "styled-components";
 import type { DayPageData } from "@/lib/content";
-import type { ResolvedDocItem, ResolvedImageItem } from "@/lib/content";
+import type { ResolvedDocItem, ResolvedImageItem, ResolvedTextItem } from "@/lib/content";
 import type { ContributorInfo } from "./ContributorByline";
 import { TabSection, TabSectionTitle, EmptyState, renderItems } from "./TabPrimitives";
 import AdminItemList from "@/components/admin/AdminItemList";
 import { useAdminMode } from "@/components/admin/AdminModeProvider";
 import ScanViewer from "./ScanViewer";
+import PaperPageSubTabRow from "./PaperPageSubTabRow";
+import GalignaniOcrText from "./GalignaniOcrText";
 import { cleanGalignaniOcr } from "@/lib/galignani/clean-ocr";
+import {
+  listGalignaniOcrPages,
+  listGalignaniOtherItems,
+} from "@/lib/galignani/pages";
+import { resolveActivePaperPage } from "@/lib/paper-pages";
 
 interface Props {
   data: DayPageData;
@@ -122,7 +130,7 @@ const GallicaLink = styled.a`
   }
 `;
 
-/** Return a copy of the items with Galignani OCR text run through the cleaner. */
+/** Admin preview: cleaned text via generic renderItems. */
 function withCleanedText(items: ResolvedDocItem[]): ResolvedDocItem[] {
   return items.map((item) =>
     item.kind === "text"
@@ -134,31 +142,49 @@ function withCleanedText(items: ResolvedDocItem[]): ResolvedDocItem[] {
 export default function GalignaniTab({ data, contributors }: Props) {
   const { resolved, doc, installment_date } = data;
   const { adminMode } = useAdminMode();
+  const searchParams = useSearchParams();
   const items = resolved.galignani;
 
   const scans = useMemo(
     () => items.filter((i): i is ResolvedImageItem => i.kind === "image"),
     [items],
   );
-  // Reader-facing OCR text pages, with cleaned text. (Images live in `scans`.)
-  const textItems = useMemo(
-    () => withCleanedText(items.filter((i) => i.kind !== "image")),
-    [items],
-  );
 
-  const gallicaUrl =
-    (textItems.find((i) => i.kind === "text" && i.gallica_url) as
-      | { gallica_url?: string }
-      | undefined)?.gallica_url ??
-    doc.gallica_issue_url ??
-    null;
+  const pagedOcr = useMemo(() => listGalignaniOcrPages(items), [items]);
+  const otherItems = useMemo(() => listGalignaniOtherItems(items), [items]);
+
+  const activePage = resolveActivePaperPage(
+    pagedOcr.length,
+    searchParams.get("gpage"),
+  );
+  const activeOcrItem =
+    pagedOcr.length > 0 ? pagedOcr[activePage - 1] ?? null : null;
+
+  const gpage = searchParams.get("gpage");
+  const [ocrOpen, setOcrOpen] = useState(() => searchParams.has("gpage"));
+
+  useEffect(() => {
+    if (gpage != null) setOcrOpen(true);
+  }, [gpage]);
+
+  const gallicaUrl = useMemo(() => {
+    const fromPaged = pagedOcr.find((i) => i.gallica_url)?.gallica_url;
+    if (fromPaged) return fromPaged;
+    const fromOther = otherItems.find(
+      (i): i is ResolvedTextItem =>
+        i.kind === "text" && Boolean((i as ResolvedTextItem).gallica_url),
+    );
+    return (
+      fromOther?.gallica_url ?? doc.gallica_issue_url ?? null
+    );
+  }, [pagedOcr, otherItems, doc.gallica_issue_url]);
 
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerPage, setViewerPage] = useState(0);
 
+  const showTranscriptionBlock = pagedOcr.length > 0;
+
   if (items.length === 0) {
-    // Galignani's Messenger did not publish on Sundays — surface that as the
-    // reason for an empty edition rather than the generic "being prepared" copy.
     const isSunday =
       new Date(`${installment_date}T00:00:00Z`).getUTCDay() === 0;
     return (
@@ -172,8 +198,8 @@ export default function GalignaniTab({ data, contributors }: Props) {
           emptyMessage={
             <EmptyState>
               {isSunday
-                ? "No edition of Galignani’s Messenger was published on Sundays."
-                : "Galignani’s Messenger coverage for this date is being prepared."}
+                ? "No edition of Galignani's Messenger was published on Sundays."
+                : "Galignani's Messenger coverage for this date is being prepared."}
             </EmptyState>
           }
         />
@@ -181,9 +207,6 @@ export default function GalignaniTab({ data, contributors }: Props) {
     );
   }
 
-  // Admin mode needs the full, index-aligned section (scans + text) so that
-  // drag-reorder / delete operate on the correct DocItem positions. Readers get
-  // the curated split layout below instead.
   if (adminMode) {
     return (
       <TabSection>
@@ -200,7 +223,6 @@ export default function GalignaniTab({ data, contributors }: Props) {
 
   return (
     <TabSection>
-      {/* 1. Page scans — clickable to zoom and read the original. */}
       {scans.length > 0 && (
         <div>
           <TabSectionTitle>Galignani&apos;s Messenger</TabSectionTitle>
@@ -229,26 +251,52 @@ export default function GalignaniTab({ data, contributors }: Props) {
         </div>
       )}
 
-      {/* 2. OCR transcription — rough, machine-generated, collapsed by default. */}
-      {textItems.length > 0 && (
-        <OcrDetails>
-          <summary>Rough transcription (machine OCR)</summary>
-          <OcrCaveat>
-            This transcription was pulled from the{" "}
-            <GallicaLink href="https://gallica.bnf.fr" target="_blank" rel="noopener noreferrer">
-              Gallica
-              <GallicaTip role="tooltip">
-                Gallica is the digital library of the Bibliothèque nationale de
-                France (BnF), providing free access to millions of historical
-                documents, newspapers, and books.
-              </GallicaTip>
-            </GallicaLink>{" "}
-            website and was derived from the page scans above. Column order and
-            spelling are imperfect on this dense broadsheet; click a scan to
-            read the original.
-          </OcrCaveat>
-          {renderItems(textItems, contributors)}
-        </OcrDetails>
+      {otherItems.length > 0 &&
+        renderItems(otherItems, contributors)}
+
+      {showTranscriptionBlock && (
+        <>
+          {pagedOcr.length > 1 && (
+            <PaperPageSubTabRow
+              pageCount={pagedOcr.length}
+              activePage={activePage}
+              tab="galignani"
+              paramKey="gpage"
+            />
+          )}
+
+          <OcrDetails
+            open={ocrOpen}
+            onToggle={(e) => setOcrOpen(e.currentTarget.open)}
+          >
+            <summary>Rough transcription (machine OCR)</summary>
+            <OcrCaveat>
+              This transcription was pulled from the{" "}
+              <GallicaLink
+                href="https://gallica.bnf.fr"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Gallica
+                <GallicaTip role="tooltip">
+                  Gallica is the digital library of the Bibliothèque nationale de
+                  France (BnF), providing free access to millions of historical
+                  documents, newspapers, and books.
+                </GallicaTip>
+              </GallicaLink>{" "}
+              website and was derived from the page scans above. Column order and
+              spelling are imperfect on this dense broadsheet; click a scan to
+              read the original.
+            </OcrCaveat>
+            {activeOcrItem && (
+              <GalignaniOcrText
+                item={activeOcrItem}
+                contributors={contributors}
+                citeN={1}
+              />
+            )}
+          </OcrDetails>
+        </>
       )}
 
       {viewerOpen && (

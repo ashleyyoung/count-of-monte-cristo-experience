@@ -475,31 +475,31 @@ export default function LandingPage() {
       {/* Feuilleton strip */}
       <FeuilletonStrip>
         <FeuilletonCol>
-          <FeuilletonHead>Roman-feuilleton</FeuilletonHead>
+          <FeuilletonHead>Serial Novel</FeuilletonHead>
           <p>
-            Paraissant chaque jour dans nos colonnes, le roman de M. Dumas
-            tient le Paris lettré en haleine depuis le 28 août dernier.
+            Published daily in our columns, M. Dumas&apos;s novel has kept
+            literate Paris in suspense since the 28th of August last.
           </p>
         </FeuilletonCol>
         <FeuilletonCol>
-          <FeuilletonHead>Chronique littéraire</FeuilletonHead>
+          <FeuilletonHead>Literary Chronicle</FeuilletonHead>
           <p>
-            Les critiques du Journal suivent l&apos;œuvre au fil de sa
-            publication — théâtre, musique, arts, lettres et sciences.
+            The Journal&apos;s critics follow the work through its publication
+            — theatre, music, arts, letters, and sciences.
           </p>
         </FeuilletonCol>
         <FeuilletonCol>
           <FeuilletonHead>Galignani&apos;s Messenger</FeuilletonHead>
           <p>
-            Nouvelles d&apos;Angleterre et d&apos;Amérique telles
-            qu&apos;elles parvenaient à Paris durant la sérialisation.
+            News from England and America as it reached Paris during the
+            serialization.
           </p>
         </FeuilletonCol>
         <FeuilletonCol>
-          <FeuilletonHead>Sciences &amp; Découvertes</FeuilletonHead>
+          <FeuilletonHead>Sciences &amp; Discoveries</FeuilletonHead>
           <p>
-            Rapports de l&apos;Académie des sciences, expériences de
-            Foucault, Donné et leurs contemporains parisiens.
+            Reports from the Académie des sciences, experiments by Foucault,
+            Donné, and their Parisian contemporaries.
           </p>
         </FeuilletonCol>
       </FeuilletonStrip>

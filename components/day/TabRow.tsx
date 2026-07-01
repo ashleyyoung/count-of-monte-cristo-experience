@@ -19,21 +19,18 @@ export type TabId =
   | "translated"
   | "galignani";
 
-/** Four consolidated surfaces readers see. Chapter is the default. */
+/** Four consolidated surfaces readers see. Paris is the default landing tab. */
 const READER_TABS: { id: TabId; label: string }[] = [
-  { id: "chapter", label: "Chapter" },
   { id: "paris", label: "Paris, that day" },
+  { id: "chapter", label: "Chapter" },
   { id: "paper", label: "The paper" },
   { id: "galignani", label: "Galignani" },
 ];
 
-/** Full granular set admins see, so every editable section stays reachable. */
+/** Admin tabs — Paris consolidates overview/debats/art/science editing. */
 const ADMIN_TABS: { id: TabId; label: string }[] = [
+  { id: "paris", label: "Paris, that day" },
   { id: "chapter", label: "Chapter" },
-  { id: "overview", label: "Overview" },
-  { id: "debats", label: "Débats" },
-  { id: "art", label: "Art & exhibitions" },
-  { id: "science", label: "Science" },
   { id: "original", label: "Original paper" },
   { id: "translated", label: "Translated paper" },
   { id: "galignani", label: "Galignani" },
@@ -52,13 +49,14 @@ interface Props {
   activeTab: TabId;
   chapters: Chapter[];
   translatedPageCount?: number;
+  galignaniPageCount?: number;
 }
 
 // ---------------------------------------------------------------------------
 // Styled
 // ---------------------------------------------------------------------------
 
-const Row = styled.nav`
+const Row = styled.nav<{ $tabCount: number }>`
   display: flex;
   gap: 0;
   border-top: 1px solid var(--rule-light);
@@ -71,7 +69,7 @@ const Row = styled.nav`
 
   @media (max-width: 800px) {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(${({ $tabCount }) => Math.min(4, $tabCount)}, 1fr);
     overflow-x: visible;
     border-top: none;
   }
@@ -86,7 +84,7 @@ const TabLabel = styled.span<{ $active: boolean }>`
   }
 `;
 
-const Tab = styled.button<{ $active: boolean }>`
+const Tab = styled.button<{ $active: boolean; $lastInRow: boolean; $lastRow: boolean }>`
   font-family: var(--font-labels-stack);
   font-style: italic;
   font-size: 13px;
@@ -109,11 +107,11 @@ const Tab = styled.button<{ $active: boolean }>`
     padding: 10px 8px;
     border-top: none;
     border-bottom: 1px solid var(--rule-light);
-    border-right: 1px solid var(--rule-light);
+    border-right: 1px solid ${({ $lastInRow }) =>
+      $lastInRow ? "transparent" : "var(--rule-light)"};
     margin-top: 0;
 
-    &:nth-child(4n) { border-right: none; }
-    &:nth-last-child(-n+4) { border-bottom: none; }
+    ${({ $lastRow }) => $lastRow && "border-bottom: none;"}
   }
 
   &:hover:not([aria-selected="true"]) {
@@ -134,15 +132,16 @@ export default function TabRow({
   activeTab,
   chapters,
   translatedPageCount = 0,
+  galignaniPageCount = 0,
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { adminMode } = useAdminMode();
 
-  // Readers see four consolidated surfaces; admins see every granular section.
   // Reader highlight folds granular/legacy ids onto their owning surface.
   const baseTabs = adminMode ? ADMIN_TABS : READER_TABS;
-  const highlightTab = adminMode ? activeTab : normalizeReaderTab(activeTab);
+  const highlightTab = adminMode ? normalizeReaderTab(activeTab) : normalizeReaderTab(activeTab);
+  const mobileCols = Math.min(4, baseTabs.length);
 
   const tabs = baseTabs.map((tab) =>
     tab.id === "chapter"
@@ -169,9 +168,23 @@ export default function TabRow({
       params.delete("lang");
     }
 
+    if (id === "paris") {
+      if (!params.get("paris")) params.set("paris", "overview");
+    } else {
+      params.delete("paris");
+    }
+
+    if (id === "galignani" && galignaniPageCount > 1) {
+      if (!params.get("gpage")) params.set("gpage", "1");
+    } else {
+      params.delete("gpage");
+    }
+
     if (id === "translated" && translatedPageCount > 1) {
       if (!params.get("page")) params.set("page", "1");
-    } else if (id !== "paper") {
+    } else if (id === "paper") {
+      params.delete("page");
+    } else {
       params.delete("page");
     }
 
@@ -179,18 +192,25 @@ export default function TabRow({
   }
 
   return (
-    <Row role="tablist" aria-label="Day content tabs">
-      {tabs.map((tab) => (
+    <Row role="tablist" aria-label="Day content tabs" $tabCount={tabs.length}>
+      {tabs.map((tab, index) => {
+        const cols = mobileCols;
+        const lastInRow = (index + 1) % cols === 0 || index === tabs.length - 1;
+        const lastRow = index >= tabs.length - (tabs.length % cols || cols);
+        return (
         <Tab
           key={tab.id}
           $active={tab.id === highlightTab}
+          $lastInRow={lastInRow}
+          $lastRow={lastRow}
           role="tab"
           aria-selected={tab.id === highlightTab}
           onClick={() => handleTab(tab.id)}
         >
           <TabLabel $active={tab.id === highlightTab}>{tab.label}</TabLabel>
         </Tab>
-      ))}
+        );
+      })}
     </Row>
   );
 }

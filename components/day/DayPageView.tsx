@@ -3,7 +3,7 @@
 import { useCallback, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import styled from "styled-components";
-import type { DayPageData } from "@/lib/content";
+import type { DayPageData, ResolvedTextItem } from "@/lib/content";
 import type { Installment } from "@/lib/installments";
 import { resolveActiveChapterNum } from "@/lib/chapters";
 import type { ContributorInfo } from "@/components/day/ContributorByline";
@@ -15,21 +15,23 @@ import DayTopBar from "@/components/day/DayTopBar";
 import FeuilletonStrip from "@/components/day/FeuilletonStrip";
 import ReadingColumn from "@/components/day/ReadingColumn";
 import ParisSidebar from "@/components/day/ParisSidebar";
-import OverviewTab from "@/components/day/OverviewTab";
 import ChapterTab from "@/components/day/ChapterTab";
-import DebatsTab from "@/components/day/DebatsTab";
-import ArtTab from "@/components/day/ArtTab";
-import ScienceTab from "@/components/day/ScienceTab";
 import OriginalPaperTab from "@/components/day/OriginalPaperTab";
 import FrenchTextPasteField from "@/components/admin/primitives/FrenchTextPasteField";
 import { extractArk, texteBrutViewUrl, altoPageViewUrl } from "@/lib/gallica-links";
 import TranslatedPaperTab from "@/components/day/TranslatedPaperTab";
 import GalignaniTab from "@/components/day/GalignaniTab";
+import { countGalignaniOcrPages } from "@/lib/galignani/pages";
 import ParisThatDayTab from "@/components/day/ParisThatDayTab";
 import PaperTab, { type PaperLang } from "@/components/day/PaperTab";
+import TranslationRunLogPanel from "@/components/day/TranslationRunLogPanel";
+import TranslationHistory from "@/components/admin/TranslationHistory";
+
+const OVERVIEW_SLOT_KEY = "overview-1";
 
 /** Latest local translation run for this day (admin-only; null when none). */
 export interface TranslationRunStatus {
+  id: string;
   status: "queued" | "running" | "done" | "failed";
   createdAt: string;
   finishedAt: string | null;
@@ -49,6 +51,8 @@ interface Props {
   localRunnerEnabled: boolean;
   /** Latest translation run for this day, for the admin status line. */
   translationRun: TranslationRunStatus | null;
+  /** Overview slot version count for the admin history pill. */
+  overviewVersionCount?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -283,31 +287,38 @@ function getTabContent(
     return <GalignaniTab data={data} contributors={contributors} />;
   }
 
-  // Admin sees every granular section so each stays editable.
+  // Admin granular paper tabs; Paris uses the same consolidated tab as readers.
   if (adminMode) {
     switch (tab) {
-      case "debats":     return <DebatsTab data={data} contributors={contributors} />;
-      case "art":        return <ArtTab data={data} contributors={contributors} />;
-      case "science":    return <ScienceTab data={data} contributors={contributors} />;
-      case "original":   return <OriginalPaperTab data={data} />;
-      case "translated": return <TranslatedPaperTab data={data} contributors={contributors} />;
+      case "original":
+        return <OriginalPaperTab data={data} />;
+      case "translated":
+        return <TranslatedPaperTab data={data} contributors={contributors} />;
       case "overview":
-      default:           return <OverviewTab data={data} contributors={contributors} installment={installment} />;
+      case "debats":
+      case "art":
+      case "science":
+      case "paris":
+        return (
+          <ParisThatDayTab
+            data={data}
+            contributors={contributors}
+            legacyTab={tab === "paris" ? undefined : tab}
+          />
+        );
+      default:
+        break;
     }
   }
 
   // Readers get the consolidated surfaces; legacy/granular ids fold in.
   const reader = normalizeReaderTab(tab);
   if (reader === "paper") {
-    const defaultLang: PaperLang = tab === "translated" ? "en" : "fr";
+    const defaultLang: PaperLang = tab === "original" ? "fr" : "en";
     return <PaperTab data={data} contributors={contributors} defaultLang={defaultLang} />;
   }
   return <ParisThatDayTab data={data} contributors={contributors} />;
 }
-
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
 
 export default function DayPageView({
   data,
@@ -320,6 +331,7 @@ export default function DayPageView({
   contributors,
   localRunnerEnabled,
   translationRun,
+  overviewVersionCount = 0,
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -329,6 +341,7 @@ export default function DayPageView({
     : null;
   const [isTranslating, startTranslate] = useTransition();
   const [translateMsg, setTranslateMsg] = useState<string | null>(null);
+  const [watchRunId, setWatchRunId] = useState<string | null>(null);
   const [engine, setEngine] = useState<"sonnet" | "opus" | "haiku">("sonnet");
   const [isCompleted, setIsCompleted] = useState(initialCompleted);
 
@@ -338,14 +351,18 @@ export default function DayPageView({
     searchParams.get("chapter"),
   );
 
-  const handleTranslate = useCallback(() => {
+  const handleTranslate = useCallback(
+    (force = false) => {
     setTranslateMsg(null);
     startTranslate(async () => {
       try {
-        const res = await requestDayTranslation(installment.date, engine);
+        const res = await requestDayTranslation(installment.date, engine, { force });
+        if (res.accepted && res.runId) setWatchRunId(res.runId);
         setTranslateMsg(
           res.accepted
-            ? "Queued. It runs on your machine; refresh in a bit to see results."
+            ? force
+              ? "Re-translate queued — see log below."
+              : "Queued — see log below."
             : (res.reason ?? "A run is already in progress for this day."),
         );
         router.refresh();
@@ -355,7 +372,9 @@ export default function DayPageView({
         );
       }
     });
-  }, [installment.date, engine, router]);
+  },
+  [installment.date, engine, router],
+  );
 
   // Tab changes from TabRow update the URL; activeTab follows searchParams.
 
@@ -395,6 +414,20 @@ export default function DayPageView({
       ? `${installment.chapters[0].num}. ${installment.chapters[0].title}`
       : installment.label;
 
+  const activeLogRunId =
+    watchRunId ??
+    (translationRun?.status === "queued" || translationRun?.status === "running"
+      ? translationRun.id
+      : null);
+
+  const handleRunFinished = useCallback(() => {
+    router.refresh();
+  }, [router]);
+
+  const overviewTextItem = data.resolved.overview.find(
+    (i): i is ResolvedTextItem => i.kind === "text",
+  );
+
   return (
     <Page>
       <DayTopBar
@@ -418,9 +451,22 @@ export default function DayPageView({
             <option value="opus">Opus</option>
             <option value="haiku">Haiku</option>
           </AdminSelect>
-          <AdminBtn onClick={handleTranslate} disabled={isTranslating}>
+          <AdminBtn onClick={() => handleTranslate(false)} disabled={isTranslating}>
             {isTranslating ? "Queuing…" : "Translate"}
           </AdminBtn>
+          <AdminBtn onClick={() => handleTranslate(true)} disabled={isTranslating}>
+            Re-translate
+          </AdminBtn>
+          <TranslationHistory
+            date={installment.date}
+            section="overview"
+            slotKey={OVERVIEW_SLOT_KEY}
+            currentVersionId={overviewTextItem?.translation_version_id}
+            currentText={overviewTextItem?.text}
+            currentAttribution={overviewTextItem?.attribution}
+            currentTranslationOrigin={overviewTextItem?.translation_origin}
+            versionCount={overviewVersionCount}
+          />
           {translateMsg ? (
             <AdminNote>{translateMsg}</AdminNote>
           ) : translationRun ? (
@@ -432,6 +478,14 @@ export default function DayPageView({
             </AdminNote>
           )}
         </AdminBar>
+      )}
+
+      {adminMode && localRunnerEnabled && activeLogRunId && (
+        <TranslationRunLogPanel
+          date={installment.date}
+          runId={activeLogRunId}
+          onFinished={handleRunFinished}
+        />
       )}
 
       {adminMode && recoveryArk && (
@@ -484,6 +538,7 @@ export default function DayPageView({
           tabContent={tabContent}
           installmentDate={installment.date}
           translatedPageCount={data.resolved.translated_pages?.length ?? 0}
+          galignaniPageCount={countGalignaniOcrPages(data.resolved.galignani)}
           showSidebar={showSidebar}
           sidebar={
             <ParisSidebar date={installment.date} figures={figures} />

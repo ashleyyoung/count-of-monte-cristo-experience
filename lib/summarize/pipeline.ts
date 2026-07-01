@@ -7,19 +7,23 @@
 
 import { getByDate } from "../installments";
 import {
-  summarizeTranslatedPages,
-  type SummarizeInstallmentContext,
-} from "../llm/summarize";
-import { resolveTranslationModel } from "../llm/translate";
-import { getR2Text, putR2Text, isR2Configured } from "../r2-server";
-import { parseDayDoc, type DayDoc, type TextItem } from "../types/content";
-import {
+  ALL_SECTIONS,
+  type SectionKey,
   insertVersionRow,
   makeClient,
   persistDayDoc,
   setSectionTextItems,
-  snapshotToVersions,
+  ensureLiveTextArchived,
 } from "../translate/pipeline";
+import {
+  summarizeSectionTexts,
+  summarizeTranslatedPages,
+  type SummarizeInstallmentContext,
+  type SummarizeSectionInput,
+} from "../llm/summarize";
+import { resolveTranslationModel } from "../llm/translate";
+import { getR2Text, putR2Text, isR2Configured } from "../r2-server";
+import { parseDayDoc, type DayDoc, type TextItem } from "../types/content";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -39,6 +43,128 @@ export interface RunDaySummarizationOptions {
 }
 
 const OVERVIEW_SLOT_KEY = "overview-1";
+
+const SECTION_SUMMARIZE_LABELS: Record<SectionKey, string> = {
+  overview: "Overview",
+  news: "News & Politics",
+  society: "Society",
+  scandals: "Scandals & Curiosities",
+  chapter: "Chapter",
+  "debats.music": "Music",
+  "debats.theater": "Theatre",
+  "debats.art": "Art & Letters",
+  "debats.literature": "Literature",
+  art_exhibitions: "Art & Exhibitions",
+  science: "Science",
+  galignani: "Galignani",
+};
+
+function getSectionItems(doc: DayDoc, section: SectionKey): TextItem[] {
+  switch (section) {
+    case "overview":
+      return (doc.overview ?? []).filter(
+        (i): i is TextItem => i.kind === "text",
+      );
+    case "news":
+      return (doc.news ?? []).filter((i): i is TextItem => i.kind === "text");
+    case "society":
+      return (doc.society ?? []).filter((i): i is TextItem => i.kind === "text");
+    case "scandals":
+      return (doc.scandals ?? []).filter((i): i is TextItem => i.kind === "text");
+    case "chapter":
+      return (doc.chapter ?? []).filter(
+        (i): i is TextItem => i.kind === "text",
+      );
+    case "debats.music":
+      return (doc.debats?.music ?? []).filter(
+        (i): i is TextItem => i.kind === "text",
+      );
+    case "debats.theater":
+      return (doc.debats?.theater ?? []).filter(
+        (i): i is TextItem => i.kind === "text",
+      );
+    case "debats.art":
+      return (doc.debats?.art ?? []).filter(
+        (i): i is TextItem => i.kind === "text",
+      );
+    case "debats.literature":
+      return (doc.debats?.literature ?? []).filter(
+        (i): i is TextItem => i.kind === "text",
+      );
+    case "art_exhibitions":
+      return (doc.art_exhibitions ?? []).filter(
+        (i): i is TextItem => i.kind === "text",
+      );
+    case "science":
+      return (doc.science ?? []).filter(
+        (i): i is TextItem => i.kind === "text",
+      );
+    case "galignani":
+      return (doc.galignani ?? []).filter(
+        (i): i is TextItem => i.kind === "text",
+      );
+  }
+}
+
+async function loadSegmentedSectionsForSummarize(
+  doc: DayDoc,
+  log: (msg: string) => void,
+): Promise<SummarizeSectionInput[]> {
+  const sections: SummarizeSectionInput[] = [];
+
+  for (const section of ALL_SECTIONS) {
+    const items = getSectionItems(doc, section);
+    const item = items.find((i) => i.text_r2_key);
+    if (!item?.text_r2_key) continue;
+
+    const text = await getR2Text(item.text_r2_key);
+    if (!text?.trim()) {
+      log(
+        `[summarize] Warning: missing R2 text for ${section} (${item.text_r2_key}); skipping.`,
+      );
+      continue;
+    }
+
+    sections.push({
+      label: SECTION_SUMMARIZE_LABELS[section],
+      text,
+    });
+  }
+
+  return sections;
+}
+
+async function loadTranslatedPagesForSummarize(
+  doc: DayDoc,
+  log: (msg: string) => void,
+): Promise<{ pageNumber: number; text: string }[]> {
+  const translatedPageItems = (doc.translated_pages ?? []).filter(
+    (i): i is TextItem => i.kind === "text" && Boolean(i.text_r2_key),
+  );
+
+  const sortedItems = [...translatedPageItems].sort((a, b) => {
+    const aNum = a.slot_key ? (pageNumberFromSlotKey(a.slot_key) ?? 0) : 0;
+    const bNum = b.slot_key ? (pageNumberFromSlotKey(b.slot_key) ?? 0) : 0;
+    return aNum - bNum;
+  });
+
+  const pages: { pageNumber: number; text: string }[] = [];
+  for (const item of sortedItems) {
+    const pageNumber = item.slot_key
+      ? (pageNumberFromSlotKey(item.slot_key) ?? pages.length + 1)
+      : pages.length + 1;
+    const text = await getR2Text(item.text_r2_key);
+    if (!text?.trim()) {
+      log(
+        `[summarize] Warning: missing R2 text for ${item.text_r2_key}; skipping page ${pageNumber}.`,
+      );
+      continue;
+    }
+    pages.push({ pageNumber, text });
+  }
+
+  return pages;
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -145,47 +271,46 @@ export async function runDaySummarization(
     return emptySummary(true, "no_translated_pages");
   }
 
+  const segmentedSections = await loadSegmentedSectionsForSummarize(doc, log);
+  const installmentContext = buildInstallmentContext(date);
+  let usage;
+
+  if (segmentedSections.length > 0) {
+    log(
+      `[summarize] Summarizing ${segmentedSections.length} section(s) with ${model}…`,
+    );
+    usage = await summarizeSectionTexts(
+      segmentedSections,
+      date,
+      installmentContext,
+      { model, log },
+    );
+  } else {
+    const pages = await loadTranslatedPagesForSummarize(doc, log);
+    if (pages.length === 0) {
+      log(
+        `[summarize] No readable translated page text for ${date}; skipping.`,
+      );
+      return emptySummary(true, "no_readable_pages");
+    }
+    log(`[summarize] Summarizing ${pages.length} page(s) with ${model}…`);
+    usage = await summarizeTranslatedPages(pages, date, installmentContext, {
+      model,
+      log,
+    });
+  }
+
   const sortedItems = [...translatedPageItems].sort((a, b) => {
     const aNum = a.slot_key ? (pageNumberFromSlotKey(a.slot_key) ?? 0) : 0;
     const bNum = b.slot_key ? (pageNumberFromSlotKey(b.slot_key) ?? 0) : 0;
     return aNum - bNum;
   });
-
-  const pages: { pageNumber: number; text: string }[] = [];
-  for (const item of sortedItems) {
-    const pageNumber = item.slot_key
-      ? (pageNumberFromSlotKey(item.slot_key) ?? pages.length + 1)
-      : pages.length + 1;
-    const text = await getR2Text(item.text_r2_key);
-    if (!text?.trim()) {
-      log(
-        `[summarize] Warning: missing R2 text for ${item.text_r2_key}; skipping page ${pageNumber}.`,
-      );
-      continue;
-    }
-    pages.push({ pageNumber, text });
-  }
-
-  if (pages.length === 0) {
-    log(`[summarize] No readable translated page text for ${date}; skipping.`);
-    return emptySummary(true, "no_readable_pages");
-  }
-
-  log(`[summarize] Summarizing ${pages.length} page(s) with ${model}…`);
-  const installmentContext = buildInstallmentContext(date);
-  const usage = await summarizeTranslatedPages(
-    pages,
-    date,
-    installmentContext,
-    { model, log },
-  );
+  const provenanceItem = sortedItems[0];
 
   const runStamp = new Date().toISOString().replace(/[:.]/g, "-");
   const enKey = `${date}/en/${OVERVIEW_SLOT_KEY}/${runStamp}.txt`;
   await putR2Text(enKey, usage.text);
   log(`[summarize] Overview written to R2: ${enKey}`);
-
-  const provenanceItem = sortedItems[0];
   const gallicaUrl = provenanceItem.gallica_url ?? doc.gallica_issue_url ?? "";
   if (!gallicaUrl) {
     throw new Error(
@@ -194,9 +319,14 @@ export async function runDaySummarization(
   }
 
   const existingItem = getOverviewTextItem(doc);
-  if (existingItem && !existingItem.translation_version_id) {
-    log(`[summarize] Snapshotting legacy overview item before overwrite.`);
-    await snapshotToVersions(supabase, date, "overview", existingItem, log);
+  if (existingItem) {
+    await ensureLiveTextArchived(
+      supabase,
+      date,
+      "overview",
+      existingItem,
+      log,
+    );
   }
 
   const versionId = await insertVersionRow(supabase, {

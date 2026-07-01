@@ -106,6 +106,8 @@ export interface AdminItemContext {
    * chapter items (the Gutenberg vs Claude comparison affordance).
    */
   isChapter?: boolean;
+  /** Hide per-item history pill (e.g. when shown in the day admin bar). */
+  hideHistory?: boolean;
 }
 
 /**
@@ -126,11 +128,13 @@ export function renderItems(
         : null;
 
       // Build a CiteSource from item provenance.
+      const isGalignani = item.source === "Galignani's Messenger";
       const citeSource: CiteSource = {
         title: item.source ?? "Journal des Débats",
         attribution: item.attribution ?? (item.original_date ? `Published ${item.original_date}` : ""),
         license: item.license,
         source_text_url: item.source_text_url ?? item.gallica_url,
+        source_text_link_label: isGalignani ? "View the original" : undefined,
         translator: item.translator,
         translation_source_url: item.translation_source_url,
       };
@@ -190,7 +194,8 @@ function TextItemWrapper({
   const showHistory =
     adminMode &&
     adminContext &&
-    item.slot_key;
+    item.slot_key &&
+    !adminContext.hideHistory;
 
   const historyLabel =
     adminContext?.isChapter &&

@@ -30,8 +30,10 @@ export interface CiteSource {
   attribution: string;
   /** e.g. "Public Domain", "CC BY-SA 4.0" */
   license?: string;
-  /** PUBLIC link to the untranslated French source (Gallica, FMC Project, etc.) */
+  /** PUBLIC link to the source text (Gallica, FMC Project, etc.) */
   source_text_url?: string;
+  /** Link label for source_text_url; defaults to "View the original (in French)". */
+  source_text_link_label?: string;
   /** Generic reference link (Wikipedia, journal article, archive) — shown as "View source" */
   reference_url?: string;
   /** Human translator credit — shown only for existing_published translations */
@@ -218,7 +220,7 @@ export default function Cite({ source, n, inline = true }: CiteProps) {
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  View the original (in French) ↗
+                  {source.source_text_link_label ?? "View the original (in French)"} ↗
                 </CardLink>
               )}
               {source.reference_url && (

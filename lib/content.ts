@@ -117,6 +117,8 @@ export interface DayPageData {
     original_pages: ResolvedImageItem[];
     overview: ResolvedDocItem[];
     news: ResolvedDocItem[];
+    society: ResolvedDocItem[];
+    scandals: ResolvedDocItem[];
     chapter: ResolvedDocItem[];
     debats: ResolvedDebats;
     art_exhibitions: ResolvedDocItem[];
@@ -205,6 +207,8 @@ function collectAssetIds(doc: DayDoc): string[] {
   for (const section of [
     doc.overview,
     doc.news,
+    doc.society,
+    doc.scandals,
     doc.chapter,
     doc.art_exhibitions,
     doc.science,
@@ -230,6 +234,8 @@ function collectTextKeys(doc: DayDoc): string[] {
   for (const section of [
     doc.overview,
     doc.news,
+    doc.society,
+    doc.scandals,
     doc.chapter,
     doc.art_exhibitions,
     doc.science,
@@ -420,6 +426,8 @@ async function resolveDoc(
       .filter((p): p is ResolvedImageItem => p !== null),
     overview: resolveSection(doc.overview ?? [], assetMap, textMap),
     news: resolveSection(doc.news ?? [], assetMap, textMap),
+    society: resolveSection(doc.society ?? [], assetMap, textMap),
+    scandals: resolveSection(doc.scandals ?? [], assetMap, textMap),
     chapter: resolveSection(doc.chapter ?? [], assetMap, textMap),
     debats: {
       music: resolveSection(doc.debats?.music ?? [], assetMap, textMap),
